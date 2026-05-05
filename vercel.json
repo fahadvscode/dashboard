@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/bookings/send-reminders",
+      "schedule": "*/10 * * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/sms/webhook",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    }
+  ]
+}
+
