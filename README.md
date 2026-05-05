@@ -35,14 +35,15 @@ Modern, lightweight dashboard for managing Canada properties and leads.
 
 ## 🔒 Password Protection
 
-The dashboard is protected by a password. **Default password: `admin123`**
+The dashboard login uses a password from your environment. **There is no default password** — logins fail until you set it.
 
-**⚠️ IMPORTANT:** Change the password in production!
+Set this in `.env.local` (local) and in Vercel → Settings → Environment Variables (production):
 
-Set environment variable:
 ```bash
 NEXT_PUBLIC_DASHBOARD_PASSWORD=your_secure_password_here
 ```
+
+Use a long random value. This variable is bundled for the client login screen, so it is a simple gate rather than strong confidentiality against someone who can read your built JavaScript.
 
 **Session:** Users stay logged in for 24 hours after successful login.
 
@@ -61,7 +62,7 @@ The `.env.local` file should contain:
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_KEY=your_service_key
-NEXT_PUBLIC_DASHBOARD_PASSWORD=your_secure_password  # Change this!
+NEXT_PUBLIC_DASHBOARD_PASSWORD=your_secure_password
 ```
 
 ### 3. Run Development Server

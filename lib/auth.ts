@@ -3,16 +3,9 @@
 const SESSION_KEY = 'dashboard_authenticated'
 const SESSION_EXPIRY = 24 * 60 * 60 * 1000 // 24 hours
 
-// Get password from environment or use default (change this!)
-// Note: In client-side, NEXT_PUBLIC_ vars are available at build time
-const DEFAULT_PASSWORD = 'admin123'
-
-const getPassword = () => {
-  // Environment variable is available at build time for NEXT_PUBLIC_ vars
-  const envPassword = process.env.NEXT_PUBLIC_DASHBOARD_PASSWORD
-  // Trim any whitespace that might have been added
-  return envPassword ? envPassword.trim() : DEFAULT_PASSWORD
-}
+// Password must be set via NEXT_PUBLIC_DASHBOARD_PASSWORD (Vercel / .env.local).
+// It is bundled into the client — use a strong value and treat it as a shared gate, not a vault.
+const getPassword = () => process.env.NEXT_PUBLIC_DASHBOARD_PASSWORD?.trim() ?? ''
 
 export function setAuthenticated() {
   const expiry = Date.now() + SESSION_EXPIRY
@@ -44,8 +37,7 @@ export function logout() {
 
 export function checkPassword(password: string): boolean {
   const DASHBOARD_PASSWORD = getPassword()
-  // Trim input and compare (case-sensitive)
-  const trimmedInput = password.trim()
-  return trimmedInput === DASHBOARD_PASSWORD
+  if (!DASHBOARD_PASSWORD) return false
+  return password.trim() === DASHBOARD_PASSWORD
 }
 

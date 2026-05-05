@@ -4,6 +4,16 @@ This document lists all environment variables required for the Property Dashboar
 
 ---
 
+## 🔑 Dashboard login (required)
+
+```bash
+NEXT_PUBLIC_DASHBOARD_PASSWORD=your_long_random_password
+```
+
+**Required.** Without this, no password will unlock the app. Set the same value in Vercel for production.
+
+---
+
 ## 📦 Supabase Configuration
 
 ```bash
