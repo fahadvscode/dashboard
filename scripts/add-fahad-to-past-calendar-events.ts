@@ -4,7 +4,7 @@
  * does not email guests (including customers).
  *
  * Prereqs: same env as the app (Supabase + Qikfill OAuth + calendar_tokens row
- * for calendar_type = 'qikfill').
+ * for calendar_type = 'qikfill'). Loads `.env.local` then `.env` from cwd.
  *
  * From repo root:
  *   DRY_RUN=1 npm run calendar:backfill-fahad   # print only
@@ -15,8 +15,13 @@
  *   BACKFILL_TIME_MAX=2026-12-31T23:59:59Z   (Google uses exclusive end for some filters; we pass ISO)
  */
 
+import { resolve } from 'path'
+import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
 import { google } from 'googleapis'
+
+config({ path: resolve(process.cwd(), '.env.local') })
+config({ path: resolve(process.cwd(), '.env') })
 
 const COHOST_EMAIL = 'fahad@fahadsold.com'
 const COHOST_NAME = 'Fahad'
