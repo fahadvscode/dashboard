@@ -12,6 +12,9 @@ const CALENDAR_IDS = {
   gtalowrise: 'c_c702f7be6ca9312d4fccf118aaff244390379e2b07f3f5ef47b3ee609fa49475@group.calendar.google.com'
 }
 
+/** Always invited on booking events (Google Calendar attendee). */
+const COHOST_EMAIL = 'fahad@fahadsold.com'
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
@@ -163,7 +166,24 @@ export async function POST(request: NextRequest) {
     
     // Enhanced event title with brand name
     const enhancedTitle = `${brandName} - ${eventTitle}`
-    
+
+    const customerEmailNorm = booking.email.trim().toLowerCase()
+    const cohostEmailNorm = COHOST_EMAIL.toLowerCase()
+    const attendees: Array<{
+      email: string
+      displayName?: string
+      responseStatus?: string
+    }> = [
+      {
+        email: booking.email.trim(),
+        displayName: `${booking.firstname} ${booking.lastname || ''}`.trim(),
+        responseStatus: 'accepted', // Mark customer as accepted
+      },
+    ]
+    if (customerEmailNorm !== cohostEmailNorm) {
+      attendees.push({ email: COHOST_EMAIL, displayName: 'Fahad' })
+    }
+
     const event = {
       summary: enhancedTitle,
       description: description,
@@ -175,13 +195,7 @@ export async function POST(request: NextRequest) {
         dateTime: endDateTimeLocal,
         timeZone: timezone,
       },
-      attendees: [
-        { 
-          email: booking.email, 
-          displayName: `${booking.firstname} ${booking.lastname || ''}`,
-          responseStatus: 'accepted' // Mark customer as accepted
-        }
-      ],
+      attendees,
       location: location,
       reminders: {
         useDefault: false,
