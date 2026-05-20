@@ -18,7 +18,9 @@
 import { resolve } from 'path'
 import { config } from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
-import { google } from 'googleapis'
+import { OAuth2Client } from 'google-auth-library'
+// Avoid `import { google } from 'googleapis'` — some installs omit chat/v1.js and crash at load.
+import { calendar as calendarFactory } from 'googleapis/build/src/apis/calendar/index.js'
 
 config({ path: resolve(process.cwd(), '.env.local') })
 config({ path: resolve(process.cwd(), '.env') })
@@ -66,7 +68,7 @@ async function getCalendarApi() {
     throw new Error('calendar_tokens (qikfill) missing — complete /api/calendar/oauth first')
   }
 
-  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret)
+  const oauth2Client = new OAuth2Client(clientId, clientSecret)
   oauth2Client.setCredentials({
     access_token: tokenData.access_token,
     refresh_token: tokenData.refresh_token,
@@ -85,7 +87,7 @@ async function getCalendarApi() {
     oauth2Client.setCredentials(credentials)
   }
 
-  return google.calendar({ version: 'v3', auth: oauth2Client })
+  return calendarFactory({ version: 'v3', auth: oauth2Client })
 }
 
 async function main() {
