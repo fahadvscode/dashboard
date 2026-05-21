@@ -57,6 +57,7 @@ type Props = {
   nearbyProjects?: PresentationProperty[]
   onSelectNearbyProject?: (p: PresentationProperty) => void
   onAmenitiesLoaded?: (data: Record<string, Amenity[]>) => void
+  onHighwaysLoaded?: (data: HighwayInfo[]) => void
   commuteInputRef?: React.RefObject<HTMLInputElement | null>
   onCommuteAddressChange?: (address: string) => void
 }
@@ -75,8 +76,118 @@ const CATEGORIES: AmenityCategory[] = [
   { key: 'gas_station', label: 'Gas Stations', type: 'gas_station', color: '#eab308', marker: 'F', radius: 5000 },
   { key: 'bank', label: 'Banks', type: 'bank', color: '#14b8a6', marker: 'B', radius: 5000 },
   { key: 'gym', label: 'Fitness & Gyms', type: 'gym', color: '#f43f5e', marker: 'W', radius: 5000 },
-  { key: 'highway', label: 'Highway Access', type: '', keywords: ['Highway 401', 'Highway 400', 'Highway 407', 'Highway 403', 'Highway 410', 'Highway 413', 'Highway 427', 'QEW'], color: '#78716c', marker: 'HW', radius: 50000, maxResults: 20 },
 ]
+
+interface HighwayDef {
+  name: string
+  short: string
+  color: string
+  path: { lat: number; lng: number }[]
+}
+
+const GTA_HIGHWAYS: HighwayDef[] = [
+  { name: 'Highway 401', short: '401', color: '#ef4444', path: [
+    // Milton → Mississauga
+    {lat:43.5180,lng:-79.9550},{lat:43.5280,lng:-79.9350},{lat:43.5400,lng:-79.9100},{lat:43.5500,lng:-79.8900},
+    {lat:43.5580,lng:-79.8700},{lat:43.5650,lng:-79.8500},{lat:43.5730,lng:-79.8300},{lat:43.5800,lng:-79.8100},
+    // Mississauga (Erin Mills → Hurontario → Dixie)
+    {lat:43.5880,lng:-79.7900},{lat:43.5960,lng:-79.7700},{lat:43.6050,lng:-79.7500},{lat:43.6150,lng:-79.7300},
+    {lat:43.6250,lng:-79.7100},{lat:43.6350,lng:-79.6900},{lat:43.6450,lng:-79.6700},{lat:43.6520,lng:-79.6500},
+    {lat:43.6580,lng:-79.6300},{lat:43.6640,lng:-79.6100},{lat:43.6700,lng:-79.5900},{lat:43.6760,lng:-79.5700},
+    // Etobicoke → 427 → 400
+    {lat:43.6820,lng:-79.5500},{lat:43.6900,lng:-79.5300},{lat:43.6960,lng:-79.5100},{lat:43.7020,lng:-79.4900},
+    {lat:43.7080,lng:-79.4700},{lat:43.7120,lng:-79.4500},{lat:43.7160,lng:-79.4300},
+    // North York → Scarborough
+    {lat:43.7200,lng:-79.4100},{lat:43.7240,lng:-79.3900},{lat:43.7280,lng:-79.3700},{lat:43.7320,lng:-79.3500},
+    {lat:43.7370,lng:-79.3300},{lat:43.7420,lng:-79.3100},{lat:43.7480,lng:-79.2900},{lat:43.7540,lng:-79.2700},
+    {lat:43.7600,lng:-79.2500},{lat:43.7670,lng:-79.2300},{lat:43.7740,lng:-79.2100},{lat:43.7810,lng:-79.1900},
+    // Pickering → Ajax
+    {lat:43.7880,lng:-79.1700},{lat:43.7950,lng:-79.1500},{lat:43.8020,lng:-79.1300},{lat:43.8100,lng:-79.1000},
+    {lat:43.8180,lng:-79.0700},{lat:43.8250,lng:-79.0400},
+  ]},
+  { name: 'Highway 400', short: '400', color: '#3b82f6', path: [
+    // Starts at 401 interchange, goes north through Vaughan
+    {lat:43.7120,lng:-79.5130},{lat:43.7200,lng:-79.5120},{lat:43.7300,lng:-79.5110},{lat:43.7400,lng:-79.5100},
+    {lat:43.7500,lng:-79.5080},{lat:43.7600,lng:-79.5060},{lat:43.7700,lng:-79.5040},{lat:43.7800,lng:-79.5020},
+    {lat:43.7900,lng:-79.5000},{lat:43.8000,lng:-79.4980},{lat:43.8100,lng:-79.4960},{lat:43.8200,lng:-79.4940},
+    {lat:43.8300,lng:-79.4920},{lat:43.8450,lng:-79.4900},{lat:43.8600,lng:-79.4880},{lat:43.8750,lng:-79.4860},
+    {lat:43.8900,lng:-79.4840},{lat:43.9100,lng:-79.4820},{lat:43.9300,lng:-79.4800},{lat:43.9500,lng:-79.4780},
+    {lat:43.9700,lng:-79.4760},{lat:44.0000,lng:-79.4740},
+  ]},
+  { name: 'Highway 407 ETR', short: '407', color: '#8b5cf6', path: [
+    // Burlington → Oakville
+    {lat:43.3700,lng:-79.8200},{lat:43.3850,lng:-79.8050},{lat:43.4000,lng:-79.7900},{lat:43.4150,lng:-79.7750},
+    {lat:43.4300,lng:-79.7600},{lat:43.4450,lng:-79.7450},{lat:43.4600,lng:-79.7300},
+    // Mississauga west (Winston Churchill → Erin Mills → Mavis)
+    {lat:43.4750,lng:-79.7150},{lat:43.4900,lng:-79.7000},{lat:43.5050,lng:-79.6850},{lat:43.5200,lng:-79.6700},
+    {lat:43.5350,lng:-79.6550},{lat:43.5500,lng:-79.6400},{lat:43.5620,lng:-79.6280},{lat:43.5750,lng:-79.6150},
+    // Mississauga east (Hurontario → 410 → Dixie)
+    {lat:43.5880,lng:-79.6020},{lat:43.6010,lng:-79.5880},{lat:43.6140,lng:-79.5740},{lat:43.6270,lng:-79.5600},
+    {lat:43.6400,lng:-79.5460},{lat:43.6530,lng:-79.5320},{lat:43.6650,lng:-79.5180},
+    // Brampton → Vaughan → Markham
+    {lat:43.6780,lng:-79.5040},{lat:43.6910,lng:-79.4900},{lat:43.7040,lng:-79.4760},{lat:43.7170,lng:-79.4620},
+    {lat:43.7300,lng:-79.4480},{lat:43.7430,lng:-79.4340},{lat:43.7560,lng:-79.4200},{lat:43.7680,lng:-79.4060},
+    {lat:43.7800,lng:-79.3920},{lat:43.7920,lng:-79.3780},{lat:43.8040,lng:-79.3640},{lat:43.8160,lng:-79.3500},
+    // Markham → Pickering
+    {lat:43.8250,lng:-79.3350},{lat:43.8340,lng:-79.3200},{lat:43.8430,lng:-79.3050},{lat:43.8520,lng:-79.2900},
+    {lat:43.8600,lng:-79.2700},{lat:43.8680,lng:-79.2500},{lat:43.8760,lng:-79.2300},{lat:43.8840,lng:-79.2100},
+    {lat:43.8900,lng:-79.1900},{lat:43.8960,lng:-79.1700},{lat:43.9020,lng:-79.1400},
+  ]},
+  { name: 'Highway 403', short: '403', color: '#f97316', path: [
+    // Hamilton → Burlington
+    {lat:43.2400,lng:-79.8900},{lat:43.2500,lng:-79.8800},{lat:43.2600,lng:-79.8700},{lat:43.2700,lng:-79.8600},
+    {lat:43.2800,lng:-79.8500},{lat:43.2900,lng:-79.8400},{lat:43.3000,lng:-79.8300},{lat:43.3100,lng:-79.8200},
+    // Oakville → Mississauga south
+    {lat:43.3200,lng:-79.8100},{lat:43.3400,lng:-79.8000},{lat:43.3600,lng:-79.7900},{lat:43.3800,lng:-79.7800},
+    {lat:43.4000,lng:-79.7700},{lat:43.4200,lng:-79.7600},{lat:43.4400,lng:-79.7500},{lat:43.4600,lng:-79.7400},
+    // Mississauga (Erin Mills → Hurontario area)
+    {lat:43.4800,lng:-79.7300},{lat:43.5000,lng:-79.7200},{lat:43.5150,lng:-79.7100},{lat:43.5300,lng:-79.7000},
+    {lat:43.5400,lng:-79.6900},{lat:43.5500,lng:-79.6800},{lat:43.5600,lng:-79.6700},{lat:43.5700,lng:-79.6600},
+    {lat:43.5800,lng:-79.6500},{lat:43.5900,lng:-79.6400},{lat:43.6000,lng:-79.6300},{lat:43.6100,lng:-79.6200},
+    // Joins 401/QEW area
+    {lat:43.6200,lng:-79.6100},{lat:43.6300,lng:-79.6000},{lat:43.6400,lng:-79.5900},{lat:43.6500,lng:-79.5800},
+    {lat:43.6600,lng:-79.5700},{lat:43.6700,lng:-79.5600},
+  ]},
+  { name: 'Highway 410', short: '410', color: '#06b6d4', path: [
+    // Starts at 403/QEW, goes north through Brampton
+    {lat:43.6000,lng:-79.6350},{lat:43.6100,lng:-79.6380},{lat:43.6200,lng:-79.6410},{lat:43.6300,lng:-79.6440},
+    {lat:43.6400,lng:-79.6470},{lat:43.6500,lng:-79.6500},{lat:43.6600,lng:-79.6530},{lat:43.6700,lng:-79.6560},
+    {lat:43.6800,lng:-79.6590},{lat:43.6900,lng:-79.6620},{lat:43.7000,lng:-79.6650},{lat:43.7100,lng:-79.6680},
+    {lat:43.7200,lng:-79.6710},{lat:43.7300,lng:-79.6740},{lat:43.7400,lng:-79.6770},{lat:43.7500,lng:-79.6800},
+    {lat:43.7600,lng:-79.6830},{lat:43.7700,lng:-79.6860},{lat:43.7800,lng:-79.6880},{lat:43.7900,lng:-79.6900},
+    {lat:43.8000,lng:-79.6920},{lat:43.8100,lng:-79.6940},
+  ]},
+  { name: 'Highway 427', short: '427', color: '#ec4899', path: [
+    // Starts south near QEW/Gardiner, goes north to 407
+    {lat:43.5950,lng:-79.5420},{lat:43.6050,lng:-79.5430},{lat:43.6150,lng:-79.5440},{lat:43.6250,lng:-79.5450},
+    {lat:43.6350,lng:-79.5460},{lat:43.6450,lng:-79.5470},{lat:43.6550,lng:-79.5480},{lat:43.6650,lng:-79.5490},
+    {lat:43.6750,lng:-79.5500},{lat:43.6850,lng:-79.5510},{lat:43.6950,lng:-79.5520},{lat:43.7050,lng:-79.5530},
+    {lat:43.7150,lng:-79.5540},{lat:43.7250,lng:-79.5550},{lat:43.7350,lng:-79.5560},{lat:43.7450,lng:-79.5570},
+    {lat:43.7550,lng:-79.5580},{lat:43.7650,lng:-79.5590},{lat:43.7750,lng:-79.5600},
+  ]},
+  { name: 'QEW', short: 'QEW', color: '#14b8a6', path: [
+    // Niagara → Hamilton
+    {lat:43.2200,lng:-79.8700},{lat:43.2350,lng:-79.8600},{lat:43.2500,lng:-79.8500},{lat:43.2650,lng:-79.8400},
+    // Burlington → Oakville
+    {lat:43.2800,lng:-79.8300},{lat:43.3000,lng:-79.8150},{lat:43.3200,lng:-79.8000},{lat:43.3400,lng:-79.7850},
+    {lat:43.3600,lng:-79.7700},{lat:43.3750,lng:-79.7550},{lat:43.3900,lng:-79.7400},{lat:43.4050,lng:-79.7250},
+    // Oakville → Mississauga south
+    {lat:43.4200,lng:-79.7100},{lat:43.4350,lng:-79.6950},{lat:43.4500,lng:-79.6800},{lat:43.4650,lng:-79.6650},
+    {lat:43.4800,lng:-79.6500},{lat:43.4950,lng:-79.6350},{lat:43.5100,lng:-79.6200},{lat:43.5200,lng:-79.6050},
+    // South Mississauga → Etobicoke
+    {lat:43.5300,lng:-79.5900},{lat:43.5400,lng:-79.5750},{lat:43.5500,lng:-79.5600},{lat:43.5600,lng:-79.5450},
+    {lat:43.5700,lng:-79.5300},{lat:43.5800,lng:-79.5150},{lat:43.5900,lng:-79.5000},{lat:43.6000,lng:-79.4850},
+    {lat:43.6100,lng:-79.4700},{lat:43.6200,lng:-79.4550},{lat:43.6300,lng:-79.4400},
+  ]},
+]
+
+export interface HighwayInfo {
+  name: string
+  short: string
+  color: string
+  driveTime?: string
+  driveDist?: string
+}
 
 const PRESENTATION_MAP_STYLE: google.maps.MapTypeStyle[] = [
   { elementType: 'geometry', stylers: [{ color: '#f8fafc' }] },
@@ -152,6 +263,25 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+function closestPointOnPath(
+  path: { lat: number; lng: number }[],
+  point: { lat: number; lng: number }
+): { lat: number; lng: number } {
+  let best = path[0]
+  let bestDist = Infinity
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i], b = path[i + 1]
+    const dx = b.lat - a.lat, dy = b.lng - a.lng
+    const lenSq = dx * dx + dy * dy
+    let t = lenSq > 0 ? ((point.lat - a.lat) * dx + (point.lng - a.lng) * dy) / lenSq : 0
+    t = Math.max(0, Math.min(1, t))
+    const proj = { lat: a.lat + t * dx, lng: a.lng + t * dy }
+    const d = haversineDistance(point.lat, point.lng, proj.lat, proj.lng)
+    if (d < bestDist) { bestDist = d; best = proj }
+  }
+  return best
+}
+
 function formatDistance(meters: number): string {
   if (meters < 1000) return `${Math.round(meters)} m`
   return `${(meters / 1000).toFixed(1)} km`
@@ -198,13 +328,15 @@ function distanceMatrixPromise(
 
 /* ───────────────────────── Component ───────────────────────── */
 
-export default function PresentationMapView({ property, apiKey, commuteDestination, nearbyProjects, onSelectNearbyProject, onAmenitiesLoaded, commuteInputRef, onCommuteAddressChange }: Props) {
+export default function PresentationMapView({ property, apiKey, commuteDestination, nearbyProjects, onSelectNearbyProject, onAmenitiesLoaded, onHighwaysLoaded, commuteInputRef, onCommuteAddressChange }: Props) {
   const mapDivRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const projectMarkerRef = useRef<google.maps.Marker | null>(null)
   const amenityMarkersRef = useRef<Record<string, google.maps.Marker[]>>({})
   const nearbyMarkersRef = useRef<google.maps.Marker[]>([])
   const commuteRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+  const highwayPolylinesRef = useRef<google.maps.Polyline[]>([])
+  const highwayLabelsRef = useRef<google.maps.Marker[]>([])
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
@@ -219,6 +351,8 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   const [error, setError] = useState<string | null>(null)
   const [commuteResult, setCommuteResult] = useState<{ drive?: string; walk?: string; transit?: string } | null>(null)
   const [commuteLoading, setCommuteLoading] = useState(false)
+  const [highways, setHighways] = useState<HighwayInfo[]>([])
+  const [showHighways, setShowHighways] = useState(true)
 
   // Load Google Maps script
   useEffect(() => {
@@ -380,6 +514,10 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
               r.geometry!.location!.lat(),
               r.geometry!.location!.lng()
             ),
+            driveTime: undefined as string | undefined,
+            driveDist: undefined as string | undefined,
+            walkTime: undefined as string | undefined,
+            walkDist: undefined as string | undefined,
           }))
           .sort((a, b) => a.straightDist - b.straightDist)
           .slice(0, maxItems)
@@ -575,6 +713,100 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
       onAmenitiesLoaded(amenities)
     }
   }, [loadedAll, amenities, onAmenitiesLoaded])
+
+  // Draw highway polylines on the map using predefined path coordinates
+  useEffect(() => {
+    highwayPolylinesRef.current.forEach((p) => p.setMap(null))
+    highwayPolylinesRef.current = []
+    highwayLabelsRef.current.forEach((m) => m.setMap(null))
+    highwayLabelsRef.current = []
+
+    if (!mapRef.current || !projectLocation || !scriptReady || !window.google?.maps) return
+
+    const map = mapRef.current
+    const distanceService = new google.maps.DistanceMatrixService()
+    const origin = new google.maps.LatLng(projectLocation.lat, projectLocation.lng)
+
+    for (const hw of GTA_HIGHWAYS) {
+      const polyline = new google.maps.Polyline({
+        path: hw.path,
+        map,
+        strokeColor: hw.color,
+        strokeOpacity: 0.85,
+        strokeWeight: 6,
+        zIndex: 50,
+        geodesic: true,
+      })
+      highwayPolylinesRef.current.push(polyline)
+
+      const closestPt = closestPointOnPath(hw.path, projectLocation)
+
+      const w = hw.short.length > 3 ? 56 : 44
+      const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="26" viewBox="0 0 ${w} 26">
+        <rect rx="5" width="100%" height="100%" fill="${hw.color}" stroke="white" stroke-width="2"/>
+        <text x="50%" y="18" text-anchor="middle" fill="white" font-size="13" font-weight="800" font-family="system-ui,sans-serif">${hw.short}</text>
+      </svg>`
+      const labelMarker = new google.maps.Marker({
+        position: closestPt,
+        map,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(labelSvg)}`,
+          scaledSize: new google.maps.Size(w, 26),
+          anchor: new google.maps.Point(w / 2, 13),
+        },
+        title: hw.name,
+        zIndex: 300,
+      })
+      highwayLabelsRef.current.push(labelMarker)
+    }
+
+    async function fetchDriveTimes() {
+      if (!projectLocation) return
+      const foundHighways: HighwayInfo[] = []
+      for (const hw of GTA_HIGHWAYS) {
+        const closestPt = closestPointOnPath(hw.path, projectLocation)
+        try {
+          const distResp = await distanceMatrixPromise(distanceService, {
+            origins: [origin],
+            destinations: [new google.maps.LatLng(closestPt.lat, closestPt.lng)],
+            travelMode: google.maps.TravelMode.DRIVING,
+            unitSystem: google.maps.UnitSystem.METRIC,
+          })
+          const el = distResp?.rows?.[0]?.elements?.[0]
+          foundHighways.push({
+            name: hw.name, short: hw.short, color: hw.color,
+            driveTime: el?.status === 'OK' ? el.duration?.text : undefined,
+            driveDist: el?.status === 'OK' ? el.distance?.text : undefined,
+          })
+        } catch {
+          foundHighways.push({ name: hw.name, short: hw.short, color: hw.color })
+        }
+        await new Promise((r) => setTimeout(r, 200))
+      }
+      foundHighways.sort((a, b) => {
+        const da = parseFloat(a.driveDist?.replace(/[^\d.]/g, '') || '9999')
+        const db = parseFloat(b.driveDist?.replace(/[^\d.]/g, '') || '9999')
+        return da - db
+      })
+      setHighways(foundHighways)
+      if (onHighwaysLoaded) onHighwaysLoaded(foundHighways)
+    }
+
+    fetchDriveTimes()
+
+    return () => {
+      highwayPolylinesRef.current.forEach((p) => p.setMap(null))
+      highwayPolylinesRef.current = []
+      highwayLabelsRef.current.forEach((m) => m.setMap(null))
+      highwayLabelsRef.current = []
+    }
+  }, [scriptReady, projectLocation, onHighwaysLoaded])
+
+  // Toggle highway polyline visibility
+  useEffect(() => {
+    highwayPolylinesRef.current.forEach(p => p.setVisible(showHighways))
+    highwayLabelsRef.current.forEach(m => m.setVisible(showHighways))
+  }, [showHighways])
 
   // Commute route
   useEffect(() => {
@@ -779,6 +1011,28 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
                 </button>
               ))}
             </div>
+            {highways.length > 0 && (
+              <>
+                <p className="text-xs font-semibold text-gray-700 mt-2 mb-1">Highways</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {highways.map((hw) => (
+                    <button
+                      key={hw.short}
+                      onClick={() => setShowHighways(!showHighways)}
+                      className={`flex items-center gap-1.5 text-xs rounded-md px-1.5 py-1 transition-colors ${
+                        showHighways ? 'bg-gray-100 font-semibold' : 'opacity-40 hover:opacity-70'
+                      }`}
+                    >
+                      <span
+                        className="w-3.5 h-2 rounded-sm flex-shrink-0"
+                        style={{ backgroundColor: hw.color }}
+                      />
+                      <span className="text-gray-700 truncate">{hw.short}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -873,6 +1127,18 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
               </button>
             )
           })}
+          <button
+            onClick={() => setShowHighways(!showHighways)}
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+              showHighways
+                ? 'text-white shadow-sm bg-gray-700'
+                : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'
+            }`}
+          >
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-gray-500" />
+            Highways
+            {highways.length > 0 && <span className="opacity-70">{highways.length}</span>}
+          </button>
         </div>
 
         {/* Amenity List */}
@@ -1006,6 +1272,44 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
                   </div>
                 )
               })}
+
+              {/* Highway Access Section */}
+              {showHighways && highways.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-3 px-5 py-3 bg-gray-50/80">
+                    <span className="w-4 h-4 rounded-full flex-shrink-0 bg-gray-600" />
+                    <span className="font-semibold text-sm text-gray-800 flex-1 text-left">Highway Access</span>
+                    <span className="text-xs text-gray-500 mr-1">{highways.length}</span>
+                  </div>
+                  {highways.map((hw) => (
+                    <div
+                      key={hw.short}
+                      className="w-full text-left px-5 py-3 border-l-[3px] border-l-transparent hover:bg-blue-50/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="w-8 h-5 rounded text-[10px] font-bold text-white flex items-center justify-center"
+                          style={{ backgroundColor: hw.color }}
+                        >
+                          {hw.short}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-gray-900">{hw.name}</p>
+                        </div>
+                        {hw.driveTime && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-xs font-medium">
+                            <Car className="h-3 w-3" />
+                            {hw.driveTime}
+                            {hw.driveDist && (
+                              <span className="text-blue-400 font-normal">· {hw.driveDist}</span>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {loadedAll && noneSelected && (
                 <div className="px-5 py-12 text-center">

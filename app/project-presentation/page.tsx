@@ -27,7 +27,7 @@ import {
   Route,
   Building,
 } from 'lucide-react'
-import PresentationMapView, { type PresentationProperty } from '@/components/PresentationMapView'
+import PresentationMapView, { type PresentationProperty, type HighwayInfo } from '@/components/PresentationMapView'
 
 type Company = 'fj' | 'precon_factory'
 
@@ -87,6 +87,7 @@ export default function ProjectPresentationPage() {
   const printRef = useRef<HTMLDivElement>(null)
   const commuteInputRef = useRef<HTMLInputElement>(null)
   const amenitiesDataRef = useRef<Record<string, Array<{ name: string; address: string; lat: number; lng: number; driveTime?: string; driveDist?: string; walkTime?: string; walkDist?: string; category: string }>>>({})
+  const highwaysDataRef = useRef<HighwayInfo[]>([])
 
   useEffect(() => {
     fetchCities()
@@ -513,6 +514,7 @@ export default function ProjectPresentationPage() {
           nearbyProjects={showNearby ? nearbyProjects : undefined}
           onSelectNearbyProject={handleSelectProject}
           onAmenitiesLoaded={(data) => { amenitiesDataRef.current = data }}
+          onHighwaysLoaded={(data) => { highwaysDataRef.current = data }}
           commuteInputRef={commuteInputRef}
           onCommuteAddressChange={(addr) => setCommuteAddress(addr)}
         />
@@ -622,6 +624,7 @@ export default function ProjectPresentationPage() {
             property={selectedProject}
             brand={printBrand}
             amenitiesData={amenitiesDataRef.current}
+            highwaysData={highwaysDataRef.current}
             apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
           />
         </div>
@@ -841,7 +844,6 @@ const AMENITY_CATEGORIES: Record<string, { label: string; color: string }> = {
   gas_station: { label: 'Gas Stations', color: '#eab308' },
   bank: { label: 'Banks', color: '#14b8a6' },
   gym: { label: 'Fitness', color: '#f43f5e' },
-  highway: { label: 'Highways', color: '#78716c' },
 }
 
 function buildStaticMapUrl(
@@ -853,11 +855,11 @@ function buildStaticMapUrl(
   const colorMap: Record<string, string> = {
     school: '0x3b82f6', supermarket: '0x22c55e', restaurant: '0xf97316', shopping_mall: '0xa855f7',
     park: '0x16a34a', hospital: '0xef4444', pharmacy: '0x06b6d4', transit_station: '0x6366f1',
-    gas_station: '0xeab308', bank: '0x14b8a6', gym: '0xf43f5e', highway: '0x78716c',
+    gas_station: '0xeab308', bank: '0x14b8a6', gym: '0xf43f5e',
   }
   const labelMap: Record<string, string> = {
     school: 'S', supermarket: 'G', restaurant: 'R', shopping_mall: 'M', park: 'P',
-    hospital: 'H', pharmacy: 'P', transit_station: 'T', gas_station: 'F', bank: 'B', gym: 'W', highway: 'H',
+    hospital: 'H', pharmacy: 'P', transit_station: 'T', gas_station: 'F', bank: 'B', gym: 'W',
   }
 
   let url = `https://maps.googleapis.com/maps/api/staticmap?center=${projectLat},${projectLng}&zoom=13&size=640x400&scale=2&maptype=roadmap&key=${apiKey}`
@@ -878,11 +880,13 @@ function PrintablePresentation({
   property,
   brand,
   amenitiesData,
+  highwaysData,
   apiKey,
 }: {
   property: Property
   brand: Company
   amenitiesData: Record<string, Array<{ name: string; address: string; lat: number; lng: number; driveTime?: string; driveDist?: string; walkTime?: string; walkDist?: string; category: string }>>
+  highwaysData?: HighwayInfo[]
   apiKey?: string
 }) {
   const cfg = BRAND_CONFIG[brand]
@@ -892,21 +896,32 @@ function PrintablePresentation({
 
   const projectLat = property.map_lat ? Number(property.map_lat) : null
   const projectLng = property.map_lng ? Number(property.map_lng) : null
-  const hasMapCoords = projectLat != null && projectLng != null && apiKey
+  const hasMapCoords = projectLat != null && projectLng != null
 
-  const staticMapUrl = hasMapCoords ? buildStaticMapUrl(apiKey!, projectLat!, projectLng!, amenitiesData) : null
+  const fallbackAddress = property.map_address || property.address || `${property.project_name}, ${property.city}`
+
+  let staticMapUrl: string | null = null
+  if (apiKey) {
+    if (hasMapCoords) {
+      staticMapUrl = buildStaticMapUrl(apiKey, projectLat!, projectLng!, amenitiesData)
+    } else if (fallbackAddress) {
+      const encoded = encodeURIComponent(fallbackAddress)
+      staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encoded}&zoom=14&size=640x400&scale=2&maptype=roadmap&key=${apiKey}&markers=color:0x1e40af%7Clabel:P%7C${encoded}`
+    }
+  }
 
   const activeCats = Object.entries(AMENITY_CATEGORIES).filter(([key]) => (amenitiesData[key]?.length ?? 0) > 0)
 
   return (
-    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', width: '100%', margin: '0', padding: '0' }}>
+    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', width: '100%', margin: '0', padding: '0', background: '#ffffff' }}>
 
-      {/* ═══ BRANDED HEADER — BIG CENTERED LOGO ═══ */}
-      <div style={{ backgroundColor: cfg.primary, padding: '28px 0 20px', textAlign: 'center' as const }}>
+      {/* ═══ BRANDED HEADER — FULL WIDTH LOGO ON WHITE ═══ */}
+      <div style={{ background: '#ffffff', padding: '28px 24px', textAlign: 'center' as const, borderBottom: `4px solid ${cfg.primary}` }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={cfg.logo}
           alt={cfg.label}
-          style={{ height: '80px', maxWidth: '280px', objectFit: 'contain', margin: '0 auto', display: 'block' }}
+          style={{ maxHeight: '80px', width: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', display: 'block' }}
         />
       </div>
 
@@ -972,14 +987,15 @@ function PrintablePresentation({
 
       {/* ═══ AMENITIES MAP — FULL WIDTH ═══ */}
       {staticMapUrl && (
-        <div style={{ borderBottom: '1px solid #e2e8f0' }}>
+        <div style={{ borderBottom: '1px solid #e2e8f0', background: '#ffffff', pageBreakInside: 'avoid' as const }}>
           <div style={{ padding: '18px 28px 10px' }}>
             <div style={{ fontSize: '13px', fontWeight: 700, color: cfg.primary, textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Amenities Map</div>
           </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={staticMapUrl}
             alt="Amenities Map"
-            style={{ width: '100%', height: 'auto', display: 'block' }}
+            style={{ width: '100%', minHeight: '300px', display: 'block', background: '#e2e8f0' }}
           />
           {/* Legend */}
           <div style={{ padding: '12px 28px 16px', display: 'flex', flexWrap: 'wrap' as const, gap: '8px 18px', borderTop: '1px solid #f1f5f9' }}>
@@ -1031,22 +1047,40 @@ function PrintablePresentation({
         })}
       </div>
 
+      {/* ═══ HIGHWAY ACCESS ═══ */}
+      {highwaysData && highwaysData.length > 0 && (
+        <div style={{ padding: '0 28px 16px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: cfg.primary, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '10px' }}>Highway Access</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px' }}>
+            {highwaysData.map((hw) => (
+              <div key={hw.short} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', borderLeft: `4px solid ${hw.color}` }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>{hw.name}</span>
+                {hw.driveTime && (
+                  <span style={{ fontSize: '11px', color: '#3b82f6' }}>🚗 {hw.driveTime}{hw.driveDist ? ` (${hw.driveDist})` : ''}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ═══ BRANDED FOOTER ═══ */}
-      <div style={{ backgroundColor: cfg.primary, padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
+      <div style={{ background: '#ffffff', borderTop: `4px solid ${cfg.primary}`, padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', pageBreakInside: 'avoid' as const }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={cfg.logo}
           alt={cfg.label}
-          style={{ height: '44px', maxWidth: '160px', objectFit: 'contain' }}
+          style={{ maxHeight: '50px', width: 'auto', objectFit: 'contain' }}
         />
         <div style={{ textAlign: 'center' as const, flex: 1 }}>
           {landingPage && (
-            <div style={{ fontSize: '10px', color: cfg.textOnBg, opacity: 0.85 }}>{landingPage}</div>
+            <div style={{ fontSize: '10px', color: '#334155', opacity: 0.85 }}>{landingPage}</div>
           )}
-          <div style={{ fontSize: '10px', color: cfg.textOnBg, opacity: 0.6, marginTop: '2px' }}>
+          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
             {new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })}
           </div>
         </div>
-        <div style={{ fontSize: '11px', fontWeight: 600, color: cfg.textOnBg, opacity: 0.9 }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: cfg.primary }}>
           {cfg.label}
         </div>
       </div>
