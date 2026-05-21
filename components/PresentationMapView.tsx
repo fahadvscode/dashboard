@@ -75,7 +75,7 @@ const CATEGORIES: AmenityCategory[] = [
   { key: 'gas_station', label: 'Gas Stations', type: 'gas_station', color: '#eab308', marker: 'F', radius: 5000 },
   { key: 'bank', label: 'Banks', type: 'bank', color: '#14b8a6', marker: 'B', radius: 5000 },
   { key: 'gym', label: 'Fitness & Gyms', type: 'gym', color: '#f43f5e', marker: 'W', radius: 5000 },
-  { key: 'highway', label: 'Highway Access', type: '', keywords: ['Highway 401', 'Highway 400', 'Highway 407', 'Highway 403', 'Highway 410', 'Highway 413', 'Highway 427', 'QEW'], color: '#78716c', marker: 'HW', radius: 15000, maxResults: 12 },
+  { key: 'highway', label: 'Highway Access', type: '', keywords: ['Highway 401', 'Highway 400', 'Highway 407', 'Highway 403', 'Highway 410', 'Highway 413', 'Highway 427', 'QEW'], color: '#78716c', marker: 'HW', radius: 50000, maxResults: 20 },
 ]
 
 const PRESENTATION_MAP_STYLE: google.maps.MapTypeStyle[] = [

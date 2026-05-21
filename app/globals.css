@@ -251,6 +251,18 @@ body {
 /* Elements that should be hidden when printing - no display override needed */
 
 @media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
   body * {
     visibility: hidden;
   }
@@ -262,9 +274,6 @@ body {
 
   .print-only {
     display: block !important;
-  }
-
-  .print-only {
     position: absolute;
     top: 0;
     left: 0;
@@ -283,7 +292,7 @@ body {
   }
 
   @page {
-    margin: 0.5in;
+    margin: 0.4in;
     size: letter portrait;
   }
 }
