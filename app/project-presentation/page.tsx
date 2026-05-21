@@ -86,7 +86,7 @@ export default function ProjectPresentationPage() {
 
   const printRef = useRef<HTMLDivElement>(null)
   const commuteInputRef = useRef<HTMLInputElement>(null)
-  const amenitiesDataRef = useRef<Record<string, Array<{ name: string; address: string; driveTime?: string; driveDist?: string; walkTime?: string; walkDist?: string; category: string }>>>({})
+  const amenitiesDataRef = useRef<Record<string, Array<{ name: string; address: string; lat: number; lng: number; driveTime?: string; driveDist?: string; walkTime?: string; walkDist?: string; category: string }>>>({})
 
   useEffect(() => {
     fetchCities()
@@ -514,6 +514,7 @@ export default function ProjectPresentationPage() {
           onSelectNearbyProject={handleSelectProject}
           onAmenitiesLoaded={(data) => { amenitiesDataRef.current = data }}
           commuteInputRef={commuteInputRef}
+          onCommuteAddressChange={(addr) => setCommuteAddress(addr)}
         />
 
         {/* Print Modal */}
@@ -621,6 +622,7 @@ export default function ProjectPresentationPage() {
             property={selectedProject}
             brand={printBrand}
             amenitiesData={amenitiesDataRef.current}
+            apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
           />
         </div>
       </div>
@@ -842,108 +844,184 @@ const AMENITY_CATEGORIES: Record<string, { label: string; color: string }> = {
   highway: { label: 'Highways', color: '#78716c' },
 }
 
+function buildStaticMapUrl(
+  apiKey: string,
+  projectLat: number,
+  projectLng: number,
+  amenitiesData: Record<string, Array<{ lat: number; lng: number; category: string }>>,
+): string {
+  const colorMap: Record<string, string> = {
+    school: '0x3b82f6', supermarket: '0x22c55e', restaurant: '0xf97316', shopping_mall: '0xa855f7',
+    park: '0x16a34a', hospital: '0xef4444', pharmacy: '0x06b6d4', transit_station: '0x6366f1',
+    gas_station: '0xeab308', bank: '0x14b8a6', gym: '0xf43f5e', highway: '0x78716c',
+  }
+  const labelMap: Record<string, string> = {
+    school: 'S', supermarket: 'G', restaurant: 'R', shopping_mall: 'M', park: 'P',
+    hospital: 'H', pharmacy: 'P', transit_station: 'T', gas_station: 'F', bank: 'B', gym: 'W', highway: 'H',
+  }
+
+  let url = `https://maps.googleapis.com/maps/api/staticmap?center=${projectLat},${projectLng}&zoom=13&size=800x400&scale=2&maptype=roadmap&key=${apiKey}`
+  url += `&markers=color:0x1e40af%7Clabel:★%7C${projectLat},${projectLng}`
+
+  for (const [catKey, items] of Object.entries(amenitiesData)) {
+    if (!items?.length) continue
+    const color = colorMap[catKey] || '0x999999'
+    const label = labelMap[catKey] || '?'
+    const coords = items.slice(0, 4).map(a => `${a.lat},${a.lng}`).join('%7C')
+    url += `&markers=color:${color}%7Clabel:${label}%7Csize:small%7C${coords}`
+  }
+
+  return url
+}
+
 function PrintablePresentation({
   property,
   brand,
   amenitiesData,
+  apiKey,
 }: {
   property: Property
   brand: Company
-  amenitiesData: Record<string, Array<{ name: string; address: string; driveTime?: string; driveDist?: string; walkTime?: string; walkDist?: string; category: string }>>
+  amenitiesData: Record<string, Array<{ name: string; address: string; lat: number; lng: number; driveTime?: string; driveDist?: string; walkTime?: string; walkDist?: string; category: string }>>
+  apiKey?: string
 }) {
   const cfg = BRAND_CONFIG[brand]
   const landingPage = brand === 'fj' ? property.fj_landing_page : property.precon_factory_landing_page
   const firstImage = property.pictures?.split(',')[0]?.trim()
   const hasImage = firstImage && /^https?:\/\//i.test(firstImage)
 
+  const projectLat = property.map_lat ? Number(property.map_lat) : null
+  const projectLng = property.map_lng ? Number(property.map_lng) : null
+  const hasMapCoords = projectLat != null && projectLng != null && apiKey
+
+  const staticMapUrl = hasMapCoords ? buildStaticMapUrl(apiKey!, projectLat!, projectLng!, amenitiesData) : null
+
+  const activeCats = Object.entries(AMENITY_CATEGORIES).filter(([key]) => (amenitiesData[key]?.length ?? 0) > 0)
+
   return (
     <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', padding: '0', maxWidth: '850px', margin: '0 auto' }}>
-      {/* Branded Header */}
-      <div style={{ backgroundColor: cfg.primary, borderRadius: '12px 12px 0 0', padding: '28px 32px', display: 'flex', alignItems: 'center', gap: '20px' }}>
-        <img
-          src={cfg.logo}
-          alt={cfg.label}
-          style={{ width: '56px', height: '56px', borderRadius: '10px', objectFit: 'contain', backgroundColor: 'rgba(255,255,255,0.1)', padding: '4px' }}
-        />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '22px', fontWeight: 800, color: cfg.textOnBg, lineHeight: 1.2 }}>
-            {property.project_name}
-          </div>
-          <div style={{ fontSize: '13px', color: cfg.textOnBg, opacity: 0.85, marginTop: '4px' }}>
-            {property.builder} · {property.address || ''}{property.address ? ', ' : ''}{property.city}
+      {/* ── PAGE 1: BRANDED HEADER ── */}
+      <div style={{ backgroundColor: cfg.primary, borderRadius: '12px 12px 0 0', padding: '24px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+          <img
+            src={cfg.logo}
+            alt={cfg.label}
+            style={{ height: '64px', maxWidth: '180px', objectFit: 'contain', borderRadius: '8px' }}
+          />
+          <div style={{ height: '48px', width: '1px', backgroundColor: `${cfg.textOnBg}30` }} />
+          <div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: cfg.textOnBg, lineHeight: 1.2 }}>
+              {property.project_name}
+            </div>
+            <div style={{ fontSize: '12px', color: cfg.textOnBg, opacity: 0.8, marginTop: '4px' }}>
+              {property.builder} &middot; {property.address || ''}{property.address ? ', ' : ''}{property.city}
+            </div>
           </div>
         </div>
+        {property.price && property.price !== 'N/A' && (
+          <div style={{ textAlign: 'right' as const, marginLeft: '16px' }}>
+            <div style={{ fontSize: '9px', fontWeight: 600, color: cfg.textOnBg, opacity: 0.7, textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Starting from</div>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: cfg.textOnBg }}>{property.price}</div>
+          </div>
+        )}
       </div>
 
       {/* Project Image */}
       {hasImage && (
-        <div style={{ borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}` }}>
-          <img
-            src={firstImage}
-            alt={property.project_name}
-            style={{ width: '100%', height: '220px', objectFit: 'cover', display: 'block' }}
-          />
-        </div>
+        <img
+          src={firstImage}
+          alt={property.project_name}
+          style={{ width: '100%', height: '200px', objectFit: 'cover', display: 'block', borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}` }}
+        />
       )}
 
       {/* Key Stats Row */}
-      <div style={{ display: 'flex', gap: '0', borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}`, borderBottom: `1px solid #e2e8f0` }}>
+      <div style={{ display: 'flex', borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}`, borderBottom: `1px solid #e2e8f0` }}>
         {property.bedrooms && property.bedrooms !== 'N/A' && (
-          <div style={{ flex: 1, padding: '14px 16px', textAlign: 'center' as const, borderRight: '1px solid #e2e8f0' }}>
+          <div style={{ flex: 1, padding: '12px 16px', textAlign: 'center' as const, borderRight: '1px solid #e2e8f0' }}>
             <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>{property.bedrooms}</div>
-            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Bedrooms</div>
+            <div style={{ fontSize: '9px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Bedrooms</div>
           </div>
         )}
         {property.bathrooms && property.bathrooms !== 'N/A' && (
-          <div style={{ flex: 1, padding: '14px 16px', textAlign: 'center' as const, borderRight: '1px solid #e2e8f0' }}>
+          <div style={{ flex: 1, padding: '12px 16px', textAlign: 'center' as const, borderRight: '1px solid #e2e8f0' }}>
             <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>{property.bathrooms}</div>
-            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Bathrooms</div>
+            <div style={{ fontSize: '9px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Bathrooms</div>
           </div>
         )}
         {property.sqft && property.sqft !== 'N/A' && (
-          <div style={{ flex: 1, padding: '14px 16px', textAlign: 'center' as const, borderRight: '1px solid #e2e8f0' }}>
+          <div style={{ flex: 1, padding: '12px 16px', textAlign: 'center' as const, borderRight: '1px solid #e2e8f0' }}>
             <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>{property.sqft}</div>
-            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Sq Ft</div>
+            <div style={{ fontSize: '9px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Sq Ft</div>
           </div>
         )}
         {property.price && property.price !== 'N/A' && (
-          <div style={{ flex: 1, padding: '14px 16px', textAlign: 'center' as const }}>
+          <div style={{ flex: 1, padding: '12px 16px', textAlign: 'center' as const }}>
             <div style={{ fontSize: '18px', fontWeight: 700, color: cfg.primary }}>{property.price}</div>
-            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Starting From</div>
+            <div style={{ fontSize: '9px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Starting From</div>
           </div>
         )}
       </div>
 
-      {/* Features Section */}
+      {/* Features */}
       {property.features && property.features !== 'N/A' && (
-        <div style={{ padding: '16px 24px', borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}`, borderBottom: '1px solid #e2e8f0' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Features & Highlights</div>
-          <div style={{ fontSize: '12px', color: '#334155', lineHeight: 1.6 }}>{property.features}</div>
+        <div style={{ padding: '14px 24px', borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}`, borderBottom: '1px solid #e2e8f0' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '4px' }}>Features & Highlights</div>
+          <div style={{ fontSize: '11px', color: '#334155', lineHeight: 1.6 }}>{property.features}</div>
         </div>
       )}
 
-      {/* Amenities Grid */}
-      <div style={{ padding: '20px 24px', borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}` }}>
-        <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '16px' }}>Nearby Amenities</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+      {/* ── AMENITIES MAP SCREENSHOT + LEGEND ── */}
+      {staticMapUrl && (
+        <div style={{ borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}`, borderBottom: '1px solid #e2e8f0' }}>
+          <div style={{ padding: '14px 24px 8px' }}>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Amenities Map</div>
+          </div>
+          <img
+            src={staticMapUrl}
+            alt="Amenities Map"
+            style={{ width: '100%', height: 'auto', display: 'block', padding: '0 24px' }}
+          />
+          {/* Legend */}
+          <div style={{ padding: '10px 24px 14px', display: 'flex', flexWrap: 'wrap' as const, gap: '6px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#1e40af', border: '1.5px solid white', boxShadow: '0 0 0 1px #1e40af' }} />
+              <span style={{ fontSize: '9px', fontWeight: 600, color: '#1e293b' }}>Project</span>
+            </div>
+            {activeCats.map(([key, cat]) => (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: cat.color }} />
+                <span style={{ fontSize: '9px', fontWeight: 500, color: '#475569' }}>{cat.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── AMENITIES DETAIL GRID ── */}
+      <div style={{ padding: '16px 24px', borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}` }}>
+        <div style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '12px' }}>Nearby Amenities</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           {Object.entries(amenitiesData).map(([catKey, items]) => {
             if (!items || items.length === 0) return null
             const catCfg = AMENITY_CATEGORIES[catKey]
             if (!catCfg) return null
 
             return (
-              <div key={catKey} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', breakInside: 'avoid' as const }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <div key={catKey} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', breakInside: 'avoid' as const }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', paddingBottom: '5px', borderBottom: `2px solid ${catCfg.color}20` }}>
                   <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: catCfg.color }} />
-                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>{catCfg.label}</div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#1e293b' }}>{catCfg.label}</div>
+                  <span style={{ fontSize: '9px', color: '#94a3b8', marginLeft: 'auto' }}>{items.length} found</span>
                 </div>
                 {items.map((item, i) => (
-                  <div key={i} style={{ padding: '4px 0', borderTop: i > 0 ? '1px solid #f1f5f9' : 'none' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 600, color: '#334155' }}>{item.name}</div>
-                    <div style={{ fontSize: '10px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '1px' }}>
+                  <div key={i} style={{ padding: '3px 0', borderTop: i > 0 ? '1px solid #f1f5f9' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 600, color: '#334155', maxWidth: '55%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{item.name}</span>
+                    <span style={{ fontSize: '9px', color: '#64748b', textAlign: 'right' as const }}>
                       {item.driveTime && <span style={{ color: '#3b82f6' }}>🚗 {item.driveTime}</span>}
+                      {item.driveTime && item.walkTime && <span> · </span>}
                       {item.walkTime && <span style={{ color: '#16a34a' }}>🚶 {item.walkTime}</span>}
-                    </div>
+                    </span>
                   </div>
                 ))}
               </div>
@@ -952,18 +1030,24 @@ function PrintablePresentation({
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={{ backgroundColor: cfg.primary, borderRadius: '0 0 12px 12px', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img src={cfg.logo} alt={cfg.label} style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'contain' }} />
-          <span style={{ fontSize: '10px', fontWeight: 600, color: cfg.textOnBg, opacity: 0.9 }}>{cfg.label}</span>
+      {/* ── BRANDED FOOTER ── */}
+      <div style={{ backgroundColor: cfg.primary, borderRadius: '0 0 12px 12px', padding: '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <img
+          src={cfg.logo}
+          alt={cfg.label}
+          style={{ height: '36px', maxWidth: '140px', objectFit: 'contain', borderRadius: '4px' }}
+        />
+        <div style={{ textAlign: 'center' as const }}>
+          {landingPage && (
+            <div style={{ fontSize: '9px', color: cfg.textOnBg, opacity: 0.8, marginBottom: '2px' }}>{landingPage}</div>
+          )}
+          <div style={{ fontSize: '9px', color: cfg.textOnBg, opacity: 0.6 }}>
+            {new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })}
+          </div>
         </div>
-        {landingPage && (
-          <span style={{ fontSize: '10px', color: cfg.textOnBg, opacity: 0.8 }}>{landingPage}</span>
-        )}
-        <span style={{ fontSize: '10px', color: cfg.textOnBg, opacity: 0.7 }}>
-          {new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })}
-        </span>
+        <div style={{ fontSize: '10px', fontWeight: 600, color: cfg.textOnBg, opacity: 0.9, textAlign: 'right' as const }}>
+          {cfg.label}
+        </div>
       </div>
     </div>
   )

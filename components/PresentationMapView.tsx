@@ -56,6 +56,7 @@ type Props = {
   onSelectNearbyProject?: (p: PresentationProperty) => void
   onAmenitiesLoaded?: (data: Record<string, Amenity[]>) => void
   commuteInputRef?: React.RefObject<HTMLInputElement | null>
+  onCommuteAddressChange?: (address: string) => void
 }
 
 /* ───────────────────────── Constants ───────────────────────── */
@@ -195,7 +196,7 @@ function distanceMatrixPromise(
 
 /* ───────────────────────── Component ───────────────────────── */
 
-export default function PresentationMapView({ property, apiKey, commuteDestination, nearbyProjects, onSelectNearbyProject, onAmenitiesLoaded, commuteInputRef }: Props) {
+export default function PresentationMapView({ property, apiKey, commuteDestination, nearbyProjects, onSelectNearbyProject, onAmenitiesLoaded, commuteInputRef, onCommuteAddressChange }: Props) {
   const mapDivRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const projectMarkerRef = useRef<google.maps.Marker | null>(null)
@@ -230,7 +231,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   // Initialize Places Autocomplete on commute input
   useEffect(() => {
     if (!scriptReady || !commuteInputRef?.current || !window.google?.maps?.places) return
-    
+
     const autocomplete = new google.maps.places.Autocomplete(commuteInputRef.current, {
       types: ['address'],
       componentRestrictions: { country: 'ca' },
@@ -239,16 +240,11 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
 
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace()
-      if (place?.formatted_address) {
-        const event = new Event('input', { bubbles: true })
-        if (commuteInputRef.current) {
-          const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
-          nativeSetter?.call(commuteInputRef.current, place.formatted_address)
-          commuteInputRef.current.dispatchEvent(event)
-        }
+      if (place?.formatted_address && onCommuteAddressChange) {
+        onCommuteAddressChange(place.formatted_address)
       }
     })
-  }, [scriptReady, commuteInputRef])
+  }, [scriptReady, commuteInputRef, onCommuteAddressChange])
 
   // Get project location
   useEffect(() => {
