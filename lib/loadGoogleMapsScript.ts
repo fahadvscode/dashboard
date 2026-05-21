@@ -20,7 +20,7 @@ export function loadGoogleMapsScript(apiKey: string): Promise<void> {
       return
     }
     const s = document.createElement('script')
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places`
     s.async = true
     s.defer = true
     s.dataset.googleMapsLoader = '1'
