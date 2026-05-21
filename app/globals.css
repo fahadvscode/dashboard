@@ -213,3 +213,47 @@ body {
   margin-bottom: 6px !important;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
+
+/* Print Styles — Project Presentation */
+.print-only {
+  display: none;
+}
+
+.print-hide {
+  display: flex;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-only,
+  .print-only * {
+    visibility: visible !important;
+    display: block !important;
+  }
+
+  .print-only {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    background: white;
+    z-index: 99999;
+  }
+
+  .print-hide {
+    display: none !important;
+  }
+
+  #presentation-container > :not(.print-only) {
+    display: none !important;
+  }
+
+  @page {
+    margin: 0.5in;
+    size: letter portrait;
+  }
+}

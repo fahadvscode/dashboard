@@ -22,7 +22,7 @@ export interface PresentationProperty {
   map_lng?: number | null
 }
 
-interface Amenity {
+export interface Amenity {
   place_id: string
   name: string
   address: string
@@ -50,6 +50,10 @@ interface AmenityCategory {
 type Props = {
   property: PresentationProperty
   apiKey: string | undefined
+  commuteDestination?: string
+  nearbyProjects?: PresentationProperty[]
+  onSelectNearbyProject?: (p: PresentationProperty) => void
+  onAmenitiesLoaded?: (data: Record<string, Amenity[]>) => void
 }
 
 /* ───────────────────────── Constants ───────────────────────── */
@@ -188,11 +192,13 @@ function distanceMatrixPromise(
 
 /* ───────────────────────── Component ───────────────────────── */
 
-export default function PresentationMapView({ property, apiKey }: Props) {
+export default function PresentationMapView({ property, apiKey, commuteDestination, nearbyProjects, onSelectNearbyProject, onAmenitiesLoaded }: Props) {
   const mapDivRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const projectMarkerRef = useRef<google.maps.Marker | null>(null)
   const amenityMarkersRef = useRef<Record<string, google.maps.Marker[]>>({})
+  const nearbyMarkersRef = useRef<google.maps.Marker[]>([])
+  const commuteRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
@@ -205,6 +211,8 @@ export default function PresentationMapView({ property, apiKey }: Props) {
   const [highlightedAmenity, setHighlightedAmenity] = useState<string | null>(null)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
+  const [commuteResult, setCommuteResult] = useState<{ drive?: string; walk?: string; transit?: string } | null>(null)
+  const [commuteLoading, setCommuteLoading] = useState(false)
 
   // Load Google Maps script
   useEffect(() => {
@@ -495,6 +503,149 @@ export default function PresentationMapView({ property, apiKey }: Props) {
 
   const totalAmenities = Object.values(amenities).reduce((sum, arr) => sum + arr.length, 0)
 
+  // Notify parent of amenities data for print
+  useEffect(() => {
+    if (loadedAll && onAmenitiesLoaded) {
+      onAmenitiesLoaded(amenities)
+    }
+  }, [loadedAll, amenities, onAmenitiesLoaded])
+
+  // Commute route
+  useEffect(() => {
+    if (!mapRef.current || !projectLocation || !commuteDestination || !window.google?.maps) {
+      commuteRendererRef.current?.setMap(null)
+      commuteRendererRef.current = null
+      setCommuteResult(null)
+      return
+    }
+
+    setCommuteLoading(true)
+    const directionsService = new google.maps.DirectionsService()
+    const distanceService = new google.maps.DistanceMatrixService()
+    const origin = new google.maps.LatLng(projectLocation.lat, projectLocation.lng)
+
+    commuteRendererRef.current?.setMap(null)
+    const renderer = new google.maps.DirectionsRenderer({
+      map: mapRef.current,
+      suppressMarkers: true,
+      polylineOptions: { strokeColor: '#4f46e5', strokeWeight: 4, strokeOpacity: 0.8 },
+    })
+    commuteRendererRef.current = renderer
+
+    directionsService.route(
+      { origin, destination: commuteDestination, travelMode: google.maps.TravelMode.DRIVING },
+      (result, status) => {
+        if (status === 'OK' && result) {
+          renderer.setDirections(result)
+        }
+      }
+    )
+
+    distanceMatrixPromise(distanceService, {
+      origins: [origin],
+      destinations: [commuteDestination],
+      travelMode: google.maps.TravelMode.DRIVING,
+      unitSystem: google.maps.UnitSystem.METRIC,
+    }).then(async (driveResp) => {
+      const driveEl = driveResp?.rows?.[0]?.elements?.[0]
+      const drive = driveEl?.status === 'OK' ? `${driveEl.duration?.text} (${driveEl.distance?.text})` : undefined
+
+      const walkResp = await distanceMatrixPromise(distanceService, {
+        origins: [origin],
+        destinations: [commuteDestination],
+        travelMode: google.maps.TravelMode.WALKING,
+        unitSystem: google.maps.UnitSystem.METRIC,
+      })
+      const walkEl = walkResp?.rows?.[0]?.elements?.[0]
+      const walk = walkEl?.status === 'OK' ? `${walkEl.duration?.text} (${walkEl.distance?.text})` : undefined
+
+      const transitResp = await distanceMatrixPromise(distanceService, {
+        origins: [origin],
+        destinations: [commuteDestination],
+        travelMode: google.maps.TravelMode.TRANSIT,
+        unitSystem: google.maps.UnitSystem.METRIC,
+      })
+      const transitEl = transitResp?.rows?.[0]?.elements?.[0]
+      const transit = transitEl?.status === 'OK' ? `${transitEl.duration?.text} (${transitEl.distance?.text})` : undefined
+
+      setCommuteResult({ drive, walk, transit })
+      setCommuteLoading(false)
+    })
+
+    return () => {
+      renderer.setMap(null)
+    }
+  }, [commuteDestination, projectLocation])
+
+  // Nearby project markers
+  useEffect(() => {
+    nearbyMarkersRef.current.forEach((m) => m.setMap(null))
+    nearbyMarkersRef.current = []
+
+    if (!mapRef.current || !nearbyProjects?.length || !window.google?.maps || !scriptReady) return
+
+    const geocoder = new google.maps.Geocoder()
+    const map = mapRef.current
+
+    nearbyProjects.forEach(async (np) => {
+      let pos: google.maps.LatLngLiteral | null = null
+      if (np.map_lat != null && np.map_lng != null) {
+        pos = { lat: Number(np.map_lat), lng: Number(np.map_lng) }
+      } else {
+        const parts = [(np.map_address || np.address || '').trim(), (np.city || '').trim(), 'Canada'].filter(Boolean)
+        const q = parts.join(', ')
+        if (q && q !== 'Canada') {
+          pos = await geocodeAddress(geocoder, q)
+        }
+      }
+      if (!pos) return
+
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+        <circle cx="14" cy="14" r="12" fill="#d97706" stroke="white" stroke-width="2.5"/>
+        <text x="14" y="19" text-anchor="middle" fill="white" font-size="12" font-weight="700" font-family="system-ui,sans-serif">C</text>
+      </svg>`
+      const marker = new google.maps.Marker({
+        position: pos,
+        map,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+          scaledSize: new google.maps.Size(28, 28),
+          anchor: new google.maps.Point(14, 14),
+        },
+        title: np.project_name,
+        zIndex: 50,
+      })
+
+      marker.addListener('click', () => {
+        infoWindowRef.current?.setContent(`
+          <div style="font-family:system-ui,sans-serif;padding:4px;min-width:140px">
+            <div style="font-weight:700;font-size:13px;color:#92400e">${np.project_name}</div>
+            <div style="font-size:11px;color:#64748b;margin-top:3px">${np.builder}</div>
+            ${np.price && np.price !== 'N/A' ? `<div style="font-size:11px;color:#16a34a;font-weight:600;margin-top:4px">${np.price}</div>` : ''}
+            <div style="font-size:10px;color:#3b82f6;margin-top:6px;cursor:pointer;font-weight:600">Click to present this project</div>
+          </div>
+        `)
+        infoWindowRef.current?.open({ map, anchor: marker })
+        if (onSelectNearbyProject) {
+          const clickListener = google.maps.event.addListener(infoWindowRef.current!, 'domready', () => {
+            google.maps.event.removeListener(clickListener)
+          })
+        }
+      })
+
+      if (onSelectNearbyProject) {
+        marker.addListener('dblclick', () => onSelectNearbyProject(np))
+      }
+
+      nearbyMarkersRef.current.push(marker)
+    })
+
+    return () => {
+      nearbyMarkersRef.current.forEach((m) => m.setMap(null))
+      nearbyMarkersRef.current = []
+    }
+  }, [nearbyProjects, scriptReady])
+
   /* ─── Error / Missing Key ─── */
 
   if (!apiKey) {
@@ -580,6 +731,38 @@ export default function PresentationMapView({ property, apiKey }: Props) {
               : 'Searching nearby places...'}
           </p>
         </div>
+
+        {/* Commute Results */}
+        {commuteDestination && (
+          <div className="shrink-0 px-5 py-3 border-b border-indigo-100 bg-indigo-50/50">
+            <p className="text-xs font-semibold text-indigo-700 mb-2">Commute to: {commuteDestination}</p>
+            {commuteLoading ? (
+              <div className="flex items-center gap-2 text-xs text-indigo-500">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Calculating routes...
+              </div>
+            ) : commuteResult ? (
+              <div className="flex flex-wrap gap-2">
+                {commuteResult.drive && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs font-medium">
+                    <Car className="h-3.5 w-3.5" /> {commuteResult.drive}
+                  </span>
+                )}
+                {commuteResult.walk && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-800 rounded-lg text-xs font-medium">
+                    <Footprints className="h-3.5 w-3.5" /> {commuteResult.walk}
+                  </span>
+                )}
+                {commuteResult.transit && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-100 text-purple-800 rounded-lg text-xs font-medium">
+                    🚌 {commuteResult.transit}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">Could not calculate commute</p>
+            )}
+          </div>
+        )}
 
         {/* Category Filter Tabs */}
         <div className="shrink-0 flex items-center gap-1.5 px-4 py-3 border-b border-gray-100 overflow-x-auto scrollbar-hide">
