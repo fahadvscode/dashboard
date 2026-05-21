@@ -43,9 +43,11 @@ interface AmenityCategory {
   label: string
   type: string
   keyword?: string
+  keywords?: string[]
   color: string
   marker: string
   radius: number
+  maxResults?: number
 }
 
 type Props = {
@@ -62,18 +64,18 @@ type Props = {
 /* ───────────────────────── Constants ───────────────────────── */
 
 const CATEGORIES: AmenityCategory[] = [
-  { key: 'school', label: 'Schools', type: 'school', color: '#3b82f6', marker: 'S', radius: 3000 },
-  { key: 'supermarket', label: 'Grocery & Supermarkets', type: 'supermarket', color: '#22c55e', marker: 'G', radius: 2500 },
-  { key: 'restaurant', label: 'Restaurants & Cafes', type: 'restaurant', color: '#f97316', marker: 'R', radius: 2000 },
-  { key: 'shopping_mall', label: 'Shopping & Malls', type: 'shopping_mall', color: '#a855f7', marker: 'M', radius: 5000 },
-  { key: 'park', label: 'Parks & Recreation', type: 'park', color: '#16a34a', marker: 'P', radius: 3000 },
-  { key: 'hospital', label: 'Hospitals & Clinics', type: 'hospital', color: '#ef4444', marker: 'H', radius: 5000 },
-  { key: 'pharmacy', label: 'Pharmacies', type: 'pharmacy', color: '#06b6d4', marker: '+', radius: 2000 },
-  { key: 'transit_station', label: 'Transit Stations', type: 'transit_station', color: '#6366f1', marker: 'T', radius: 3000 },
-  { key: 'gas_station', label: 'Gas Stations', type: 'gas_station', color: '#eab308', marker: 'F', radius: 3000 },
-  { key: 'bank', label: 'Banks', type: 'bank', color: '#14b8a6', marker: 'B', radius: 2000 },
-  { key: 'gym', label: 'Fitness & Gyms', type: 'gym', color: '#f43f5e', marker: 'W', radius: 3000 },
-  { key: 'highway', label: 'Highways & On-Ramps', type: '', keyword: 'highway on-ramp', color: '#78716c', marker: 'HW', radius: 5000 },
+  { key: 'school', label: 'Schools', type: 'school', color: '#3b82f6', marker: 'S', radius: 5000 },
+  { key: 'supermarket', label: 'Grocery & Supermarkets', type: 'supermarket', color: '#22c55e', marker: 'G', radius: 5000 },
+  { key: 'restaurant', label: 'Restaurants & Cafes', type: 'restaurant', color: '#f97316', marker: 'R', radius: 5000 },
+  { key: 'shopping_mall', label: 'Shopping & Malls', type: 'shopping_mall', color: '#a855f7', marker: 'M', radius: 8000 },
+  { key: 'park', label: 'Parks & Recreation', type: 'park', color: '#16a34a', marker: 'P', radius: 5000 },
+  { key: 'hospital', label: 'Hospitals & Clinics', type: 'hospital', color: '#ef4444', marker: 'H', radius: 8000 },
+  { key: 'pharmacy', label: 'Pharmacies', type: 'pharmacy', color: '#06b6d4', marker: '+', radius: 5000 },
+  { key: 'transit_station', label: 'Transit Stations', type: 'transit_station', color: '#6366f1', marker: 'T', radius: 5000 },
+  { key: 'gas_station', label: 'Gas Stations', type: 'gas_station', color: '#eab308', marker: 'F', radius: 5000 },
+  { key: 'bank', label: 'Banks', type: 'bank', color: '#14b8a6', marker: 'B', radius: 5000 },
+  { key: 'gym', label: 'Fitness & Gyms', type: 'gym', color: '#f43f5e', marker: 'W', radius: 5000 },
+  { key: 'highway', label: 'Highway Access', type: '', keywords: ['Highway 401', 'Highway 400', 'Highway 407', 'Highway 403', 'Highway 410', 'Highway 413', 'Highway 427', 'QEW'], color: '#78716c', marker: 'HW', radius: 15000, maxResults: 12 },
 ]
 
 const PRESENTATION_MAP_STYLE: google.maps.MapTypeStyle[] = [
@@ -332,16 +334,37 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
       setLoadingCategories((prev) => new Set(prev).add(cat.key))
 
       try {
-        const searchReq: google.maps.places.PlaceSearchRequest = {
-          location: origin,
-          radius: cat.radius,
-        }
-        if (cat.type) searchReq.type = cat.type
-        if (cat.keyword) searchReq.keyword = cat.keyword
-        const results = await nearbySearchPromise(placesService, searchReq)
+        let allResults: google.maps.places.PlaceResult[] = []
 
-        const sorted = results
-          .filter((r) => r.geometry?.location)
+        if (cat.keywords && cat.keywords.length > 0) {
+          for (const kw of cat.keywords) {
+            const kwResults = await nearbySearchPromise(placesService, {
+              location: origin,
+              radius: cat.radius,
+              keyword: kw,
+            })
+            allResults = allResults.concat(kwResults)
+            await new Promise((r) => setTimeout(r, 200))
+          }
+        } else {
+          const searchReq: google.maps.places.PlaceSearchRequest = {
+            location: origin,
+            radius: cat.radius,
+          }
+          if (cat.type) searchReq.type = cat.type
+          if (cat.keyword) searchReq.keyword = cat.keyword
+          allResults = await nearbySearchPromise(placesService, searchReq)
+        }
+
+        const maxItems = cat.maxResults || 6
+        const seenIds = new Set<string>()
+        const sorted = allResults
+          .filter((r) => {
+            if (!r.geometry?.location || !r.place_id) return false
+            if (seenIds.has(r.place_id)) return false
+            seenIds.add(r.place_id)
+            return true
+          })
           .map((r) => ({
             place_id: r.place_id || '',
             name: r.name || 'Unknown',
@@ -359,7 +382,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
             ),
           }))
           .sort((a, b) => a.straightDist - b.straightDist)
-          .slice(0, 6)
+          .slice(0, maxItems)
 
         // Fetch driving distances
         if (sorted.length > 0) {
