@@ -84,30 +84,51 @@ interface HighwayDef {
   color: string
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
+  waypoints?: { lat: number; lng: number }[]
 }
 
 const GTA_HIGHWAYS: HighwayDef[] = [
+  // 401: Windsor (ON/US border) → Quebec border — full Trans-Canada corridor
   { name: 'Highway 401', short: '401', color: '#ef4444',
-    origin: { lat: 43.5207, lng: -79.8842 },
-    destination: { lat: 43.8379, lng: -79.0859 } },
+    origin: { lat: 42.3173, lng: -83.0365 },
+    destination: { lat: 44.2312, lng: -76.4860 },
+    waypoints: [
+      { lat: 42.9850, lng: -81.2460 },
+      { lat: 43.2530, lng: -79.8670 },
+      { lat: 43.7130, lng: -79.5150 },
+      { lat: 44.2340, lng: -76.9500 },
+    ] },
+  // 400: 401 interchange → Sudbury (northern terminus)
   { name: 'Highway 400', short: '400', color: '#3b82f6',
     origin: { lat: 43.7128, lng: -79.5156 },
-    destination: { lat: 43.9200, lng: -79.5100 } },
+    destination: { lat: 44.6194, lng: -79.9494 },
+    waypoints: [
+      { lat: 44.2300, lng: -79.4660 },
+    ] },
+  // 407 ETR: Burlington → Clarington (full toll highway)
   { name: 'Highway 407 ETR', short: '407', color: '#8b5cf6',
-    origin: { lat: 43.3814, lng: -79.7978 },
-    destination: { lat: 43.8715, lng: -79.1315 } },
+    origin: { lat: 43.3130, lng: -79.8390 },
+    destination: { lat: 43.9350, lng: -78.8530 } },
+  // 403: Hamilton → Woodstock (full length)
   { name: 'Highway 403', short: '403', color: '#f97316',
-    origin: { lat: 43.2479, lng: -79.8662 },
+    origin: { lat: 43.1350, lng: -80.2630 },
     destination: { lat: 43.5870, lng: -79.6480 } },
+  // 410: 401/403 interchange → Brampton (Heart Lake Rd)
   { name: 'Highway 410', short: '410', color: '#06b6d4',
     origin: { lat: 43.6550, lng: -79.6300 },
-    destination: { lat: 43.7700, lng: -79.7360 } },
+    destination: { lat: 43.7960, lng: -79.7440 } },
+  // 427: QEW/Gardiner → Highway 7 in Vaughan
   { name: 'Highway 427', short: '427', color: '#ec4899',
     origin: { lat: 43.5960, lng: -79.5440 },
-    destination: { lat: 43.7830, lng: -79.5824 } },
+    destination: { lat: 43.8120, lng: -79.5900 } },
+  // QEW: Fort Erie (Niagara) → Toronto (becomes Gardiner)
   { name: 'QEW', short: 'QEW', color: '#14b8a6',
-    origin: { lat: 43.2350, lng: -79.8650 },
-    destination: { lat: 43.6336, lng: -79.4615 } },
+    origin: { lat: 42.9060, lng: -79.0460 },
+    destination: { lat: 43.6370, lng: -79.4200 },
+    waypoints: [
+      { lat: 43.1690, lng: -79.2470 },
+      { lat: 43.3250, lng: -79.8030 },
+    ] },
 ]
 
 export interface HighwayInfo {
@@ -665,11 +686,18 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
       for (const hw of GTA_HIGHWAYS) {
         if (cancelled) return
         try {
+          const dirRequest: google.maps.DirectionsRequest = {
+            origin: hw.origin,
+            destination: hw.destination,
+            travelMode: google.maps.TravelMode.DRIVING,
+          }
+          if (hw.waypoints && hw.waypoints.length > 0) {
+            dirRequest.waypoints = hw.waypoints.map(wp => ({ location: new google.maps.LatLng(wp.lat, wp.lng), stopover: false }))
+          }
           const dirResult = await new Promise<google.maps.DirectionsResult | null>((resolve) => {
-            directionsService.route(
-              { origin: hw.origin, destination: hw.destination, travelMode: google.maps.TravelMode.DRIVING },
-              (result, status) => { resolve(status === 'OK' && result ? result : null) }
-            )
+            directionsService.route(dirRequest, (result, status) => {
+              resolve(status === 'OK' && result ? result : null)
+            })
           })
 
           if (!dirResult?.routes?.[0]?.overview_path) {
