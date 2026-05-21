@@ -12,14 +12,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
   useEffect(() => {
-    // Check authentication
+    if (pathname.startsWith('/present')) {
+      setIsAuth(true)
+      setLoading(false)
+      return
+    }
+
     const auth = isAuthenticated()
     setIsAuth(auth)
     setLoading(false)
-
-    if (!auth) {
-      // Don't redirect, just show login
-    }
   }, [pathname])
 
   if (loading) {

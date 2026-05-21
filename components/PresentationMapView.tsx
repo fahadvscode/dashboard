@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Loader2, Car, Footprints, MapPin, Navigation, Star, ChevronDown, ChevronRight } from 'lucide-react'
+import { Loader2, Car, Footprints, MapPin, Navigation, Star, ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react'
 import { loadGoogleMapsScript } from '@/lib/loadGoogleMapsScript'
 
 /* ───────────────────────── Types ───────────────────────── */
@@ -42,6 +42,7 @@ interface AmenityCategory {
   key: string
   label: string
   type: string
+  keyword?: string
   color: string
   marker: string
   radius: number
@@ -54,6 +55,7 @@ type Props = {
   nearbyProjects?: PresentationProperty[]
   onSelectNearbyProject?: (p: PresentationProperty) => void
   onAmenitiesLoaded?: (data: Record<string, Amenity[]>) => void
+  commuteInputRef?: React.RefObject<HTMLInputElement | null>
 }
 
 /* ───────────────────────── Constants ───────────────────────── */
@@ -70,6 +72,7 @@ const CATEGORIES: AmenityCategory[] = [
   { key: 'gas_station', label: 'Gas Stations', type: 'gas_station', color: '#eab308', marker: 'F', radius: 3000 },
   { key: 'bank', label: 'Banks', type: 'bank', color: '#14b8a6', marker: 'B', radius: 2000 },
   { key: 'gym', label: 'Fitness & Gyms', type: 'gym', color: '#f43f5e', marker: 'W', radius: 3000 },
+  { key: 'highway', label: 'Highways & On-Ramps', type: '', keyword: 'highway on-ramp', color: '#78716c', marker: 'HW', radius: 5000 },
 ]
 
 const PRESENTATION_MAP_STYLE: google.maps.MapTypeStyle[] = [
@@ -192,7 +195,7 @@ function distanceMatrixPromise(
 
 /* ───────────────────────── Component ───────────────────────── */
 
-export default function PresentationMapView({ property, apiKey, commuteDestination, nearbyProjects, onSelectNearbyProject, onAmenitiesLoaded }: Props) {
+export default function PresentationMapView({ property, apiKey, commuteDestination, nearbyProjects, onSelectNearbyProject, onAmenitiesLoaded, commuteInputRef }: Props) {
   const mapDivRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const projectMarkerRef = useRef<google.maps.Marker | null>(null)
@@ -207,7 +210,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   const [amenities, setAmenities] = useState<Record<string, Amenity[]>>({})
   const [loadingCategories, setLoadingCategories] = useState<Set<string>>(new Set())
   const [loadedAll, setLoadedAll] = useState(false)
-  const [activeFilter, setActiveFilter] = useState<string | null>(null)
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set(CATEGORIES.map(c => c.key)))
   const [highlightedAmenity, setHighlightedAmenity] = useState<string | null>(null)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
@@ -223,6 +226,29 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
       .catch(() => { if (!cancelled) setError('Failed to load Google Maps') })
     return () => { cancelled = true }
   }, [apiKey])
+
+  // Initialize Places Autocomplete on commute input
+  useEffect(() => {
+    if (!scriptReady || !commuteInputRef?.current || !window.google?.maps?.places) return
+    
+    const autocomplete = new google.maps.places.Autocomplete(commuteInputRef.current, {
+      types: ['address'],
+      componentRestrictions: { country: 'ca' },
+      fields: ['formatted_address', 'geometry'],
+    })
+
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace()
+      if (place?.formatted_address) {
+        const event = new Event('input', { bubbles: true })
+        if (commuteInputRef.current) {
+          const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+          nativeSetter?.call(commuteInputRef.current, place.formatted_address)
+          commuteInputRef.current.dispatchEvent(event)
+        }
+      }
+    })
+  }, [scriptReady, commuteInputRef])
 
   // Get project location
   useEffect(() => {
@@ -310,11 +336,13 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
       setLoadingCategories((prev) => new Set(prev).add(cat.key))
 
       try {
-        const results = await nearbySearchPromise(placesService, {
+        const searchReq: google.maps.places.PlaceSearchRequest = {
           location: origin,
           radius: cat.radius,
-          type: cat.type,
-        })
+        }
+        if (cat.type) searchReq.type = cat.type
+        if (cat.keyword) searchReq.keyword = cat.keyword
+        const results = await nearbySearchPromise(placesService, searchReq)
 
         const sorted = results
           .filter((r) => r.geometry?.location)
@@ -422,13 +450,13 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
     }
   }, [scriptReady, projectLocation, fetchAmenities])
 
-  // Filter markers by active category
+  // Filter markers by selected categories
   useEffect(() => {
     Object.entries(amenityMarkersRef.current).forEach(([catKey, markers]) => {
-      const visible = !activeFilter || activeFilter === catKey
+      const visible = selectedCategories.has(catKey)
       markers.forEach((m) => m.setVisible(visible))
     })
-  }, [activeFilter])
+  }, [selectedCategories])
 
   // Highlight amenity
   useEffect(() => {
@@ -452,20 +480,39 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
     }
   }, [highlightedAmenity, amenities])
 
-  const handleCategoryClick = (key: string | null) => {
-    setActiveFilter(key)
+  const toggleCategory = (key: string) => {
+    setSelectedCategories((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
     setHighlightedAmenity(null)
     infoWindowRef.current?.close()
 
-    if (key && sectionRefs.current[key]) {
+    if (sectionRefs.current[key]) {
       sectionRefs.current[key]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
+  }
 
-    if (!key && projectLocation && mapRef.current) {
+  const selectAllCategories = () => {
+    setSelectedCategories(new Set(CATEGORIES.map(c => c.key)))
+    setHighlightedAmenity(null)
+    infoWindowRef.current?.close()
+    if (projectLocation && mapRef.current) {
       mapRef.current.panTo(projectLocation)
       mapRef.current.setZoom(14)
     }
   }
+
+  const deselectAllCategories = () => {
+    setSelectedCategories(new Set())
+    setHighlightedAmenity(null)
+    infoWindowRef.current?.close()
+  }
+
+  const allSelected = selectedCategories.size === CATEGORIES.length
+  const noneSelected = selectedCategories.size === 0
 
   const handleAmenityClick = (amenity: Amenity) => {
     setHighlightedAmenity(amenity.place_id)
@@ -698,11 +745,11 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
               {CATEGORIES.filter((cat) => (amenities[cat.key]?.length ?? 0) > 0).map((cat) => (
                 <button
                   key={cat.key}
-                  onClick={() => handleCategoryClick(activeFilter === cat.key ? null : cat.key)}
+                  onClick={() => toggleCategory(cat.key)}
                   className={`flex items-center gap-1.5 text-xs rounded-md px-1.5 py-1 transition-colors ${
-                    activeFilter === cat.key
+                    selectedCategories.has(cat.key)
                       ? 'bg-gray-100 font-semibold'
-                      : 'hover:bg-gray-50'
+                      : 'opacity-40 hover:opacity-70'
                   }`}
                 >
                   <span
@@ -767,32 +814,36 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
         {/* Category Filter Tabs */}
         <div className="shrink-0 flex items-center gap-1.5 px-4 py-3 border-b border-gray-100 overflow-x-auto scrollbar-hide">
           <button
-            onClick={() => handleCategoryClick(null)}
-            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-              activeFilter === null
+            onClick={allSelected ? deselectAllCategories : selectAllCategories}
+            className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              allSelected
                 ? 'bg-gray-900 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : noneSelected
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
-            All
+            {allSelected ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+            {allSelected ? 'All' : noneSelected ? 'Show All' : `${selectedCategories.size}/${CATEGORIES.length}`}
           </button>
           {CATEGORIES.map((cat) => {
             const count = amenities[cat.key]?.length ?? 0
             const isLoading = loadingCategories.has(cat.key)
+            const isSelected = selectedCategories.has(cat.key)
             return (
               <button
                 key={cat.key}
-                onClick={() => handleCategoryClick(activeFilter === cat.key ? null : cat.key)}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                  activeFilter === cat.key
+                onClick={() => toggleCategory(cat.key)}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  isSelected
                     ? 'text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'
                 }`}
-                style={activeFilter === cat.key ? { backgroundColor: cat.color } : undefined}
+                style={isSelected ? { backgroundColor: cat.color } : undefined}
               >
                 <span
                   className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: cat.color }}
+                  style={{ backgroundColor: cat.color, opacity: isSelected ? 1 : 0.4 }}
                 />
                 {cat.label.split(' ')[0]}
                 {isLoading ? (
@@ -815,7 +866,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
           ) : (
             <div className="divide-y divide-gray-100">
               {CATEGORIES.filter(
-                (cat) => !activeFilter || activeFilter === cat.key
+                (cat) => selectedCategories.has(cat.key)
               ).map((cat) => {
                 const catAmenities = amenities[cat.key] || []
                 const isLoading = loadingCategories.has(cat.key)
@@ -937,7 +988,14 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
                 )
               })}
 
-              {loadedAll && totalAmenities === 0 && (
+              {loadedAll && noneSelected && (
+                <div className="px-5 py-12 text-center">
+                  <EyeOff className="h-8 w-8 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500">All categories hidden</p>
+                  <p className="text-xs text-gray-400 mt-1">Click &quot;Show All&quot; or select categories above</p>
+                </div>
+              )}
+              {loadedAll && !noneSelected && totalAmenities === 0 && (
                 <div className="px-5 py-12 text-center">
                   <MapPin className="h-8 w-8 text-gray-300 mx-auto mb-3" />
                   <p className="text-sm text-gray-500">No amenities found nearby</p>

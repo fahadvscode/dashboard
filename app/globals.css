@@ -214,14 +214,41 @@ body {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
+/* Google Places Autocomplete dropdown */
+.pac-container {
+  z-index: 99999 !important;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.15);
+  margin-top: 4px;
+  font-family: inherit;
+}
+
+.pac-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+}
+
+.pac-item:hover {
+  background: #f8fafc;
+}
+
+.pac-item-selected {
+  background: #eff6ff;
+}
+
+.pac-icon {
+  display: none;
+}
+
 /* Print Styles — Project Presentation */
 .print-only {
   display: none;
 }
 
-.print-hide {
-  display: flex;
-}
+/* Elements that should be hidden when printing - no display override needed */
 
 @media print {
   body * {
@@ -231,6 +258,9 @@ body {
   .print-only,
   .print-only * {
     visibility: visible !important;
+  }
+
+  .print-only {
     display: block !important;
   }
 

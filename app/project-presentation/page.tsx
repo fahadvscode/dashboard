@@ -40,18 +40,22 @@ interface Property extends PresentationProperty {
   precon_factory_landing_page: string
 }
 
-const BRAND_CONFIG: Record<Company, { label: string; gradient: string; primary: string; secondary: string }> = {
+const BRAND_CONFIG: Record<Company, { label: string; gradient: string; primary: string; secondary: string; logo: string; textOnBg: string }> = {
   fj: {
-    label: 'FJ',
-    gradient: 'from-blue-600 to-blue-700',
-    primary: '#2563eb',
-    secondary: '#1d4ed8',
+    label: 'Fahad Javed Real Estate',
+    gradient: 'from-[#1a3c34] to-[#0f2b24]',
+    primary: '#1a3c34',
+    secondary: '#c5a55a',
+    logo: 'https://cfzuypbljirmibmxpabi.supabase.co/storage/v1/object/public/email-images/fj%20logo.png',
+    textOnBg: '#c5a55a',
   },
   precon_factory: {
     label: 'Precon Factory',
-    gradient: 'from-purple-600 via-purple-700 to-pink-600',
-    primary: '#9333ea',
-    secondary: '#db2777',
+    gradient: 'from-[#e52d27] to-[#b31217]',
+    primary: '#e52d27',
+    secondary: '#ffffff',
+    logo: 'https://cfzuypbljirmibmxpabi.supabase.co/storage/v1/object/public/email-images/preconfactorylogo.webp',
+    textOnBg: '#ffffff',
   },
 }
 
@@ -70,6 +74,7 @@ export default function ProjectPresentationPage() {
   // Presentation state
   const [showProjectInfo, setShowProjectInfo] = useState(false)
   const [printBrand, setPrintBrand] = useState<Company>('precon_factory')
+  const [shareBrand, setShareBrand] = useState<Company>('precon_factory')
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
@@ -80,6 +85,7 @@ export default function ProjectPresentationPage() {
   const [loadingNearby, setLoadingNearby] = useState(false)
 
   const printRef = useRef<HTMLDivElement>(null)
+  const commuteInputRef = useRef<HTMLInputElement>(null)
   const amenitiesDataRef = useRef<Record<string, Array<{ name: string; address: string; driveTime?: string; driveDist?: string; walkTime?: string; walkDist?: string; category: string }>>>({})
 
   useEffect(() => {
@@ -228,7 +234,7 @@ export default function ProjectPresentationPage() {
 
   // Share link
   const shareUrl = selectedProject
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/project-presentation?id=${selectedProject.id}`
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/present/${selectedProject.id}?brand=${shareBrand}`
     : ''
 
   const handleCopyLink = async () => {
@@ -254,7 +260,6 @@ export default function ProjectPresentationPage() {
     setShowCommute(false)
     setCommuteAddress('')
     setShowProjectInfo(false)
-    // Update URL without navigation
     window.history.replaceState(null, '', `/project-presentation?id=${project.id}`)
   }
 
@@ -290,9 +295,7 @@ export default function ProjectPresentationPage() {
           </button>
           <div className="h-6 w-px bg-gray-200" />
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className={`w-8 h-8 md:w-9 md:h-9 rounded-lg bg-gradient-to-br ${brand.gradient} flex items-center justify-center text-white flex-shrink-0`}>
-              <Building2 className="h-4 w-4 md:h-5 md:w-5" />
-            </div>
+            <img src={brand.logo} alt={brand.label} className="w-8 h-8 md:w-9 md:h-9 rounded-lg object-contain" />
             <div className="min-w-0">
               <h1 className="font-bold text-gray-900 truncate text-sm md:text-lg">
                 {selectedProject.project_name}
@@ -449,10 +452,13 @@ export default function ProjectPresentationPage() {
               <Route className="h-5 w-5 text-indigo-600 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <input
+                  ref={commuteInputRef}
+                  id="commute-autocomplete"
                   type="text"
-                  placeholder="Enter client's work address or any destination..."
+                  placeholder="Start typing an address..."
                   value={commuteAddress}
                   onChange={(e) => setCommuteAddress(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
                   className="w-full px-3 py-2 text-sm border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
                 />
               </div>
@@ -507,6 +513,7 @@ export default function ProjectPresentationPage() {
           nearbyProjects={showNearby ? nearbyProjects : undefined}
           onSelectNearbyProject={handleSelectProject}
           onAmenitiesLoaded={(data) => { amenitiesDataRef.current = data }}
+          commuteInputRef={commuteInputRef}
         />
 
         {/* Print Modal */}
@@ -528,9 +535,7 @@ export default function ProjectPresentationPage() {
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${cfg.gradient} flex items-center justify-center text-white flex-shrink-0`}>
-                      <Building2 className="h-5 w-5" />
-                    </div>
+                    <img src={cfg.logo} alt={cfg.label} className="w-10 h-10 rounded-lg object-contain bg-white p-1" />
                     <div className="text-left">
                       <p className="font-semibold text-gray-900">{cfg.label}</p>
                       <p className="text-xs text-gray-500">Use {cfg.label} colors and branding</p>
@@ -558,6 +563,27 @@ export default function ProjectPresentationPage() {
                 <p className="text-sm text-gray-500 mt-0.5">Send this presentation link to your client</p>
               </div>
               <div className="p-6 space-y-4">
+                {/* Branding Picker */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Branding</label>
+                  <div className="flex gap-2">
+                    {(Object.entries(BRAND_CONFIG) as [Company, typeof BRAND_CONFIG[Company]][]).map(([key, cfg]) => (
+                      <button
+                        key={key}
+                        onClick={() => setShareBrand(key)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-full border text-sm font-medium transition-all ${
+                          shareBrand === key
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                        }`}
+                      >
+                        <img src={cfg.logo} alt={cfg.label} className="w-5 h-5 rounded object-contain" />
+                        {cfg.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Presentation Link</label>
                   <div className="flex items-center gap-2">
@@ -813,6 +839,7 @@ const AMENITY_CATEGORIES: Record<string, { label: string; color: string }> = {
   gas_station: { label: 'Gas Stations', color: '#eab308' },
   bank: { label: 'Banks', color: '#14b8a6' },
   gym: { label: 'Fitness', color: '#f43f5e' },
+  highway: { label: 'Highways', color: '#78716c' },
 }
 
 function PrintablePresentation({
@@ -826,67 +853,117 @@ function PrintablePresentation({
 }) {
   const cfg = BRAND_CONFIG[brand]
   const landingPage = brand === 'fj' ? property.fj_landing_page : property.precon_factory_landing_page
+  const firstImage = property.pictures?.split(',')[0]?.trim()
+  const hasImage = firstImage && /^https?:\/\//i.test(firstImage)
 
   return (
-    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', padding: '32px', maxWidth: '850px', margin: '0 auto' }}>
+    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', padding: '0', maxWidth: '850px', margin: '0 auto' }}>
       {/* Branded Header */}
-      <div style={{ background: `linear-gradient(135deg, ${cfg.primary}, ${cfg.secondary})`, borderRadius: '12px', padding: '24px 28px', marginBottom: '24px', color: 'white' }}>
-        <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1.5px', opacity: 0.9, marginBottom: '8px' }}>
-          {cfg.label} — Project Presentation
-        </div>
-        <div style={{ fontSize: '24px', fontWeight: 800, lineHeight: 1.2 }}>{property.project_name}</div>
-        <div style={{ fontSize: '13px', marginTop: '6px', opacity: 0.9 }}>
-          {property.builder} · {property.address || ''}{property.address ? ', ' : ''}{property.city}
-        </div>
-        <div style={{ display: 'flex', gap: '16px', marginTop: '12px', fontSize: '12px', fontWeight: 600 }}>
-          {property.bedrooms && property.bedrooms !== 'N/A' && <span>{property.bedrooms} Beds</span>}
-          {property.bathrooms && property.bathrooms !== 'N/A' && <span>{property.bathrooms} Baths</span>}
-          {property.sqft && property.sqft !== 'N/A' && <span>{property.sqft}</span>}
-          {property.price && property.price !== 'N/A' && <span>{property.price}</span>}
+      <div style={{ backgroundColor: cfg.primary, borderRadius: '12px 12px 0 0', padding: '28px 32px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <img
+          src={cfg.logo}
+          alt={cfg.label}
+          style={{ width: '56px', height: '56px', borderRadius: '10px', objectFit: 'contain', backgroundColor: 'rgba(255,255,255,0.1)', padding: '4px' }}
+        />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: '22px', fontWeight: 800, color: cfg.textOnBg, lineHeight: 1.2 }}>
+            {property.project_name}
+          </div>
+          <div style={{ fontSize: '13px', color: cfg.textOnBg, opacity: 0.85, marginTop: '4px' }}>
+            {property.builder} · {property.address || ''}{property.address ? ', ' : ''}{property.city}
+          </div>
         </div>
       </div>
 
-      {/* Amenities Table */}
-      {Object.entries(amenitiesData).map(([catKey, items]) => {
-        if (!items || items.length === 0) return null
-        const catCfg = AMENITY_CATEGORIES[catKey]
-        if (!catCfg) return null
+      {/* Project Image */}
+      {hasImage && (
+        <div style={{ borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}` }}>
+          <img
+            src={firstImage}
+            alt={property.project_name}
+            style={{ width: '100%', height: '220px', objectFit: 'cover', display: 'block' }}
+          />
+        </div>
+      )}
 
-        return (
-          <div key={catKey} style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: catCfg.color }} />
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>{catCfg.label}</div>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' as const, fontSize: '11px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <th style={{ textAlign: 'left' as const, padding: '4px 8px', color: '#64748b', fontWeight: 600 }}>Name</th>
-                  <th style={{ textAlign: 'left' as const, padding: '4px 8px', color: '#64748b', fontWeight: 600 }}>Address</th>
-                  <th style={{ textAlign: 'center' as const, padding: '4px 8px', color: '#64748b', fontWeight: 600 }}>Drive</th>
-                  <th style={{ textAlign: 'center' as const, padding: '4px 8px', color: '#64748b', fontWeight: 600 }}>Walk</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '4px 8px', fontWeight: 500, color: '#1e293b' }}>{item.name}</td>
-                    <td style={{ padding: '4px 8px', color: '#64748b' }}>{item.address}</td>
-                    <td style={{ padding: '4px 8px', textAlign: 'center' as const, color: '#3b82f6' }}>{item.driveTime || '—'}</td>
-                    <td style={{ padding: '4px 8px', textAlign: 'center' as const, color: '#16a34a' }}>{item.walkTime || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Key Stats Row */}
+      <div style={{ display: 'flex', gap: '0', borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}`, borderBottom: `1px solid #e2e8f0` }}>
+        {property.bedrooms && property.bedrooms !== 'N/A' && (
+          <div style={{ flex: 1, padding: '14px 16px', textAlign: 'center' as const, borderRight: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>{property.bedrooms}</div>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Bedrooms</div>
           </div>
-        )
-      })}
+        )}
+        {property.bathrooms && property.bathrooms !== 'N/A' && (
+          <div style={{ flex: 1, padding: '14px 16px', textAlign: 'center' as const, borderRight: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>{property.bathrooms}</div>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Bathrooms</div>
+          </div>
+        )}
+        {property.sqft && property.sqft !== 'N/A' && (
+          <div style={{ flex: 1, padding: '14px 16px', textAlign: 'center' as const, borderRight: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b' }}>{property.sqft}</div>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Sq Ft</div>
+          </div>
+        )}
+        {property.price && property.price !== 'N/A' && (
+          <div style={{ flex: 1, padding: '14px 16px', textAlign: 'center' as const }}>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: cfg.primary }}>{property.price}</div>
+            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Starting From</div>
+          </div>
+        )}
+      </div>
+
+      {/* Features Section */}
+      {property.features && property.features !== 'N/A' && (
+        <div style={{ padding: '16px 24px', borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}`, borderBottom: '1px solid #e2e8f0' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Features & Highlights</div>
+          <div style={{ fontSize: '12px', color: '#334155', lineHeight: 1.6 }}>{property.features}</div>
+        </div>
+      )}
+
+      {/* Amenities Grid */}
+      <div style={{ padding: '20px 24px', borderLeft: `3px solid ${cfg.primary}`, borderRight: `3px solid ${cfg.primary}` }}>
+        <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '16px' }}>Nearby Amenities</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          {Object.entries(amenitiesData).map(([catKey, items]) => {
+            if (!items || items.length === 0) return null
+            const catCfg = AMENITY_CATEGORIES[catKey]
+            if (!catCfg) return null
+
+            return (
+              <div key={catKey} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', breakInside: 'avoid' as const }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: catCfg.color }} />
+                  <div style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>{catCfg.label}</div>
+                </div>
+                {items.map((item, i) => (
+                  <div key={i} style={{ padding: '4px 0', borderTop: i > 0 ? '1px solid #f1f5f9' : 'none' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: '#334155' }}>{item.name}</div>
+                    <div style={{ fontSize: '10px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '1px' }}>
+                      {item.driveTime && <span style={{ color: '#3b82f6' }}>🚗 {item.driveTime}</span>}
+                      {item.walkTime && <span style={{ color: '#16a34a' }}>🚶 {item.walkTime}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       {/* Footer */}
-      <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: `2px solid ${cfg.primary}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', color: '#94a3b8' }}>
-        <span>{cfg.label} — Property Presentation</span>
-        {landingPage && <span>{landingPage}</span>}
-        <span>{new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+      <div style={{ backgroundColor: cfg.primary, borderRadius: '0 0 12px 12px', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img src={cfg.logo} alt={cfg.label} style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'contain' }} />
+          <span style={{ fontSize: '10px', fontWeight: 600, color: cfg.textOnBg, opacity: 0.9 }}>{cfg.label}</span>
+        </div>
+        {landingPage && (
+          <span style={{ fontSize: '10px', color: cfg.textOnBg, opacity: 0.8 }}>{landingPage}</span>
+        )}
+        <span style={{ fontSize: '10px', color: cfg.textOnBg, opacity: 0.7 }}>
+          {new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })}
+        </span>
       </div>
     </div>
   )
