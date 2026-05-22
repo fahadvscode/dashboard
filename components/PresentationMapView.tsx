@@ -60,6 +60,7 @@ type Props = {
   onHighwaysLoaded?: (data: HighwayInfo[]) => void
   commuteInputRef?: React.RefObject<HTMLInputElement | null>
   onCommuteAddressChange?: (address: string) => void
+  mapContainerRef?: React.RefObject<HTMLDivElement | null>
 }
 
 /* ───────────────────────── Constants ───────────────────────── */
@@ -278,7 +279,7 @@ function distanceMatrixPromise(
 
 /* ───────────────────────── Component ───────────────────────── */
 
-export default function PresentationMapView({ property, apiKey, commuteDestination, nearbyProjects, onSelectNearbyProject, onAmenitiesLoaded, onHighwaysLoaded, commuteInputRef, onCommuteAddressChange }: Props) {
+export default function PresentationMapView({ property, apiKey, commuteDestination, nearbyProjects, onSelectNearbyProject, onAmenitiesLoaded, onHighwaysLoaded, commuteInputRef, onCommuteAddressChange, mapContainerRef }: Props) {
   const mapDivRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const projectMarkerRef = useRef<google.maps.Marker | null>(null)
@@ -953,7 +954,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   return (
     <div className="flex flex-col lg:flex-row flex-1 min-h-0">
       {/* Map */}
-      <div className="flex-1 relative min-h-[350px] lg:min-h-0">
+      <div className="flex-1 relative min-h-[350px] lg:min-h-0" ref={mapContainerRef}>
         {(!scriptReady || !projectLocation) && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
             <div className="flex flex-col items-center gap-3">

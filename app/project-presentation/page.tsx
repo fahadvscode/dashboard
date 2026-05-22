@@ -15,7 +15,7 @@ import {
   MapPinned,
   X,
   Presentation,
-  Printer,
+  FileDown,
   Share2,
   Copy,
   Check,
@@ -27,6 +27,8 @@ import {
   Route,
   Building,
 } from 'lucide-react'
+import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'
 import PresentationMapView, { type PresentationProperty, type HighwayInfo } from '@/components/PresentationMapView'
 
 type Company = 'fj' | 'precon_factory'
@@ -84,10 +86,11 @@ export default function ProjectPresentationPage() {
   const [showNearby, setShowNearby] = useState(false)
   const [loadingNearby, setLoadingNearby] = useState(false)
 
-  const printRef = useRef<HTMLDivElement>(null)
   const commuteInputRef = useRef<HTMLInputElement>(null)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
   const amenitiesDataRef = useRef<Record<string, Array<{ name: string; address: string; lat: number; lng: number; driveTime?: string; driveDist?: string; walkTime?: string; walkDist?: string; category: string }>>>({})
   const highwaysDataRef = useRef<HighwayInfo[]>([])
+  const [processingPdf, setProcessingPdf] = useState(false)
 
   useEffect(() => {
     fetchCities()
@@ -248,10 +251,216 @@ export default function ProjectPresentationPage() {
     }
   }
 
-  // Print handler
-  const handlePrint = () => {
+  const AMENITY_LABELS: Record<string, { label: string; color: string }> = {
+    school: { label: 'Schools', color: '#3b82f6' },
+    supermarket: { label: 'Grocery', color: '#22c55e' },
+    restaurant: { label: 'Restaurants', color: '#f97316' },
+    shopping_mall: { label: 'Shopping', color: '#a855f7' },
+    park: { label: 'Parks', color: '#16a34a' },
+    hospital: { label: 'Hospitals', color: '#ef4444' },
+    pharmacy: { label: 'Pharmacies', color: '#06b6d4' },
+    transit_station: { label: 'Transit', color: '#6366f1' },
+    gas_station: { label: 'Gas Stations', color: '#eab308' },
+    bank: { label: 'Banks', color: '#14b8a6' },
+    gym: { label: 'Fitness', color: '#f43f5e' },
+  }
+
+  const handleProcessPresentation = async () => {
+    if (!selectedProject || processingPdf) return
     setShowPrintModal(false)
-    setTimeout(() => window.print(), 200)
+    setProcessingPdf(true)
+
+    try {
+      const cfg = BRAND_CONFIG[printBrand]
+      const landingPage = printBrand === 'fj'
+        ? selectedProject.fj_landing_page
+        : selectedProject.precon_factory_landing_page
+
+      // 1. Capture the live map as an image
+      let mapImageDataUrl = ''
+      if (mapContainerRef.current) {
+        const mapCanvas = await html2canvas(mapContainerRef.current, {
+          useCORS: true,
+          allowTaint: true,
+          scale: 2,
+          backgroundColor: '#ffffff',
+          logging: false,
+        })
+        mapImageDataUrl = mapCanvas.toDataURL('image/jpeg', 0.92)
+      }
+
+      // 2. Build a brochure HTML element offscreen
+      const brochureDiv = document.createElement('div')
+      brochureDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:816px;background:#fff;font-family:system-ui,-apple-system,sans-serif;'
+      
+      const amenities = amenitiesDataRef.current
+      const highways = highwaysDataRef.current
+      const activeCats = Object.entries(AMENITY_LABELS).filter(([key]) => (amenities[key]?.length ?? 0) > 0)
+
+      brochureDiv.innerHTML = `
+        <!-- BRANDED HEADER -->
+        <div style="background:#ffffff;padding:32px 28px;text-align:center;border-bottom:5px solid ${cfg.primary}">
+          <img src="${cfg.logo}" alt="${cfg.label}" crossorigin="anonymous"
+               style="max-height:90px;width:auto;max-width:80%;object-fit:contain;margin:0 auto;display:block" />
+        </div>
+
+        <!-- PROJECT TITLE -->
+        <div style="background:${cfg.primary};padding:20px 32px 24px;text-align:center">
+          <div style="font-size:28px;font-weight:800;color:${cfg.textOnBg};line-height:1.2">${selectedProject.project_name}</div>
+          <div style="font-size:14px;color:${cfg.textOnBg};opacity:0.85;margin-top:8px">
+            By ${selectedProject.builder} &middot; ${selectedProject.address || ''}${selectedProject.address ? ', ' : ''}${selectedProject.city}
+          </div>
+          ${selectedProject.price && selectedProject.price !== 'N/A' ? `<div style="font-size:20px;font-weight:700;color:${cfg.textOnBg};margin-top:12px;letter-spacing:0.5px">${selectedProject.price}</div>` : ''}
+        </div>
+
+        <!-- KEY STATS -->
+        <div style="display:flex;border-bottom:4px solid ${cfg.primary}">
+          ${selectedProject.bedrooms && selectedProject.bedrooms !== 'N/A' ? `<div style="flex:1;padding:18px;text-align:center;border-right:1px solid #e2e8f0"><div style="font-size:24px;font-weight:700;color:#1e293b">${selectedProject.bedrooms}</div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1px">Bedrooms</div></div>` : ''}
+          ${selectedProject.bathrooms && selectedProject.bathrooms !== 'N/A' ? `<div style="flex:1;padding:18px;text-align:center;border-right:1px solid #e2e8f0"><div style="font-size:24px;font-weight:700;color:#1e293b">${selectedProject.bathrooms}</div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1px">Bathrooms</div></div>` : ''}
+          ${selectedProject.sqft && selectedProject.sqft !== 'N/A' ? `<div style="flex:1;padding:18px;text-align:center;border-right:1px solid #e2e8f0"><div style="font-size:24px;font-weight:700;color:#1e293b">${selectedProject.sqft}</div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1px">Sq Ft</div></div>` : ''}
+          ${selectedProject.price && selectedProject.price !== 'N/A' ? `<div style="flex:1;padding:18px;text-align:center"><div style="font-size:24px;font-weight:700;color:${cfg.primary}">${selectedProject.price}</div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1px">Starting From</div></div>` : ''}
+        </div>
+
+        <!-- FEATURES -->
+        ${selectedProject.features && selectedProject.features !== 'N/A' ? `
+          <div style="padding:18px 28px;border-bottom:1px solid #e2e8f0">
+            <div style="font-size:12px;font-weight:700;color:${cfg.primary};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Features & Highlights</div>
+            <div style="font-size:13px;color:#334155;line-height:1.7">${selectedProject.features}</div>
+          </div>
+        ` : ''}
+
+        <!-- AMENITIES MAP SCREENSHOT -->
+        ${mapImageDataUrl ? `
+          <div style="border-bottom:1px solid #e2e8f0;background:#fff">
+            <div style="padding:18px 28px 10px">
+              <div style="font-size:13px;font-weight:700;color:${cfg.primary};text-transform:uppercase;letter-spacing:1px">Amenities Map</div>
+            </div>
+            <img src="${mapImageDataUrl}" alt="Amenities Map" style="width:100%;display:block" />
+            <div style="padding:12px 28px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;border-top:1px solid #f1f5f9">
+              <div style="display:flex;align-items:center;gap:5px">
+                <div style="width:12px;height:12px;border-radius:50%;background:#1e40af;border:2px solid white;box-shadow:0 0 0 1px #1e40af"></div>
+                <span style="font-size:10px;font-weight:700;color:#1e293b">Project Location</span>
+              </div>
+              ${activeCats.map(([, cat]) => `<div style="display:flex;align-items:center;gap:5px"><div style="width:10px;height:10px;border-radius:50%;background:${cat.color}"></div><span style="font-size:10px;font-weight:500;color:#475569">${cat.label}</span></div>`).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- NEARBY AMENITIES -->
+        <div style="padding:18px 28px 10px">
+          <div style="font-size:13px;font-weight:700;color:${cfg.primary};text-transform:uppercase;letter-spacing:1px">Nearby Amenities</div>
+        </div>
+        <div style="padding:0 28px 20px;display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          ${Object.entries(amenities).map(([catKey, items]) => {
+            if (!items || items.length === 0) return ''
+            const catCfg = AMENITY_LABELS[catKey]
+            if (!catCfg) return ''
+            return `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid ${catCfg.color}">
+                <div style="width:12px;height:12px;border-radius:50%;background:${catCfg.color}"></div>
+                <div style="font-size:12px;font-weight:700;color:#1e293b">${catCfg.label}</div>
+                <span style="font-size:10px;color:#94a3b8;margin-left:auto">${items.length} found</span>
+              </div>
+              ${items.map((item, i) => `<div style="padding:4px 0;${i > 0 ? 'border-top:1px solid #f1f5f9;' : ''}display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:11px;font-weight:600;color:#334155;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px">${item.name}</span>
+                <span style="font-size:10px;color:#64748b;white-space:nowrap">
+                  ${item.driveTime ? `<span style="color:#3b82f6">🚗 ${item.driveTime}</span>` : ''}
+                  ${item.driveTime && item.walkTime ? ' · ' : ''}
+                  ${item.walkTime ? `<span style="color:#16a34a">🚶 ${item.walkTime}</span>` : ''}
+                </span>
+              </div>`).join('')}
+            </div>`
+          }).join('')}
+        </div>
+
+        <!-- HIGHWAY ACCESS -->
+        ${highways.length > 0 ? `
+          <div style="padding:0 28px 16px">
+            <div style="font-size:13px;font-weight:700;color:${cfg.primary};text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Highway Access</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              ${highways.map(hw => `<div style="display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #e2e8f0;border-radius:8px;border-left:4px solid ${hw.color}">
+                <span style="font-size:12px;font-weight:700;color:#1e293b">${hw.name}</span>
+                ${hw.driveTime ? `<span style="font-size:11px;color:#3b82f6">🚗 ${hw.driveTime}${hw.driveDist ? ` (${hw.driveDist})` : ''}</span>` : ''}
+              </div>`).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- BRANDED FOOTER -->
+        <div style="background:#fff;border-top:5px solid ${cfg.primary};padding:24px 32px;display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+          <img src="${cfg.logo}" alt="${cfg.label}" crossorigin="anonymous" style="max-height:50px;width:auto;object-fit:contain" />
+          <div style="text-align:center;flex:1">
+            ${landingPage ? `<div style="font-size:10px;color:#334155;opacity:0.85">${landingPage}</div>` : ''}
+            <div style="font-size:10px;color:#64748b;margin-top:2px">${new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+          </div>
+          <div style="font-size:11px;font-weight:600;color:${cfg.primary}">${cfg.label}</div>
+        </div>
+      `
+
+      document.body.appendChild(brochureDiv)
+
+      // 3. Wait for images in the brochure to load
+      const imgs = brochureDiv.querySelectorAll('img')
+      await Promise.all(
+        Array.from(imgs).map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              if (img.complete) return resolve()
+              img.onload = () => resolve()
+              img.onerror = () => resolve()
+            })
+        )
+      )
+      await new Promise((r) => setTimeout(r, 300))
+
+      // 4. Render brochure to canvas
+      const brochureCanvas = await html2canvas(brochureDiv, {
+        useCORS: true,
+        allowTaint: true,
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: 816,
+        windowWidth: 816,
+      })
+
+      document.body.removeChild(brochureDiv)
+
+      // 5. Generate PDF (Letter size: 8.5 x 11 inches)
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'in', format: 'letter' })
+      const pageW = 8.5
+      const pageH = 11
+      const canvasW = brochureCanvas.width
+      const canvasH = brochureCanvas.height
+      const imgAspect = canvasH / canvasW
+      const imgWidthIn = pageW
+      const imgHeightIn = imgWidthIn * imgAspect
+
+      const totalPages = Math.ceil(imgHeightIn / pageH)
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage()
+        const srcY = page * (canvasW * (pageH / pageW))
+        const srcH = Math.min(canvasW * (pageH / pageW), canvasH - srcY)
+        if (srcH <= 0) break
+
+        const sliceCanvas = document.createElement('canvas')
+        sliceCanvas.width = canvasW
+        sliceCanvas.height = srcH
+        const ctx = sliceCanvas.getContext('2d')!
+        ctx.drawImage(brochureCanvas, 0, srcY, canvasW, srcH, 0, 0, canvasW, srcH)
+
+        const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.92)
+        const sliceHeightIn = (srcH / canvasW) * pageW
+        pdf.addImage(sliceData, 'JPEG', 0, 0, pageW, sliceHeightIn)
+      }
+
+      pdf.save(`${selectedProject.project_name.replace(/[^a-zA-Z0-9]/g, '_')}_Presentation.pdf`)
+    } catch (err) {
+      console.error('PDF generation failed:', err)
+      alert('Failed to generate PDF. Please try again.')
+    } finally {
+      setProcessingPdf(false)
+    }
   }
 
   const handleSelectProject = (project: Property) => {
@@ -286,7 +495,7 @@ export default function ProjectPresentationPage() {
     return (
       <div className="flex flex-col h-full" id="presentation-container">
         {/* Presentation Header */}
-        <div className="shrink-0 flex items-center gap-2 md:gap-4 px-3 md:px-6 py-2.5 bg-white border-b border-gray-200 shadow-sm print-hide">
+        <div className="shrink-0 flex items-center gap-2 md:gap-4 px-3 md:px-6 py-2.5 bg-white border-b border-gray-200 shadow-sm">
           <button
             onClick={handleBack}
             className="flex items-center gap-1.5 px-2.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -342,18 +551,19 @@ export default function ProjectPresentationPage() {
             </button>
             <button
               onClick={() => setShowPrintModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-lg text-sm font-semibold hover:from-gray-900 hover:to-black transition-all"
-              title="Print Presentation"
+              disabled={processingPdf}
+              className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-lg text-sm font-semibold hover:from-gray-900 hover:to-black transition-all disabled:opacity-60"
+              title="Process Presentation"
             >
-              <Printer className="h-4 w-4" />
-              <span className="hidden md:inline">Print</span>
+              {processingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+              <span className="hidden md:inline">{processingPdf ? 'Processing...' : 'Process Presentation'}</span>
             </button>
           </div>
         </div>
 
         {/* Project Info Panel (collapsible) */}
         {showProjectInfo && (
-          <div className="shrink-0 bg-white border-b border-gray-200 print-hide overflow-hidden">
+          <div className="shrink-0 bg-white border-b border-gray-200 overflow-hidden">
             <div className="p-4 md:p-6 max-w-7xl mx-auto">
               <div className="flex flex-col lg:flex-row gap-5">
                 {/* Images */}
@@ -448,7 +658,7 @@ export default function ProjectPresentationPage() {
 
         {/* Commute Calculator Bar */}
         {showCommute && (
-          <div className="shrink-0 bg-gradient-to-r from-indigo-50 to-blue-50 border-b border-blue-200 px-4 md:px-6 py-3 print-hide">
+          <div className="shrink-0 bg-gradient-to-r from-indigo-50 to-blue-50 border-b border-blue-200 px-4 md:px-6 py-3">
             <div className="flex items-center gap-3 max-w-2xl">
               <Route className="h-5 w-5 text-indigo-600 flex-shrink-0" />
               <div className="flex-1 min-w-0">
@@ -472,7 +682,7 @@ export default function ProjectPresentationPage() {
 
         {/* Nearby Projects Bar */}
         {showNearby && (
-          <div className="shrink-0 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200 px-4 md:px-6 py-3 print-hide">
+          <div className="shrink-0 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200 px-4 md:px-6 py-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Building className="h-5 w-5 text-amber-600" />
@@ -517,15 +727,16 @@ export default function ProjectPresentationPage() {
           onHighwaysLoaded={(data) => { highwaysDataRef.current = data }}
           commuteInputRef={commuteInputRef}
           onCommuteAddressChange={(addr) => setCommuteAddress(addr)}
+          mapContainerRef={mapContainerRef}
         />
 
-        {/* Print Modal */}
+        {/* Process Presentation Modal */}
         {showPrintModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 print-hide">
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-bold text-gray-900">Print Presentation</h3>
-                <p className="text-sm text-gray-500 mt-0.5">Select branding for the printed version</p>
+                <h3 className="text-lg font-bold text-gray-900">Process Presentation</h3>
+                <p className="text-sm text-gray-500 mt-0.5">Select branding and download as PDF</p>
               </div>
               <div className="p-6 space-y-3">
                 {(Object.entries(BRAND_CONFIG) as [Company, typeof BRAND_CONFIG[Company]][]).map(([key, cfg]) => (
@@ -549,8 +760,13 @@ export default function ProjectPresentationPage() {
               </div>
               <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
                 <button onClick={() => setShowPrintModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium">Cancel</button>
-                <button onClick={handlePrint} className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-black">
-                  <Printer className="h-4 w-4" /> Print
+                <button
+                  onClick={handleProcessPresentation}
+                  disabled={processingPdf}
+                  className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-black disabled:opacity-60"
+                >
+                  {processingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                  {processingPdf ? 'Processing...' : 'Generate PDF'}
                 </button>
               </div>
             </div>
@@ -559,7 +775,7 @@ export default function ProjectPresentationPage() {
 
         {/* Share Modal */}
         {showShareModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 print-hide">
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">
                 <h3 className="text-lg font-bold text-gray-900">Share with Client</h3>
@@ -618,16 +834,18 @@ export default function ProjectPresentationPage() {
           </div>
         )}
 
-        {/* ─── Print-Only Layout ─── */}
-        <div className="print-only" ref={printRef}>
-          <PrintablePresentation
-            property={selectedProject}
-            brand={printBrand}
-            amenitiesData={amenitiesDataRef.current}
-            highwaysData={highwaysDataRef.current}
-            apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
-          />
-        </div>
+        {/* PDF Processing Overlay */}
+        {processingPdf && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-4 max-w-sm">
+              <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
+              <div className="text-center">
+                <p className="font-semibold text-gray-900">Processing Presentation</p>
+                <p className="text-sm text-gray-500 mt-1">Capturing map and generating PDF...</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -830,260 +1048,3 @@ export default function ProjectPresentationPage() {
   )
 }
 
-/* ─── Printable Presentation Component ─── */
-
-const AMENITY_CATEGORIES: Record<string, { label: string; color: string }> = {
-  school: { label: 'Schools', color: '#3b82f6' },
-  supermarket: { label: 'Grocery', color: '#22c55e' },
-  restaurant: { label: 'Restaurants', color: '#f97316' },
-  shopping_mall: { label: 'Shopping', color: '#a855f7' },
-  park: { label: 'Parks', color: '#16a34a' },
-  hospital: { label: 'Hospitals', color: '#ef4444' },
-  pharmacy: { label: 'Pharmacies', color: '#06b6d4' },
-  transit_station: { label: 'Transit', color: '#6366f1' },
-  gas_station: { label: 'Gas Stations', color: '#eab308' },
-  bank: { label: 'Banks', color: '#14b8a6' },
-  gym: { label: 'Fitness', color: '#f43f5e' },
-}
-
-function buildStaticMapUrl(
-  apiKey: string,
-  projectLat: number,
-  projectLng: number,
-  amenitiesData: Record<string, Array<{ lat: number; lng: number; category: string }>>,
-): string {
-  const colorMap: Record<string, string> = {
-    school: '0x3b82f6', supermarket: '0x22c55e', restaurant: '0xf97316', shopping_mall: '0xa855f7',
-    park: '0x16a34a', hospital: '0xef4444', pharmacy: '0x06b6d4', transit_station: '0x6366f1',
-    gas_station: '0xeab308', bank: '0x14b8a6', gym: '0xf43f5e',
-  }
-  const labelMap: Record<string, string> = {
-    school: 'S', supermarket: 'G', restaurant: 'R', shopping_mall: 'M', park: 'P',
-    hospital: 'H', pharmacy: 'P', transit_station: 'T', gas_station: 'F', bank: 'B', gym: 'W',
-  }
-
-  let url = `https://maps.googleapis.com/maps/api/staticmap?center=${projectLat},${projectLng}&zoom=13&size=640x400&scale=2&maptype=roadmap&key=${apiKey}`
-  url += `&markers=color:0x1e40af%7Clabel:★%7C${projectLat},${projectLng}`
-
-  for (const [catKey, items] of Object.entries(amenitiesData)) {
-    if (!items?.length) continue
-    const color = colorMap[catKey] || '0x999999'
-    const label = labelMap[catKey] || '?'
-    const coords = items.slice(0, 5).map(a => `${a.lat},${a.lng}`).join('%7C')
-    url += `&markers=color:${color}%7Clabel:${label}%7Csize:small%7C${coords}`
-  }
-
-  return url
-}
-
-function PrintablePresentation({
-  property,
-  brand,
-  amenitiesData,
-  highwaysData,
-  apiKey,
-}: {
-  property: Property
-  brand: Company
-  amenitiesData: Record<string, Array<{ name: string; address: string; lat: number; lng: number; driveTime?: string; driveDist?: string; walkTime?: string; walkDist?: string; category: string }>>
-  highwaysData?: HighwayInfo[]
-  apiKey?: string
-}) {
-  const cfg = BRAND_CONFIG[brand]
-  const landingPage = brand === 'fj' ? property.fj_landing_page : property.precon_factory_landing_page
-  const firstImage = property.pictures?.split(',')[0]?.trim()
-  const hasImage = firstImage && /^https?:\/\//i.test(firstImage)
-
-  const projectLat = property.map_lat ? Number(property.map_lat) : null
-  const projectLng = property.map_lng ? Number(property.map_lng) : null
-  const hasMapCoords = projectLat != null && projectLng != null
-
-  const fallbackAddress = property.map_address || property.address || `${property.project_name}, ${property.city}`
-
-  let staticMapUrl: string | null = null
-  if (apiKey) {
-    if (hasMapCoords) {
-      staticMapUrl = buildStaticMapUrl(apiKey, projectLat!, projectLng!, amenitiesData)
-    } else if (fallbackAddress) {
-      const encoded = encodeURIComponent(fallbackAddress)
-      staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${encoded}&zoom=14&size=640x400&scale=2&maptype=roadmap&key=${apiKey}&markers=color:0x1e40af%7Clabel:P%7C${encoded}`
-    }
-  }
-
-  const activeCats = Object.entries(AMENITY_CATEGORIES).filter(([key]) => (amenitiesData[key]?.length ?? 0) > 0)
-
-  return (
-    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', width: '100%', margin: '0', padding: '0', background: '#ffffff' }}>
-
-      {/* ═══ BRANDED HEADER — FULL WIDTH LOGO ON WHITE ═══ */}
-      <div style={{ background: '#ffffff', padding: '28px 24px', textAlign: 'center' as const, borderBottom: `4px solid ${cfg.primary}` }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={cfg.logo}
-          alt={cfg.label}
-          style={{ maxHeight: '80px', width: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', display: 'block' }}
-        />
-      </div>
-
-      {/* ═══ PROJECT TITLE BAR ═══ */}
-      <div style={{ backgroundColor: cfg.primary, padding: '0 32px 24px', textAlign: 'center' as const }}>
-        <div style={{ fontSize: '26px', fontWeight: 800, color: cfg.textOnBg, lineHeight: 1.2 }}>
-          {property.project_name}
-        </div>
-        <div style={{ fontSize: '13px', color: cfg.textOnBg, opacity: 0.8, marginTop: '6px' }}>
-          By {property.builder} &middot; {property.address || ''}{property.address ? ', ' : ''}{property.city}
-        </div>
-        {property.price && property.price !== 'N/A' && (
-          <div style={{ fontSize: '18px', fontWeight: 700, color: cfg.textOnBg, marginTop: '10px', letterSpacing: '0.5px' }}>
-            {property.price}
-          </div>
-        )}
-      </div>
-
-      {/* ═══ PROJECT IMAGE — FULL WIDTH ═══ */}
-      {hasImage && (
-        <img
-          src={firstImage}
-          alt={property.project_name}
-          style={{ width: '100%', height: '280px', objectFit: 'cover', display: 'block' }}
-        />
-      )}
-
-      {/* ═══ KEY STATS ROW ═══ */}
-      <div style={{ display: 'flex', borderBottom: `3px solid ${cfg.primary}` }}>
-        {property.bedrooms && property.bedrooms !== 'N/A' && (
-          <div style={{ flex: 1, padding: '16px', textAlign: 'center' as const, borderRight: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: '#1e293b' }}>{property.bedrooms}</div>
-            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Bedrooms</div>
-          </div>
-        )}
-        {property.bathrooms && property.bathrooms !== 'N/A' && (
-          <div style={{ flex: 1, padding: '16px', textAlign: 'center' as const, borderRight: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: '#1e293b' }}>{property.bathrooms}</div>
-            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Bathrooms</div>
-          </div>
-        )}
-        {property.sqft && property.sqft !== 'N/A' && (
-          <div style={{ flex: 1, padding: '16px', textAlign: 'center' as const, borderRight: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: '#1e293b' }}>{property.sqft}</div>
-            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Sq Ft</div>
-          </div>
-        )}
-        {property.price && property.price !== 'N/A' && (
-          <div style={{ flex: 1, padding: '16px', textAlign: 'center' as const }}>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: cfg.primary }}>{property.price}</div>
-            <div style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Starting From</div>
-          </div>
-        )}
-      </div>
-
-      {/* ═══ FEATURES ═══ */}
-      {property.features && property.features !== 'N/A' && (
-        <div style={{ padding: '16px 28px', borderBottom: '1px solid #e2e8f0' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: cfg.primary, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Features & Highlights</div>
-          <div style={{ fontSize: '12px', color: '#334155', lineHeight: 1.7 }}>{property.features}</div>
-        </div>
-      )}
-
-      {/* ═══ AMENITIES MAP — FULL WIDTH ═══ */}
-      {staticMapUrl && (
-        <div style={{ borderBottom: '1px solid #e2e8f0', background: '#ffffff', pageBreakInside: 'avoid' as const }}>
-          <div style={{ padding: '18px 28px 10px' }}>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: cfg.primary, textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Amenities Map</div>
-          </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={staticMapUrl}
-            alt="Amenities Map"
-            style={{ width: '100%', minHeight: '300px', display: 'block', background: '#e2e8f0' }}
-          />
-          {/* Legend */}
-          <div style={{ padding: '12px 28px 16px', display: 'flex', flexWrap: 'wrap' as const, gap: '8px 18px', borderTop: '1px solid #f1f5f9' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#1e40af', border: '2px solid white', boxShadow: '0 0 0 1px #1e40af' }} />
-              <span style={{ fontSize: '10px', fontWeight: 700, color: '#1e293b' }}>Project Location</span>
-            </div>
-            {activeCats.map(([key, cat]) => (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: cat.color }} />
-                <span style={{ fontSize: '10px', fontWeight: 500, color: '#475569' }}>{cat.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ═══ NEARBY AMENITIES HEADING ═══ */}
-      <div style={{ padding: '18px 28px 10px' }}>
-        <div style={{ fontSize: '13px', fontWeight: 700, color: cfg.primary, textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Nearby Amenities</div>
-      </div>
-
-      {/* ═══ AMENITIES DETAIL GRID — FULL WIDTH 2-COL ═══ */}
-      <div style={{ padding: '0 28px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-        {Object.entries(amenitiesData).map(([catKey, items]) => {
-          if (!items || items.length === 0) return null
-          const catCfg = AMENITY_CATEGORIES[catKey]
-          if (!catCfg) return null
-
-          return (
-            <div key={catKey} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', breakInside: 'avoid' as const, pageBreakInside: 'avoid' as const }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', paddingBottom: '6px', borderBottom: `2px solid ${catCfg.color}` }}>
-                <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: catCfg.color }} />
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>{catCfg.label}</div>
-                <span style={{ fontSize: '10px', color: '#94a3b8', marginLeft: 'auto' }}>{items.length} found</span>
-              </div>
-              {items.map((item, i) => (
-                <div key={i} style={{ padding: '4px 0', borderTop: i > 0 ? '1px solid #f1f5f9' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#334155', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, marginRight: '8px' }}>{item.name}</span>
-                  <span style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' as const }}>
-                    {item.driveTime && <span style={{ color: '#3b82f6' }}>🚗 {item.driveTime}</span>}
-                    {item.driveTime && item.walkTime && <span> · </span>}
-                    {item.walkTime && <span style={{ color: '#16a34a' }}>🚶 {item.walkTime}</span>}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* ═══ HIGHWAY ACCESS ═══ */}
-      {highwaysData && highwaysData.length > 0 && (
-        <div style={{ padding: '0 28px 16px' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: cfg.primary, textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '10px' }}>Highway Access</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px' }}>
-            {highwaysData.map((hw) => (
-              <div key={hw.short} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', borderLeft: `4px solid ${hw.color}` }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>{hw.name}</span>
-                {hw.driveTime && (
-                  <span style={{ fontSize: '11px', color: '#3b82f6' }}>🚗 {hw.driveTime}{hw.driveDist ? ` (${hw.driveDist})` : ''}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ═══ BRANDED FOOTER ═══ */}
-      <div style={{ background: '#ffffff', borderTop: `4px solid ${cfg.primary}`, padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', pageBreakInside: 'avoid' as const }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={cfg.logo}
-          alt={cfg.label}
-          style={{ maxHeight: '50px', width: 'auto', objectFit: 'contain' }}
-        />
-        <div style={{ textAlign: 'center' as const, flex: 1 }}>
-          {landingPage && (
-            <div style={{ fontSize: '10px', color: '#334155', opacity: 0.85 }}>{landingPage}</div>
-          )}
-          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-            {new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })}
-          </div>
-        </div>
-        <div style={{ fontSize: '11px', fontWeight: 600, color: cfg.primary }}>
-          {cfg.label}
-        </div>
-      </div>
-    </div>
-  )
-}
