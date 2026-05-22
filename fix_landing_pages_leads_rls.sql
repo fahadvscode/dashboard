@@ -1,4 +1,4 @@
--- Fix: Dashboard can't see leads in novella_leads / cornerstone_leads
+-- Fix: Dashboard can't see leads in landing page lead tables
 -- Cause: RLS blocks SELECT for the anon key used by the dashboard
 -- Run this in Supabase SQL Editor
 
@@ -39,4 +39,22 @@ CREATE POLICY "Allow dashboard to update cornerstone_leads"
 DROP POLICY IF EXISTS "Allow insert cornerstone_leads" ON cornerstone_leads;
 CREATE POLICY "Allow insert cornerstone_leads"
   ON cornerstone_leads FOR INSERT TO anon, authenticated
+  WITH CHECK (true);
+
+-- ========== lakeview_village_leads ==========
+ALTER TABLE lakeview_village_leads ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow dashboard to read lakeview_village_leads" ON lakeview_village_leads;
+CREATE POLICY "Allow dashboard to read lakeview_village_leads"
+  ON lakeview_village_leads FOR SELECT TO anon, authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "Allow dashboard to update lakeview_village_leads" ON lakeview_village_leads;
+CREATE POLICY "Allow dashboard to update lakeview_village_leads"
+  ON lakeview_village_leads FOR UPDATE TO anon, authenticated
+  USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow insert lakeview_village_leads" ON lakeview_village_leads;
+CREATE POLICY "Allow insert lakeview_village_leads"
+  ON lakeview_village_leads FOR INSERT TO anon, authenticated
   WITH CHECK (true);

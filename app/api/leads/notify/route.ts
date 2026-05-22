@@ -32,6 +32,16 @@ const emailTransporter = nodemailer.createTransport({
 // Google Sheets configuration
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID
 
+const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: string }> = {
+  cornerstone_leads: { websiteName: 'Cornerstone', pageName: 'Cornerstone' },
+  novella_leads: { websiteName: 'Novella', pageName: 'Novella' },
+  lakeview_village_leads: { websiteName: 'Lakeview Village', pageName: 'Lakeview Village' },
+}
+
+function isLandingPageLeadTable(tableName: unknown): tableName is keyof typeof LANDING_PAGE_SHEET_META {
+  return typeof tableName === 'string' && tableName in LANDING_PAGE_SHEET_META
+}
+
 async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
   try {
     const { google } = await import('googleapis')
@@ -57,26 +67,32 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
     const lastName = (lead.lastname as string) || (lead.last_name as string) ||
       ((lead.full_name as string) || '').split(' ').slice(1).join(' ') || 'N/A'
 
-    // Determine company based on source table
-    const company = 
-      lead.table_name === 'fj_leads' ? 'Fahad Javed Dashboard' :
-      lead.table_name === 'precon_factory_leads' ? 'Precon Factory Dashboard' :
-      lead.table_name === 'precon_factory_website_leads' ? 'Precon Factory Website' :
-      lead.table_name === 'gta_lowrise_leads' ? 'GTA Lowrise' :
-      lead.table_name === 'rental_leads' ? 'Rental' :
-      lead.table_name === 'cornerstone_leads' ? 'Cornerstone' :
-      lead.table_name === 'novella_leads' ? 'Novella' :
-      'Unknown'
-
     const timestamp = new Date().toLocaleString('en-US', { 
       timeZone: 'America/Toronto', 
       dateStyle: 'medium', 
       timeStyle: 'short' 
     })
 
-    const projectName = (lead.project_name as string) || (lead.source as string) || 'N/A'
-    const projectId = (lead.project_id as string) || 'N/A'
-    const landingPage = (lead.redirect_link as string) || 'N/A'
+    let projectName = (lead.project_name as string) || (lead.source as string) || 'N/A'
+    let projectId = (lead.project_id as string) || 'N/A'
+    let landingPage = (lead.redirect_link as string) || 'N/A'
+    let company =
+      lead.table_name === 'fj_leads' ? 'Fahad Javed Dashboard' :
+      lead.table_name === 'precon_factory_leads' ? 'Precon Factory Dashboard' :
+      lead.table_name === 'precon_factory_website_leads' ? 'Precon Factory Website' :
+      lead.table_name === 'gta_lowrise_leads' ? 'GTA Lowrise' :
+      lead.table_name === 'rental_leads' ? 'Rental' :
+      'Unknown'
+
+    // Landing pages: Project Name = website, Company = "Landing Page - {name}"
+    if (isLandingPageLeadTable(lead.table_name)) {
+      const meta = LANDING_PAGE_SHEET_META[lead.table_name]
+      const websiteFromPayload = (lead.website_name as string) || (lead.website as string)
+      projectName = websiteFromPayload || meta.websiteName
+      company = `Landing Page - ${meta.pageName}`
+      landingPage = (lead.redirect_link as string) || meta.pageName
+      projectId = 'N/A'
+    }
 
     const row = [
       firstName,
@@ -136,11 +152,19 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'rental_leads' ? 'Rental' :
       lead.table_name === 'cornerstone_leads' ? 'Cornerstone' :
       lead.table_name === 'novella_leads' ? 'Novella' :
+      lead.table_name === 'lakeview_village_leads' ? 'Lakeview Village' :
       'Unknown'
     
     const isRentalLead = lead.table_name === 'rental_leads'
-    const isLandingPageLead = lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads'
-    const landingPageName = lead.table_name === 'cornerstone_leads' ? 'Cornerstone' : lead.table_name === 'novella_leads' ? 'Novella' : ''
+    const isLandingPageLead =
+      lead.table_name === 'cornerstone_leads' ||
+      lead.table_name === 'novella_leads' ||
+      lead.table_name === 'lakeview_village_leads'
+    const landingPageName =
+      lead.table_name === 'cornerstone_leads' ? 'Cornerstone' :
+      lead.table_name === 'novella_leads' ? 'Novella' :
+      lead.table_name === 'lakeview_village_leads' ? 'Lakeview Village' :
+      ''
     const leadType = isRentalLead ? 'Rental Inquiry' : (lead.isagent ? 'Agent' : 'Buyer')
     
     const leadPath = 
@@ -149,7 +173,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'precon_factory_website_leads' ? 'precon-factory-website-leads' :
       lead.table_name === 'gta_lowrise_leads' ? 'gta-lowrise-leads' :
       lead.table_name === 'rental_leads' ? 'rental-leads' :
-      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads') ? 'landing-pages-leads' :
+      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads' || lead.table_name === 'lakeview_village_leads') ? 'landing-pages-leads' :
       'rental-leads'
     
     const dashboardUrl = `https://property-dashboard-three.vercel.app/${leadPath}?leadId=${lead.id}`
@@ -221,6 +245,15 @@ export async function POST(request: NextRequest) {
         if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
         if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
         if (lead.source) message += `\n📌 Source: ${lead.source}`
+      }
+
+      // Lakeview Village fields
+      if (lead.table_name === 'lakeview_village_leads') {
+        if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
+        if (lead.home_interest) message += `\n🏠 Home Interest: ${lead.home_interest}`
+        if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
+        if (lead.is_realtor !== undefined) message += `\n🏢 Realtor: ${lead.is_realtor ? 'Yes' : 'No'}`
+        if (lead.consent !== undefined) message += `\n✅ Consent: ${lead.consent ? 'Yes' : 'No'}`
       }
     } else {
       // Regular lead format
