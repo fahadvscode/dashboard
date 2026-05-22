@@ -88,8 +88,8 @@ export default function ProjectPresentationPage() {
 
   const commuteInputRef = useRef<HTMLInputElement>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  const amenitiesDataRef = useRef<Record<string, Array<{ name: string; address: string; lat: number; lng: number; driveTime?: string; driveDist?: string; walkTime?: string; walkDist?: string; category: string }>>>({})
-  const highwaysDataRef = useRef<HighwayInfo[]>([])
+  const [amenitiesData, setAmenitiesData] = useState<Record<string, Array<{ name: string; address: string; lat: number; lng: number; driveTime?: string; driveDist?: string; walkTime?: string; walkDist?: string; category: string }>>>({})
+  const [highwaysData, setHighwaysData] = useState<HighwayInfo[]>([])
   const [processingPdf, setProcessingPdf] = useState(false)
 
   useEffect(() => {
@@ -293,8 +293,8 @@ export default function ProjectPresentationPage() {
       const brochureDiv = document.createElement('div')
       brochureDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:816px;background:#fff;font-family:system-ui,-apple-system,sans-serif;'
       
-      const amenities = amenitiesDataRef.current
-      const highways = highwaysDataRef.current
+      const amenities = amenitiesData
+      const highways = highwaysData
       const activeCats = Object.entries(AMENITY_LABELS).filter(([key]) => (amenities[key]?.length ?? 0) > 0)
 
       brochureDiv.innerHTML = `
@@ -723,8 +723,8 @@ export default function ProjectPresentationPage() {
           commuteDestination={showCommute && commuteAddress.trim().length >= 5 ? commuteAddress.trim() : undefined}
           nearbyProjects={showNearby ? nearbyProjects : undefined}
           onSelectNearbyProject={handleSelectProject}
-          onAmenitiesLoaded={(data) => { amenitiesDataRef.current = data }}
-          onHighwaysLoaded={(data) => { highwaysDataRef.current = data }}
+          onAmenitiesLoaded={setAmenitiesData}
+          onHighwaysLoaded={setHighwaysData}
           commuteInputRef={commuteInputRef}
           onCommuteAddressChange={(addr) => setCommuteAddress(addr)}
           mapContainerRef={mapContainerRef}
