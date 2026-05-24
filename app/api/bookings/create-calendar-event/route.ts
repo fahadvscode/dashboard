@@ -12,8 +12,10 @@ const CALENDAR_IDS = {
   gtalowrise: 'c_c702f7be6ca9312d4fccf118aaff244390379e2b07f3f5ef47b3ee609fa49475@group.calendar.google.com'
 }
 
-/** Always invited on booking events (Google Calendar attendee). */
-const COHOST_EMAIL = 'fahad@fahadsold.com'
+const OFFICE_ADDRESS = '600 Matheson Blvd W, Mississauga, ON L5R 4C1'
+
+/** All team members invited on every booking event — they can all start/host Google Meet sessions. */
+const TEAM_EMAILS = ['fahad@fahadsold.com', 'info@fahadsold.com', 'info@preconfactory.com']
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -123,52 +125,60 @@ export async function POST(request: NextRequest) {
     const adjustedEndMinutes = endMinutes >= 60 ? endMinutes - 60 : endMinutes
     const endDateTimeLocal = `${appointmentDate}T${String(adjustedEndHours).padStart(2, '0')}:${String(adjustedEndMinutes).padStart(2, '0')}:00`
 
-    // Build event title
+    const appointmentType = (booking.appointment_type || 'Phone Call').trim()
+    const brandPhone = brandName === 'FJ' ? '(647) 898-1739' :
+                       brandName === 'Precon Factory' ? '(647) 956-4063' :
+                       '(416) 399-4289'
+
+    // --- Type-specific location & description ---
+    let location: string
+    let description: string
+    let isGoogleMeet = false
+
+    const customerLine = `Name: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}\nAppointment Type: ${appointmentType}\n`
+    const projectLines = [
+      booking.project_name && `Project: ${booking.project_name}`,
+      booking.project_id && `Project ID: ${booking.project_id}`,
+      booking.project_url && `Project URL: ${booking.project_url}`,
+    ].filter(Boolean).join('\n')
+    const messageLine = booking.message ? `\n💬 Customer Message:\n${booking.message}\n` : ''
+
+    switch (appointmentType) {
+      case 'Google Meet': {
+        isGoogleMeet = true
+        location = 'Google Meet (auto-generated)'
+        description = `💻 GOOGLE MEET APPOINTMENT\n\nCustomer Details:\n${customerLine}\n📋 Meeting Details:\nThis is a virtual meeting via Google Meet. The Meet link is auto-generated and attached to this event.\nAll team members can start/host the meeting.\n\n${projectLines}${messageLine}`
+        break
+      }
+      case 'Office Visit': {
+        location = OFFICE_ADDRESS
+        description = `🏢 OFFICE VISIT APPOINTMENT\n\nCustomer Details:\n${customerLine}\n📋 Meeting Details:\nThe customer will visit the office at:\n${OFFICE_ADDRESS}\n\nPlease ensure the meeting room is ready.\n\n${projectLines}${messageLine}`
+        break
+      }
+      case 'Builder Site Visit': {
+        location = 'Builder Site Visit - Location TBD'
+        description = `🏗️ BUILDER SITE VISIT APPOINTMENT\n\nCustomer Details:\n${customerLine}\n📋 Meeting Details:\nThis is a builder site visit. The customer will be contacted approximately 2 hours before the appointment with the exact site location and instructions.\n\n${projectLines}${messageLine}`
+        break
+      }
+      default: {
+        // Phone Call (default)
+        location = `📞 Phone Call - ${brandPhone}`
+        description = `📞 PHONE CALL APPOINTMENT\n\nCustomer Details:\n${customerLine}\n📋 Meeting Details:\nThis is a phone call appointment. We will call the customer at their provided number.\nIf customer needs to reach us: ${brandPhone}\n\n${projectLines}${messageLine}`
+        break
+      }
+    }
+
+    // Build event title including appointment type
     let eventTitle = `Booking: ${booking.firstname} ${booking.lastname || ''}`
     if (booking.project_name) {
       eventTitle += ` - ${booking.project_name}`
     }
+    const enhancedTitle = `${brandName} - ${eventTitle} - ${appointmentType}`
 
-    // Build event description
-    let description = `📞 PHONE CALL APPOINTMENT\n\n`
-    description += `Customer Details:\n`
-    description += `Name: ${booking.firstname} ${booking.lastname || ''}\n`
-    description += `Email: ${booking.email}\n`
-    description += `Phone: ${booking.phone || 'Not provided'}\n`
-    description += `Appointment Type: ${booking.appointment_type || 'Not specified'}\n\n`
-    
-    description += `📋 Meeting Details:\n`
-    description += `This is a phone call appointment. We will call the customer at their provided number.\n`
-    description += `If customer needs to reach us: (647) 898-1739\n\n`
-    
-    if (booking.project_name) {
-      description += `Project: ${booking.project_name}\n`
-    }
-    if (booking.project_id) {
-      description += `Project ID: ${booking.project_id}\n`
-    }
-    if (booking.project_url) {
-      description += `Project URL: ${booking.project_url}\n`
-    }
-    if (booking.message) {
-      description += `\n💬 Customer Message:\n${booking.message}\n`
-    }
-
-    // Create calendar event using unified OAuth client
     const calendar = await getCalendarClient()
-    
-    // Set location as Phone Call with brand-specific contact number
-    const brandPhone = brandName === 'FJ' ? '(647) 898-1739' : 
-                       brandName === 'Precon Factory' ? '(647) 956-4063' : 
-                       '(416) 399-4289' // GTA Lowrise
-    const phoneNumber = brandPhone
-    const location = `📞 Phone Call - ${phoneNumber}`
-    
-    // Enhanced event title with brand name
-    const enhancedTitle = `${brandName} - ${eventTitle}`
 
+    // Build attendees: customer + all team members
     const customerEmailNorm = booking.email.trim().toLowerCase()
-    const cohostEmailNorm = COHOST_EMAIL.toLowerCase()
     const attendees: Array<{
       email: string
       displayName?: string
@@ -177,54 +187,73 @@ export async function POST(request: NextRequest) {
       {
         email: booking.email.trim(),
         displayName: `${booking.firstname} ${booking.lastname || ''}`.trim(),
-        responseStatus: 'accepted', // Mark customer as accepted
+        responseStatus: 'accepted',
       },
     ]
-    if (customerEmailNorm !== cohostEmailNorm) {
-      attendees.push({ email: COHOST_EMAIL, displayName: 'Fahad' })
+    for (const teamEmail of TEAM_EMAILS) {
+      if (teamEmail.toLowerCase() !== customerEmailNorm) {
+        attendees.push({ email: teamEmail })
+      }
     }
 
-    const event = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const event: Record<string, any> = {
       summary: enhancedTitle,
-      description: description,
-      start: {
-        dateTime: startDateTimeLocal,
-        timeZone: timezone,
-      },
-      end: {
-        dateTime: endDateTimeLocal,
-        timeZone: timezone,
-      },
+      description,
+      start: { dateTime: startDateTimeLocal, timeZone: timezone },
+      end: { dateTime: endDateTimeLocal, timeZone: timezone },
       attendees,
-      location: location,
+      location,
       reminders: {
         useDefault: false,
         overrides: [
-          { method: 'email', minutes: 24 * 60 }, // 24 hours before
-          { method: 'popup', minutes: 60 } // 1 hour before
+          { method: 'email', minutes: 24 * 60 },
+          { method: 'popup', minutes: 60 },
         ],
-      },
-      conferenceData: {
-        notes: `This is a phone call appointment.\n\nWe will call you at: ${booking.phone || 'your provided number'}\n\nIf you need to reach us, call: ${phoneNumber}`
       },
       source: {
         title: `${brandName} Booking System`,
-        url: booking.project_url || 'https://property-dashboard-three.vercel.app'
+        url: booking.project_url || 'https://property-dashboard-three.vercel.app',
+      },
+    }
+
+    if (isGoogleMeet) {
+      event.conferenceData = {
+        createRequest: {
+          requestId: `booking-${booking.id || Date.now()}`,
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
       }
     }
 
     const response = await calendar.events.insert({
-      calendarId: calendarId,
+      calendarId,
       requestBody: event,
-      sendUpdates: 'all', // Send invitations to attendees
+      sendUpdates: 'all',
+      ...(isGoogleMeet ? { conferenceDataVersion: 1 } : {}),
     })
+
+    const meetLink = isGoogleMeet ? (response.data.hangoutLink || null) : null
+
+    // Store Meet link in booking row so reminders can reference it
+    if (meetLink && booking.table_name) {
+      try {
+        await supabase
+          .from(booking.table_name)
+          .update({ meet_link: meetLink })
+          .eq('id', booking.id)
+      } catch (e) {
+        console.warn('Could not store meet_link in booking row:', e)
+      }
+    }
 
     return NextResponse.json({
       success: true,
       eventId: response.data.id,
       htmlLink: response.data.htmlLink,
-      calendarId: calendarId,
-      message: 'Calendar event created successfully'
+      calendarId,
+      meetLink,
+      message: 'Calendar event created successfully',
     })
 
   } catch (error: unknown) {

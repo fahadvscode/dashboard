@@ -13,6 +13,8 @@ const twilioPhone = process.env.TWILIO_PHONE_NUMBER
 const notificationPhones = ['6478981739', '4168296121', '4163994289']
 const notificationEmails = ['info@fahadsold.com', 'info@preconfactory.com']
 
+const OFFICE_ADDRESS = '600 Matheson Blvd W, Mississauga, ON L5R 4C1'
+
 /** Twilio expects E.164 (e.g. +16478981739). */
 function toE164NorthAmerica(phone: string): string {
   const digits = phone.replace(/\D/g, '')
@@ -50,6 +52,7 @@ interface Booking {
   reminder_5m_sent: boolean
   reminder_admin_1h_sent: boolean
   reminder_admin_15m_sent: boolean
+  meet_link?: string
   table_name?: string
 }
 
@@ -224,70 +227,247 @@ async function markReminderSent(tableName: string, bookingId: string, column: st
     .eq('id', bookingId)
 }
 
-// 24-HOUR CUSTOMER REMINDER (SMS + email)
+// ── Type-aware SMS/email helpers ──────────────────────────────────
+
+function get24hSms(booking: Booking, brandName: string): string {
+  const time = formatTime(booking.appointment_time)
+  const project = booking.project_name || 'your property search'
+  const type = (booking.appointment_type || 'Phone Call').trim()
+  switch (type) {
+    case 'Google Meet':
+      return `Hi ${booking.firstname}! Reminder — your Google Meet is tomorrow at ${time} to chat about ${project}. Check your calendar invite for the link. Looking forward to it!\n\n- ${brandName} Team`
+    case 'Office Visit':
+      return `Hi ${booking.firstname}! Reminder — your office visit is tomorrow at ${time} at ${OFFICE_ADDRESS} to chat about ${project}. We look forward to seeing you!\n\n- ${brandName} Team`
+    case 'Builder Site Visit':
+      return `Hi ${booking.firstname}! Reminder — your builder site visit is tomorrow at ${time} regarding ${project}. We'll contact you ~2 hours before with the site location and instructions.\n\n- ${brandName} Team`
+    default:
+      return `Hi ${booking.firstname}! Quick reminder - we'll call you tomorrow at ${time} to chat about ${project}. Looking forward to it!\n\n- ${brandName} Team`
+  }
+}
+
+function get24hEmailBody(booking: Booking): string {
+  const time = formatTime(booking.appointment_time)
+  const project = booking.project_name ? ` for <strong>${booking.project_name}</strong>` : ''
+  const type = (booking.appointment_type || 'Phone Call').trim()
+  switch (type) {
+    case 'Google Meet':
+      return `<p>Hi <strong>${booking.firstname}</strong>,</p>
+        <p>Quick reminder — your <strong>Google Meet</strong> is <strong>tomorrow</strong> at <strong>${time}</strong>${project}.</p>
+        <p>Please check your calendar invite for the meeting link.</p>`
+    case 'Office Visit':
+      return `<p>Hi <strong>${booking.firstname}</strong>,</p>
+        <p>Quick reminder — your <strong>office visit</strong> is <strong>tomorrow</strong> at <strong>${time}</strong>${project}.</p>
+        <p>Our office address: <strong>${OFFICE_ADDRESS}</strong></p>
+        <p><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(OFFICE_ADDRESS)}" target="_blank" style="color:#3b82f6;">View on Google Maps</a></p>`
+    case 'Builder Site Visit':
+      return `<p>Hi <strong>${booking.firstname}</strong>,</p>
+        <p>Quick reminder — your <strong>builder site visit</strong> is <strong>tomorrow</strong> at <strong>${time}</strong>${project}.</p>
+        <p>We will contact you approximately <strong>2 hours before</strong> your appointment with the exact site location and instructions.</p>`
+    default:
+      return `<p>Hi <strong>${booking.firstname}</strong>,</p>
+        <p>Quick reminder — your appointment is <strong>tomorrow</strong> at <strong>${time}</strong>${project}.</p>
+        <p>We will call you at your provided phone number. Please ensure you are available.</p>`
+  }
+}
+
+function get1hSms(booking: Booking, brandName: string): string {
+  const time = formatTime(booking.appointment_time)
+  const type = (booking.appointment_type || 'Phone Call').trim()
+  switch (type) {
+    case 'Google Meet':
+      return `Your Google Meet starts in 1 hour (${time}). Check your calendar invite for the link. Have your questions ready! 💻\n\n- ${brandName} Team`
+    case 'Office Visit':
+      return `Your office visit is in 1 hour (${time}) at ${OFFICE_ADDRESS}. We look forward to seeing you! 🏢\n\n- ${brandName} Team`
+    case 'Builder Site Visit':
+      return `Your builder site visit is in 1 hour (${time}). Expect a call shortly with the exact location and instructions. 🏗️\n\n- ${brandName} Team`
+    default:
+      return `We'll call you in 1 hour (${time}). Have your questions ready! 📞\n\n- ${brandName} Team`
+  }
+}
+
+function get1hEmailBody(booking: Booking): string {
+  const time = formatTime(booking.appointment_time)
+  const type = (booking.appointment_type || 'Phone Call').trim()
+  switch (type) {
+    case 'Google Meet':
+      return `<p>Hi <strong>${booking.firstname}</strong>,</p>
+        <p>Your <strong>Google Meet</strong> starts in <strong>1 hour</strong> at <strong>${time}</strong>. Please check your calendar invite for the meeting link.</p>`
+    case 'Office Visit':
+      return `<p>Hi <strong>${booking.firstname}</strong>,</p>
+        <p>Your <strong>office visit</strong> is in <strong>1 hour</strong> at <strong>${time}</strong>.</p>
+        <p>Our address: <strong>${OFFICE_ADDRESS}</strong></p>`
+    case 'Builder Site Visit':
+      return `<p>Hi <strong>${booking.firstname}</strong>,</p>
+        <p>Your <strong>builder site visit</strong> is in <strong>1 hour</strong> at <strong>${time}</strong>. Expect a call shortly with the exact location and instructions.</p>`
+    default:
+      return `<p>Hi <strong>${booking.firstname}</strong>,</p>
+        <p>Your appointment is in <strong>1 hour</strong> at <strong>${time}</strong>. We will call you at your provided number. Have your questions ready!</p>`
+  }
+}
+
+function get5minSms(booking: Booking, brandName: string): string {
+  const type = (booking.appointment_type || 'Phone Call').trim()
+  switch (type) {
+    case 'Google Meet':
+      return `Your Google Meet starts in 5 minutes! Join via your calendar invite. 💻\n\n- ${brandName} Team`
+    case 'Office Visit':
+      return `Your office visit starts in 5 minutes! We're ready for you at ${OFFICE_ADDRESS}. 🏢\n\n- ${brandName} Team`
+    case 'Builder Site Visit':
+      return `Your builder site visit starts in 5 minutes! 🏗️\n\n- ${brandName} Team`
+    default:
+      return `We're calling you in 5 minutes! 📞\n\n- ${brandName} Team`
+  }
+}
+
+function getAdmin1hSms(booking: Booking): string {
+  const name = `${booking.firstname} ${booking.lastname || ''}`.trim()
+  const time = formatTime(booking.appointment_time)
+  const project = booking.project_name || 'property inquiry'
+  const type = (booking.appointment_type || 'Phone Call').trim()
+  switch (type) {
+    case 'Google Meet':
+      return `💻 1 HOUR - Google Meet with ${name} about ${project} at ${time}. Join via calendar event.`
+    case 'Office Visit':
+      return `🏢 1 HOUR - ${name} visiting office about ${project} at ${time}. Prepare meeting room.`
+    case 'Builder Site Visit':
+      return `🏗️ 1 HOUR - Call ${name} at ${booking.phone} with builder site directions for ${project} at ${time}.`
+    default:
+      return `📞 1 HOUR - Call ${name} at ${booking.phone} about ${project} at ${time}`
+  }
+}
+
+function getAdmin1hEmailHtml(booking: Booking): string {
+  const name = `${booking.firstname} ${booking.lastname || ''}`.trim()
+  const time = formatTime(booking.appointment_time)
+  const project = booking.project_name || 'Property inquiry'
+  const type = (booking.appointment_type || 'Phone Call').trim()
+  switch (type) {
+    case 'Google Meet':
+      return `<p><strong>💻 1 HOUR – Upcoming Google Meet</strong></p>
+        <p>Join the Google Meet with <strong>${name}</strong></p>
+        <p>Project: ${project}</p>
+        <p>Time: ${booking.appointment_date} at ${time}</p>
+        <p>The Meet link is in the calendar event.</p>`
+    case 'Office Visit':
+      return `<p><strong>🏢 1 HOUR – Customer Arriving at Office</strong></p>
+        <p><strong>${name}</strong> is visiting the office</p>
+        <p>Project: ${project}</p>
+        <p>Time: ${booking.appointment_date} at ${time}</p>
+        <p>Please prepare the meeting room.</p>`
+    case 'Builder Site Visit':
+      return `<p><strong>🏗️ 1 HOUR – Builder Site Visit</strong></p>
+        <p>Call <strong>${name}</strong> at ${booking.phone} with builder site directions</p>
+        <p>Project: ${project}</p>
+        <p>Time: ${booking.appointment_date} at ${time}</p>`
+    default:
+      return `<p><strong>📞 1 HOUR – Upcoming Call</strong></p>
+        <p>Call <strong>${name}</strong> at ${booking.phone}</p>
+        <p>Project: ${project}</p>
+        <p>Time: ${booking.appointment_date} at ${time}</p>`
+  }
+}
+
+function getAdmin15mSms(booking: Booking): string {
+  const name = `${booking.firstname} ${booking.lastname || ''}`.trim()
+  const project = booking.project_name || 'property inquiry'
+  const type = (booking.appointment_type || 'Phone Call').trim()
+  switch (type) {
+    case 'Google Meet':
+      return `💻 JOIN NOW - Google Meet with ${name} (${project}). Open calendar event.`
+    case 'Office Visit':
+      return `🏢 ARRIVING NOW - ${name} at office for ${project}.`
+    case 'Builder Site Visit':
+      return `🏗️ NOW - Ensure ${name} has site directions for ${project}. Call ${booking.phone} if needed.`
+    default:
+      return `📞 CALL NOW - ${name} at ${booking.phone} (${project})`
+  }
+}
+
+function getAdmin15mEmailHtml(booking: Booking): string {
+  const name = `${booking.firstname} ${booking.lastname || ''}`.trim()
+  const time = formatTime(booking.appointment_time)
+  const project = booking.project_name || 'Property inquiry'
+  const type = (booking.appointment_type || 'Phone Call').trim()
+  switch (type) {
+    case 'Google Meet':
+      return `<p><strong>💻 JOIN NOW – 15 minutes until Google Meet</strong></p>
+        <p>Join the Meet with <strong>${name}</strong></p>
+        <p>Project: ${project}</p>
+        <p>Time: ${booking.appointment_date} at ${time}</p>`
+    case 'Office Visit':
+      return `<p><strong>🏢 ARRIVING NOW – 15 minutes until office visit</strong></p>
+        <p><strong>${name}</strong> is arriving at the office</p>
+        <p>Project: ${project}</p>`
+    case 'Builder Site Visit':
+      return `<p><strong>🏗️ NOW – 15 minutes until builder site visit</strong></p>
+        <p>Ensure <strong>${name}</strong> has directions. Call ${booking.phone} if needed.</p>
+        <p>Project: ${project}</p>`
+    default:
+      return `<p><strong>📞 CALL NOW – 15 minutes until appointment</strong></p>
+        <p>Call <strong>${name}</strong> at ${booking.phone}</p>
+        <p>Project: ${project}</p>
+        <p>Time: ${booking.appointment_date} at ${time}</p>`
+  }
+}
+
+function getAdmin1hSubject(booking: Booking): string {
+  const type = (booking.appointment_type || 'Phone Call').trim()
+  switch (type) {
+    case 'Google Meet': return '1 HOUR – Upcoming Google Meet'
+    case 'Office Visit': return '1 HOUR – Customer Arriving at Office'
+    case 'Builder Site Visit': return '1 HOUR – Builder Site Visit'
+    default: return '1 HOUR – Upcoming Call'
+  }
+}
+
+function getAdmin15mSubject(booking: Booking): string {
+  const type = (booking.appointment_type || 'Phone Call').trim()
+  switch (type) {
+    case 'Google Meet': return 'JOIN NOW – Google Meet in 15 min'
+    case 'Office Visit': return 'ARRIVING NOW – Office visit in 15 min'
+    case 'Builder Site Visit': return 'NOW – Builder site visit in 15 min'
+    default: return 'CALL NOW – 15 min until appointment'
+  }
+}
+
+// ── Reminder senders ─────────────────────────────────────────────
+
 async function send24HourCustomerReminder(booking: Booking, brandName: string) {
-  const smsMessage = `Hi ${booking.firstname}! Quick reminder - we'll call you tomorrow at ${formatTime(booking.appointment_time)} to chat about ${booking.project_name || 'your property search'}. Looking forward to it! 😊\n\n- ${brandName} Team`
+  const smsMessage = get24hSms(booking, brandName)
 
   if (booking.phone && accountSid && authToken && twilioPhone) {
     try {
-      await twilioClient.messages.create({
-        body: smsMessage,
-        from: twilioPhone,
-        to: toE164NorthAmerica(booking.phone)
-      })
+      await twilioClient.messages.create({ body: smsMessage, from: twilioPhone, to: toE164NorthAmerica(booking.phone) })
       console.log(`✅ 24-hour SMS reminder sent to ${booking.phone}`)
     } catch (err) {
       console.error(`24-hour SMS reminder failed for ${booking.phone}:`, err)
     }
   }
 
-  await sendCustomerReminderEmail(
-    booking,
-    brandName,
-    'Appointment Reminder - Tomorrow',
-    `<p>Hi <strong>${booking.firstname}</strong>,</p>
-     <p>Quick reminder — your appointment is <strong>tomorrow</strong> at <strong>${formatTime(booking.appointment_time)}</strong>${booking.project_name ? ` for <strong>${booking.project_name}</strong>` : ''}.</p>
-     <p>We look forward to speaking with you!</p>`
-  )
+  await sendCustomerReminderEmail(booking, brandName, 'Appointment Reminder - Tomorrow', get24hEmailBody(booking))
 }
 
-// 1-HOUR CUSTOMER REMINDER (SMS + email)
 async function send1HourCustomerReminder(booking: Booking, brandName: string) {
-  const smsMessage = `We'll call you in 1 hour (${formatTime(booking.appointment_time)}). Have your questions ready! 📞\n\n- ${brandName} Team`
+  const smsMessage = get1hSms(booking, brandName)
 
   if (booking.phone && accountSid && authToken && twilioPhone) {
     try {
-      await twilioClient.messages.create({
-        body: smsMessage,
-        from: twilioPhone,
-        to: toE164NorthAmerica(booking.phone)
-      })
+      await twilioClient.messages.create({ body: smsMessage, from: twilioPhone, to: toE164NorthAmerica(booking.phone) })
       console.log(`✅ 1-hour SMS reminder sent to ${booking.phone}`)
     } catch (err) {
       console.error(`1-hour SMS reminder failed for ${booking.phone}:`, err)
     }
   }
 
-  await sendCustomerReminderEmail(
-    booking,
-    brandName,
-    'Appointment in 1 Hour',
-    `<p>Hi <strong>${booking.firstname}</strong>,</p>
-     <p>Your appointment is in <strong>1 hour</strong> at <strong>${formatTime(booking.appointment_time)}</strong>. Have your questions ready!</p>`
-  )
+  await sendCustomerReminderEmail(booking, brandName, 'Appointment in 1 Hour', get1hEmailBody(booking))
 }
 
-// 5-MIN CUSTOMER REMINDER (SMS only — too late for email)
 async function send5MinCustomerReminder(booking: Booking, brandName: string) {
-  const smsMessage = `We're calling you in 5 minutes! 📞\n\n- ${brandName} Team`
+  const smsMessage = get5minSms(booking, brandName)
 
   if (booking.phone && accountSid && authToken && twilioPhone) {
     try {
-      await twilioClient.messages.create({
-        body: smsMessage,
-        from: twilioPhone,
-        to: toE164NorthAmerica(booking.phone)
-      })
+      await twilioClient.messages.create({ body: smsMessage, from: twilioPhone, to: toE164NorthAmerica(booking.phone) })
       console.log(`✅ 5-min SMS reminder sent to ${booking.phone}`)
     } catch (err) {
       console.error(`5-min SMS reminder failed for ${booking.phone}:`, err)
@@ -295,72 +475,44 @@ async function send5MinCustomerReminder(booking: Booking, brandName: string) {
   }
 }
 
-// 1-HOUR ADMIN REMINDER (SMS + email)
 async function send1HourAdminReminder(booking: Booking, brandName: string) {
-  const smsMessage = `📞 1 HOUR - Call ${booking.firstname} ${booking.lastname || ''} at ${booking.phone} about ${booking.project_name || 'property inquiry'} at ${formatTime(booking.appointment_time)}`
-
-  const emailHtml = `
-    <p><strong>📞 1 HOUR – Upcoming Call</strong></p>
-    <p>Call <strong>${booking.firstname} ${booking.lastname || ''}</strong> at ${booking.phone}</p>
-    <p>Project: ${booking.project_name || 'Property inquiry'}</p>
-    <p>Time: ${booking.appointment_date} at ${formatTime(booking.appointment_time)}</p>
-  `
-  await sendAdminReminderEmails(booking, brandName, '1 HOUR – Upcoming Call', emailHtml)
+  const smsMessage = getAdmin1hSms(booking)
+  await sendAdminReminderEmails(booking, brandName, getAdmin1hSubject(booking), getAdmin1hEmailHtml(booking))
 
   if (accountSid && authToken && twilioPhone) {
     await Promise.allSettled(
       notificationPhones.map(phone =>
-        twilioClient.messages.create({
-          body: smsMessage,
-          from: twilioPhone,
-          to: toE164NorthAmerica(phone)
-        })
+        twilioClient.messages.create({ body: smsMessage, from: twilioPhone, to: toE164NorthAmerica(phone) })
       )
     )
-  } else {
-    console.error('Admin reminder SMS skipped: Twilio env not set')
   }
-
-  console.log(`✅ 1-hour admin reminder (SMS+email) sent`)
+  console.log(`✅ 1-hour admin reminder sent`)
 }
 
-// 15-MIN ADMIN REMINDER (SMS + email)
 async function send15MinAdminReminder(booking: Booking, brandName: string) {
-  const smsMessage = `📞 CALL NOW - ${booking.firstname} ${booking.lastname || ''} at ${booking.phone} (${booking.project_name || 'property inquiry'})`
-
-  const emailHtml = `
-    <p><strong>📞 CALL NOW – 15 minutes until appointment</strong></p>
-    <p>Call <strong>${booking.firstname} ${booking.lastname || ''}</strong> at ${booking.phone}</p>
-    <p>Project: ${booking.project_name || 'Property inquiry'}</p>
-    <p>Time: ${booking.appointment_date} at ${formatTime(booking.appointment_time)}</p>
-  `
-  await sendAdminReminderEmails(booking, brandName, 'CALL NOW – 15 min until appointment', emailHtml)
+  const smsMessage = getAdmin15mSms(booking)
+  await sendAdminReminderEmails(booking, brandName, getAdmin15mSubject(booking), getAdmin15mEmailHtml(booking))
 
   if (accountSid && authToken && twilioPhone) {
     await Promise.allSettled(
       notificationPhones.map(phone =>
-        twilioClient.messages.create({
-          body: smsMessage,
-          from: twilioPhone,
-          to: toE164NorthAmerica(phone)
-        })
+        twilioClient.messages.create({ body: smsMessage, from: twilioPhone, to: toE164NorthAmerica(phone) })
       )
     )
-  } else {
-    console.error('Admin reminder SMS skipped: Twilio env not set')
   }
-
-  console.log(`✅ 15-min admin reminder (SMS+email) sent`)
+  console.log(`✅ 15-min admin reminder sent`)
 }
 
 async function sendAdminReminderEmails(booking: Booking, brandName: string, subject: string, htmlBody: string) {
   try {
+    const type = (booking.appointment_type || 'Phone Call').trim()
+    const icon = type === 'Google Meet' ? '💻' : type === 'Office Visit' ? '🏢' : type === 'Builder Site Visit' ? '🏗️' : '📞'
     const fullHtml = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif">${htmlBody}</body></html>`
     for (const email of notificationEmails) {
       await emailTransporter.sendMail({
         from: `"Property Dashboard" <${process.env.GMAIL_USER || 'info@qikfill.com'}>`,
         to: email,
-        subject: `📞 ${brandName} ${subject}`,
+        subject: `${icon} ${brandName} ${subject}`,
         html: fullHtml
       })
     }
