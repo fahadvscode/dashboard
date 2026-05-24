@@ -26,6 +26,7 @@ import {
   Info,
   Route,
   Building,
+  MoreHorizontal,
 } from 'lucide-react'
 import html2canvas from 'html2canvas-pro'
 import { jsPDF } from 'jspdf'
@@ -91,6 +92,7 @@ export default function ProjectPresentationPage() {
   const [amenitiesData, setAmenitiesData] = useState<Record<string, Array<{ name: string; address: string; lat: number; lng: number; driveTime?: string; driveDist?: string; walkTime?: string; walkDist?: string; category: string }>>>({})
   const [highwaysData, setHighwaysData] = useState<HighwayInfo[]>([])
   const [processingPdf, setProcessingPdf] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
 
   useEffect(() => {
     fetchCities()
@@ -492,72 +494,157 @@ export default function ProjectPresentationPage() {
       : selectedProject.precon_factory_landing_page
     const images = getImages(selectedProject.pictures)
 
+    const mobileSubtitle = [
+      selectedProject.builder,
+      selectedProject.city,
+      selectedProject.price && selectedProject.price !== 'N/A' ? selectedProject.price : null,
+    ].filter(Boolean).join(' · ')
+
     return (
-      <div className="flex flex-col h-full" id="presentation-container">
+      <div
+        className="flex flex-col min-h-0 fixed inset-0 z-30 bg-white lg:static lg:z-auto lg:h-full lg:flex-1"
+        id="presentation-container"
+      >
         {/* Presentation Header */}
-        <div className="shrink-0 flex items-center gap-2 md:gap-4 px-3 md:px-6 py-2.5 bg-white border-b border-gray-200 shadow-sm">
-          <button
-            onClick={handleBack}
-            className="flex items-center gap-1.5 px-2.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Back</span>
-          </button>
-          <div className="h-6 w-px bg-gray-200" />
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <img src={brand.logo} alt={brand.label} className="w-8 h-8 md:w-9 md:h-9 rounded-lg object-contain" />
-            <div className="min-w-0">
-              <h1 className="font-bold text-gray-900 truncate text-sm md:text-lg">
-                {selectedProject.project_name}
-              </h1>
-              <p className="text-xs text-gray-500 truncate hidden sm:block">
-                {selectedProject.builder}
-                {selectedProject.city ? ` · ${selectedProject.city}` : ''}
-                {selectedProject.price && selectedProject.price !== 'N/A' ? ` · ${selectedProject.price}` : ''}
-              </p>
+        <div className="shrink-0 bg-white border-b border-gray-200 shadow-sm">
+          {/* Mobile */}
+          <div className="lg:hidden">
+            <div className="flex items-center gap-2 px-3 py-2.5">
+              <button
+                onClick={handleBack}
+                className="flex items-center justify-center min-h-[44px] min-w-[44px] -ml-1 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors touch-manipulation"
+                aria-label="Back to search"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <img src={brand.logo} alt="" className="w-9 h-9 rounded-lg object-contain shrink-0" />
+                <div className="min-w-0">
+                  <h1 className="font-bold text-gray-900 truncate text-base leading-tight">
+                    {selectedProject.project_name}
+                  </h1>
+                  {mobileSubtitle && (
+                    <p className="text-xs text-gray-500 truncate mt-0.5">{mobileSubtitle}</p>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMobileMenu(true)}
+                className="flex items-center justify-center min-h-[44px] min-w-[44px] text-gray-600 hover:bg-gray-100 rounded-xl touch-manipulation"
+                aria-label="More actions"
+              >
+                <MoreHorizontal className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex gap-2 px-3 pb-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
+              <button
+                type="button"
+                onClick={() => setShowShareModal(true)}
+                className="shrink-0 snap-start flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-full bg-blue-600 text-white text-sm font-semibold touch-manipulation active:scale-[0.98]"
+              >
+                <Share2 className="h-4 w-4" />
+                Share
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(true)}
+                disabled={processingPdf}
+                className="shrink-0 snap-start flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-full bg-gray-900 text-white text-sm font-semibold touch-manipulation active:scale-[0.98] disabled:opacity-60"
+              >
+                {processingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowProjectInfo(!showProjectInfo)}
+                className={`shrink-0 snap-start flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-full text-sm font-semibold touch-manipulation ${
+                  showProjectInfo ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-300' : 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                <Info className="h-4 w-4" />
+                Info
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowCommute(!showCommute); if (showNearby) setShowNearby(false) }}
+                className={`shrink-0 snap-start flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-full text-sm font-semibold touch-manipulation ${
+                  showCommute ? 'bg-indigo-100 text-indigo-800 ring-2 ring-indigo-300' : 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                <Route className="h-4 w-4" />
+                Commute
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowNearby(!showNearby); if (showCommute) setShowCommute(false) }}
+                className={`shrink-0 snap-start flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-full text-sm font-semibold touch-manipulation ${
+                  showNearby ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-300' : 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                <Building className="h-4 w-4" />
+                Nearby
+              </button>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Desktop */}
+          <div className="hidden lg:flex items-center gap-4 px-6 py-2.5">
             <button
-              onClick={() => setShowProjectInfo(!showProjectInfo)}
-              className={`p-2 rounded-lg transition-colors ${showProjectInfo ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-600'}`}
-              title="Project Info"
+              onClick={handleBack}
+              className="flex items-center gap-1.5 px-2.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <Info className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4" />
+              Back
             </button>
-            <button
-              onClick={() => { setShowCommute(!showCommute); if (showNearby) setShowNearby(false) }}
-              className={`p-2 rounded-lg transition-colors ${showCommute ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-600'}`}
-              title="Commute Calculator"
-            >
-              <Route className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => { setShowNearby(!showNearby); if (showCommute) setShowCommute(false) }}
-              className={`p-2 rounded-lg transition-colors ${showNearby ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-600'}`}
-              title="Nearby Projects"
-            >
-              <Building className="h-4 w-4" />
-            </button>
-            <div className="h-5 w-px bg-gray-200 mx-0.5" />
-            <button
-              onClick={() => setShowShareModal(true)}
-              className="p-2 hover:bg-gray-100 text-gray-600 rounded-lg transition-colors"
-              title="Share"
-            >
-              <Share2 className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setShowPrintModal(true)}
-              disabled={processingPdf}
-              className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-lg text-sm font-semibold hover:from-gray-900 hover:to-black transition-all disabled:opacity-60"
-              title="Process Presentation"
-            >
-              {processingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-              <span className="hidden md:inline">{processingPdf ? 'Processing...' : 'Process Presentation'}</span>
-            </button>
+            <div className="h-6 w-px bg-gray-200" />
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <img src={brand.logo} alt={brand.label} className="w-9 h-9 rounded-lg object-contain" />
+              <div className="min-w-0">
+                <h1 className="font-bold text-gray-900 truncate text-lg">{selectedProject.project_name}</h1>
+                <p className="text-xs text-gray-500 truncate">{mobileSubtitle}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <button
+                onClick={() => setShowProjectInfo(!showProjectInfo)}
+                className={`p-2 rounded-lg transition-colors ${showProjectInfo ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-600'}`}
+                title="Project Info"
+              >
+                <Info className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => { setShowCommute(!showCommute); if (showNearby) setShowNearby(false) }}
+                className={`p-2 rounded-lg transition-colors ${showCommute ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-600'}`}
+                title="Commute Calculator"
+              >
+                <Route className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => { setShowNearby(!showNearby); if (showCommute) setShowCommute(false) }}
+                className={`p-2 rounded-lg transition-colors ${showNearby ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-600'}`}
+                title="Nearby Projects"
+              >
+                <Building className="h-4 w-4" />
+              </button>
+              <div className="h-5 w-px bg-gray-200 mx-0.5" />
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="p-2 hover:bg-gray-100 text-gray-600 rounded-lg transition-colors"
+                title="Share"
+              >
+                <Share2 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setShowPrintModal(true)}
+                disabled={processingPdf}
+                className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-lg text-sm font-semibold hover:from-gray-900 hover:to-black transition-all disabled:opacity-60"
+                title="Process Presentation"
+              >
+                {processingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                {processingPdf ? 'Processing...' : 'Process Presentation'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -717,6 +804,7 @@ export default function ProjectPresentationPage() {
         )}
 
         {/* Map + Amenities */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <PresentationMapView
           property={selectedProject}
           apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
@@ -729,11 +817,50 @@ export default function ProjectPresentationPage() {
           onCommuteAddressChange={(addr) => setCommuteAddress(addr)}
           mapContainerRef={mapContainerRef}
         />
+        </div>
+
+        {/* Mobile actions sheet */}
+        {showMobileMenu && (
+          <div className="lg:hidden fixed inset-0 z-[60] flex flex-col justify-end">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/50"
+              aria-label="Close menu"
+              onClick={() => setShowMobileMenu(false)}
+            />
+            <div className="relative bg-white rounded-t-2xl shadow-2xl pb-[env(safe-area-inset-bottom)] max-h-[70dvh] overflow-y-auto">
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-gray-300" />
+              </div>
+              <p className="px-5 pb-3 text-sm font-semibold text-gray-900">Actions</p>
+              <div className="px-3 pb-4 space-y-1">
+                {[
+                  { label: 'Share with client', icon: Share2, onClick: () => { setShowMobileMenu(false); setShowShareModal(true) } },
+                  { label: processingPdf ? 'Generating PDF...' : 'Download PDF brochure', icon: FileDown, onClick: () => { setShowMobileMenu(false); setShowPrintModal(true) }, disabled: processingPdf },
+                  { label: showProjectInfo ? 'Hide project info' : 'Project info', icon: Info, onClick: () => { setShowMobileMenu(false); setShowProjectInfo(!showProjectInfo) } },
+                  { label: showCommute ? 'Hide commute' : 'Commute calculator', icon: Route, onClick: () => { setShowMobileMenu(false); setShowCommute(!showCommute); if (showNearby) setShowNearby(false) } },
+                  { label: showNearby ? 'Hide nearby projects' : 'Nearby projects', icon: Building, onClick: () => { setShowMobileMenu(false); setShowNearby(!showNearby); if (showCommute) setShowCommute(false) } },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    disabled={item.disabled}
+                    onClick={item.onClick}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 min-h-[52px] rounded-xl text-left text-gray-800 hover:bg-gray-50 active:bg-gray-100 touch-manipulation disabled:opacity-50"
+                  >
+                    <item.icon className="h-5 w-5 text-gray-500 shrink-0" />
+                    <span className="font-medium text-sm">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Process Presentation Modal */}
         {showPrintModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+          <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[70] p-0 sm:p-4">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full shadow-2xl overflow-hidden max-h-[92dvh] flex flex-col">
               <div className="px-6 py-4 border-b border-gray-200">
                 <h3 className="text-lg font-bold text-gray-900">Process Presentation</h3>
                 <p className="text-sm text-gray-500 mt-0.5">Select branding and download as PDF</p>
@@ -775,9 +902,9 @@ export default function ProjectPresentationPage() {
 
         {/* Share Modal */}
         {showShareModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
+          <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[70] p-0 sm:p-4">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-md w-full shadow-2xl overflow-hidden max-h-[92dvh] flex flex-col">
+              <div className="px-6 py-4 border-b border-gray-200 shrink-0">
                 <h3 className="text-lg font-bold text-gray-900">Share with Client</h3>
                 <p className="text-sm text-gray-500 mt-0.5">Send this presentation link to your client</p>
               </div>
@@ -892,11 +1019,11 @@ export default function ProjectPresentationPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible scrollbar-hide">
         <select
           value={cityFilter}
           onChange={(e) => setCityFilter(e.target.value)}
-          className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 min-w-[140px]"
+          className="shrink-0 snap-start px-4 py-3 min-h-[44px] border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500 min-w-[140px] touch-manipulation"
         >
           <option value="">All Cities</option>
           {cities.map((c) => (
@@ -907,7 +1034,7 @@ export default function ProjectPresentationPage() {
         <select
           value={bedsFilter}
           onChange={(e) => setBedsFilter(e.target.value)}
-          className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
+          className="shrink-0 snap-start px-4 py-3 min-h-[44px] border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500 touch-manipulation"
         >
           <option value="">Any Beds</option>
           <option value="1">1 Bed</option>
@@ -919,7 +1046,7 @@ export default function ProjectPresentationPage() {
         <select
           value={bathsFilter}
           onChange={(e) => setBathsFilter(e.target.value)}
-          className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
+          className="shrink-0 snap-start px-4 py-3 min-h-[44px] border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-blue-500 touch-manipulation"
         >
           <option value="">Any Baths</option>
           <option value="1">1 Bath</option>
@@ -954,7 +1081,11 @@ export default function ProjectPresentationPage() {
               return (
                 <div
                   key={project.id}
-                  className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-all group"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleSelectProject(project)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelectProject(project) } }}
+                  className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-all group cursor-pointer touch-manipulation active:scale-[0.99]"
                 >
                   <div className="relative h-40 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
                     {img ? (
@@ -1002,8 +1133,9 @@ export default function ProjectPresentationPage() {
                     </div>
 
                     <button
-                      onClick={() => handleSelectProject(project)}
-                      className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold text-sm hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleSelectProject(project) }}
+                      className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-sm hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg transition-all active:scale-[0.98] touch-manipulation"
                     >
                       <MapPinned className="h-4 w-4" />
                       Present Amenities Map

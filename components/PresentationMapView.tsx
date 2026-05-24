@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Loader2, Car, Footprints, MapPin, Navigation, Star, ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react'
+import { Loader2, Car, Footprints, MapPin, Navigation, Star, ChevronDown, ChevronRight, Eye, EyeOff, Map, List, ChevronUp } from 'lucide-react'
 import { loadGoogleMapsScript } from '@/lib/loadGoogleMapsScript'
 
 /* ───────────────────────── Types ───────────────────────── */
@@ -304,6 +304,8 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   const [commuteLoading, setCommuteLoading] = useState(false)
   const [highways, setHighways] = useState<HighwayInfo[]>([])
   const [showHighways, setShowHighways] = useState(true)
+  const [mobileTab, setMobileTab] = useState<'map' | 'amenities'>('map')
+  const [legendOpen, setLegendOpen] = useState(false)
 
   // Load Google Maps script
   useEffect(() => {
@@ -332,6 +334,11 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
       }
     })
   }, [scriptReady, commuteInputRef, onCommuteAddressChange])
+
+  useEffect(() => {
+    setMobileTab('map')
+    setLegendOpen(false)
+  }, [property.id])
 
   // Get project location
   useEffect(() => {
@@ -624,12 +631,17 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
 
   const handleAmenityClick = (amenity: Amenity) => {
     setHighlightedAmenity(amenity.place_id)
+    setMobileTab('map')
 
     const cat = CATEGORIES.find((c) => c.key === amenity.category)
     const markers = amenityMarkersRef.current[amenity.category] || []
     const catAmenities = amenities[amenity.category] || []
     const idx = catAmenities.findIndex((a) => a.place_id === amenity.place_id)
     const marker = markers[idx]
+
+    if (mapRef.current) {
+      mapRef.current.panTo({ lat: amenity.lat, lng: amenity.lng })
+    }
 
     if (marker && mapRef.current) {
       infoWindowRef.current?.setContent(`
@@ -952,9 +964,14 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   /* ─── Main Layout ─── */
 
   return (
-    <div className="flex flex-col lg:flex-row flex-1 min-h-0">
+    <div className="flex flex-col lg:flex-row flex-1 min-h-0 pb-[calc(3.25rem+env(safe-area-inset-bottom))] lg:pb-0">
       {/* Map */}
-      <div className="flex-1 relative min-h-[350px] lg:min-h-0" ref={mapContainerRef}>
+      <div
+        className={`flex-1 relative min-h-0 lg:min-h-0 ${
+          mobileTab === 'map' ? 'flex min-h-[42dvh]' : 'hidden lg:flex'
+        }`}
+        ref={mapContainerRef}
+      >
         {(!scriptReady || !projectLocation) && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
             <div className="flex flex-col items-center gap-3">
@@ -965,57 +982,87 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
         )}
         <div ref={mapDivRef} className="absolute inset-0" />
 
-        {/* Map Legend */}
+        {/* Map Legend — collapsible on mobile */}
         {loadedAll && (
-          <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 p-3 max-w-[220px] z-10">
-            <p className="text-xs font-semibold text-gray-700 mb-2">Legend</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {CATEGORIES.filter((cat) => (amenities[cat.key]?.length ?? 0) > 0).map((cat) => (
-                <button
-                  key={cat.key}
-                  onClick={() => toggleCategory(cat.key)}
-                  className={`flex items-center gap-1.5 text-xs rounded-md px-1.5 py-1 transition-colors ${
-                    selectedCategories.has(cat.key)
-                      ? 'bg-gray-100 font-semibold'
-                      : 'opacity-40 hover:opacity-70'
-                  }`}
-                >
-                  <span
-                    className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-white shadow-sm"
-                    style={{ backgroundColor: cat.color }}
-                  />
-                  <span className="text-gray-700 truncate">{cat.label.split(' ')[0]}</span>
-                </button>
-              ))}
+          <div className="absolute bottom-3 left-3 right-3 sm:right-auto sm:max-w-[220px] z-10 lg:bottom-4 lg:left-4">
+            <button
+              type="button"
+              onClick={() => setLegendOpen((o) => !o)}
+              className="lg:hidden w-full flex items-center justify-between gap-2 bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 px-3 py-2.5 touch-manipulation"
+            >
+              <span className="text-xs font-semibold text-gray-700">Map legend</span>
+              {legendOpen ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
+            </button>
+            <div
+              className={`bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 p-3 max-w-full sm:max-w-[220px] ${
+                legendOpen ? 'mt-2' : 'hidden'
+              } lg:block lg:mt-0`}
+            >
+              <p className="text-xs font-semibold text-gray-700 mb-2 hidden lg:block">Legend</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {CATEGORIES.filter((cat) => (amenities[cat.key]?.length ?? 0) > 0).map((cat) => (
+                  <button
+                    key={cat.key}
+                    onClick={() => toggleCategory(cat.key)}
+                    className={`flex items-center gap-1.5 text-xs rounded-md px-2 py-2 min-h-[36px] transition-colors touch-manipulation ${
+                      selectedCategories.has(cat.key)
+                        ? 'bg-gray-100 font-semibold'
+                        : 'opacity-40 hover:opacity-70'
+                    }`}
+                  >
+                    <span
+                      className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-white shadow-sm"
+                      style={{ backgroundColor: cat.color }}
+                    />
+                    <span className="text-gray-700 truncate">{cat.label.split(' ')[0]}</span>
+                  </button>
+                ))}
+              </div>
+              {highways.length > 0 && (
+                <>
+                  <p className="text-xs font-semibold text-gray-700 mt-2 mb-1">Highways</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {highways.map((hw) => (
+                      <button
+                        key={hw.short}
+                        onClick={() => setShowHighways(!showHighways)}
+                        className={`flex items-center gap-1.5 text-xs rounded-md px-2 py-2 min-h-[36px] transition-colors touch-manipulation ${
+                          showHighways ? 'bg-gray-100 font-semibold' : 'opacity-40 hover:opacity-70'
+                        }`}
+                      >
+                        <span
+                          className="w-3.5 h-2 rounded-sm flex-shrink-0"
+                          style={{ backgroundColor: hw.color }}
+                        />
+                        <span className="text-gray-700 truncate">{hw.short}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
-            {highways.length > 0 && (
-              <>
-                <p className="text-xs font-semibold text-gray-700 mt-2 mb-1">Highways</p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {highways.map((hw) => (
-                    <button
-                      key={hw.short}
-                      onClick={() => setShowHighways(!showHighways)}
-                      className={`flex items-center gap-1.5 text-xs rounded-md px-1.5 py-1 transition-colors ${
-                        showHighways ? 'bg-gray-100 font-semibold' : 'opacity-40 hover:opacity-70'
-                      }`}
-                    >
-                      <span
-                        className="w-3.5 h-2 rounded-sm flex-shrink-0"
-                        style={{ backgroundColor: hw.color }}
-                      />
-                      <span className="text-gray-700 truncate">{hw.short}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
           </div>
+        )}
+
+        {/* Mobile: quick jump to amenities list */}
+        {loadedAll && mobileTab === 'map' && (
+          <button
+            type="button"
+            onClick={() => setMobileTab('amenities')}
+            className="lg:hidden absolute top-3 right-3 z-10 flex items-center gap-1.5 px-3 py-2.5 min-h-[44px] bg-white/95 backdrop-blur-sm rounded-full shadow-lg border border-gray-200 text-xs font-semibold text-gray-800 touch-manipulation active:scale-[0.98]"
+          >
+            <List className="h-4 w-4 text-blue-600" />
+            Amenities ({totalAmenities})
+          </button>
         )}
       </div>
 
       {/* Amenities Panel */}
-      <div className="w-full lg:w-[420px] xl:w-[460px] border-t lg:border-t-0 lg:border-l border-gray-200 bg-white flex flex-col min-h-0 max-h-[50vh] lg:max-h-none overflow-hidden">
+      <div
+        className={`w-full lg:w-[420px] xl:w-[460px] border-t lg:border-t-0 lg:border-l border-gray-200 bg-white flex flex-col min-h-0 overflow-hidden ${
+          mobileTab === 'amenities' ? 'flex-1 min-h-0' : 'hidden lg:flex'
+        } lg:max-h-none`}
+      >
         {/* Panel Header */}
         <div className="shrink-0 px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex items-center gap-2">
@@ -1143,8 +1190,9 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
                   >
                     {/* Category Header */}
                     <button
+                      type="button"
                       onClick={() => toggleCategoryCollapse(cat.key)}
-                      className="w-full flex items-center gap-3 px-5 py-3 bg-gray-50/80 hover:bg-gray-100/80 transition-colors"
+                      className="w-full flex items-center gap-3 px-5 py-3.5 min-h-[48px] bg-gray-50/80 hover:bg-gray-100/80 transition-colors touch-manipulation"
                     >
                       <span
                         className="w-4 h-4 rounded-full flex-shrink-0"
@@ -1176,9 +1224,10 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
                         )}
                         {catAmenities.map((amenity) => (
                           <button
+                            type="button"
                             key={amenity.place_id}
                             onClick={() => handleAmenityClick(amenity)}
-                            className={`w-full text-left px-5 py-3 hover:bg-blue-50/60 transition-colors border-l-[3px] ${
+                            className={`w-full text-left px-5 py-3.5 min-h-[52px] hover:bg-blue-50/60 transition-colors border-l-[3px] touch-manipulation ${
                               highlightedAmenity === amenity.place_id
                                 ? 'bg-blue-50/80 border-l-blue-500'
                                 : 'border-l-transparent'
@@ -1305,6 +1354,35 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
             </div>
           )}
         </div>
+      </div>
+
+      {/* Mobile: Map / Amenities tabs */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-20 flex border-t border-gray-200 bg-white/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]">
+        <button
+          type="button"
+          onClick={() => setMobileTab('map')}
+          className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-3 min-h-[52px] touch-manipulation transition-colors ${
+            mobileTab === 'map' ? 'text-blue-600 bg-blue-50/80' : 'text-gray-500'
+          }`}
+        >
+          <Map className="h-5 w-5" />
+          <span className="text-[11px] font-semibold">Map</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab('amenities')}
+          className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-3 min-h-[52px] touch-manipulation transition-colors relative ${
+            mobileTab === 'amenities' ? 'text-blue-600 bg-blue-50/80' : 'text-gray-500'
+          }`}
+        >
+          <List className="h-5 w-5" />
+          <span className="text-[11px] font-semibold">Amenities</span>
+          {loadedAll && totalAmenities > 0 && (
+            <span className="absolute top-1.5 right-[calc(50%-2rem)] min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+              {totalAmenities > 99 ? '99+' : totalAmenities}
+            </span>
+          )}
+        </button>
       </div>
     </div>
   )
