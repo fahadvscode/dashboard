@@ -28,7 +28,7 @@ const emailTransporter = nodemailer.createTransport({
 })
 
 function getBrandContact(source: string) {
-  if (source === 'FJ') {
+  if (source === 'Fahad Javed Real Estate') {
     return { email: 'info@fahadsold.com', phone: '647.898.1739', phoneFormatted: '(647) 898-1739' }
   } else if (source === 'Precon Factory') {
     return { email: 'info@preconfactory.com', phone: '647.956.4063', phoneFormatted: '(647) 956-4063' }
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
     const displayType = typeLabel(meetingFormat)
 
     const source =
-      booking.table_name === 'fj_bookings' ? 'FJ' :
+      booking.table_name === 'fj_bookings' ? 'Fahad Javed Real Estate' :
       booking.table_name === 'precon_factory_bookings' ? 'Precon Factory' :
       'GTA Lowrise'
     const bookingPath =
@@ -255,7 +255,7 @@ ${getAdminTypeInstruction(meetingFormat)}`
         body: JSON.stringify({
           ...booking,
           table_name: booking.table_name || (
-            source === 'FJ' ? 'fj_bookings' :
+            source === 'Fahad Javed Real Estate' ? 'fj_bookings' :
             source === 'Precon Factory' ? 'precon_factory_bookings' :
             'gta_lowrise_bookings'
           )

@@ -94,11 +94,11 @@ function getAppointmentDateTime(booking: Booking): Date {
 function getBrandName(tableName: string): string {
   if (tableName.includes('gta_lowrise')) return 'GTA Lowrise'
   if (tableName.includes('precon')) return 'Precon Factory'
-  return 'FJ'
+  return 'Fahad Javed Real Estate'
 }
 
 function getBrandContact(source: string) {
-  if (source === 'FJ') {
+  if (source === 'Fahad Javed Real Estate') {
     return { email: 'info@fahadsold.com', phoneFormatted: '(647) 898-1739' }
   } else if (source === 'Precon Factory') {
     return { email: 'info@preconfactory.com', phoneFormatted: '(647) 956-4063' }

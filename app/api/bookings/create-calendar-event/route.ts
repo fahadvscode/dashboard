@@ -90,11 +90,10 @@ export async function POST(request: NextRequest) {
       brandName = 'Precon Factory'
     } else if (tableName.includes('fj')) {
       calendarId = CALENDAR_IDS.fj
-      brandName = 'FJ'
+      brandName = 'Fahad Javed Real Estate'
     } else {
-      // Default to FJ calendar
       calendarId = CALENDAR_IDS.fj
-      brandName = 'FJ'
+      brandName = 'Fahad Javed Real Estate'
     }
 
     // Parse appointment date and time
@@ -126,7 +125,7 @@ export async function POST(request: NextRequest) {
     const endDateTimeLocal = `${appointmentDate}T${String(adjustedEndHours).padStart(2, '0')}:${String(adjustedEndMinutes).padStart(2, '0')}:00`
 
     const meetingFormat = (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
-    const brandPhone = brandName === 'FJ' ? '(647) 898-1739' :
+    const brandPhone = brandName === 'Fahad Javed Real Estate' ? '(647) 898-1739' :
                        brandName === 'Precon Factory' ? '(647) 956-4063' :
                        '(416) 399-4289'
 
