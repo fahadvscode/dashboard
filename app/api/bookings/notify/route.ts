@@ -36,18 +36,27 @@ function getBrandContact(source: string) {
   return { email: 'gtalowrise01@gmail.com', phone: '416.399.4289', phoneFormatted: '(416) 399-4289' }
 }
 
-function getAdminTypeInstruction(appointmentType: string): string {
-  switch (appointmentType) {
-    case 'Google Meet': return '💻 ACTION: Join the Google Meet — link is in the calendar event.'
-    case 'Office Visit': return `🏢 ACTION: Customer will visit the office at ${OFFICE_ADDRESS}. Prepare the meeting room.`
-    case 'Builder Site Visit': return '🏗️ ACTION: Contact the customer ~2 hours before with the builder site location and instructions.'
+function typeLabel(t: string): string {
+  switch (t) {
+    case 'google_meet': return 'Google Meet'
+    case 'visit_office': return 'Office Visit'
+    case 'builder_site_visit': return 'Builder Site Visit'
+    default: return 'Phone Call'
+  }
+}
+
+function getAdminTypeInstruction(mt: string): string {
+  switch (mt) {
+    case 'google_meet': return '💻 ACTION: Join the Google Meet — link is in the calendar event.'
+    case 'visit_office': return `🏢 ACTION: Customer will visit the office at ${OFFICE_ADDRESS}. Prepare the meeting room.`
+    case 'builder_site_visit': return '🏗️ ACTION: Contact the customer ~2 hours before with the builder site location and instructions.'
     default: return '📞 ACTION: Call the customer at their provided phone number.'
   }
 }
 
-function getCustomerTypeHtml(appointmentType: string, meetLink: string | null, brandContact: { phoneFormatted: string }): string {
-  switch (appointmentType) {
-    case 'Google Meet':
+function getCustomerTypeHtml(mt: string, meetLink: string | null, brandContact: { phoneFormatted: string }): string {
+  switch (mt) {
+    case 'google_meet':
       return meetLink
         ? `<div style="background:#eff6ff;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #3b82f6;">
             <strong>💻 Virtual Meeting via Google Meet</strong><br>
@@ -59,14 +68,14 @@ function getCustomerTypeHtml(appointmentType: string, meetLink: string | null, b
             <strong>💻 Virtual Meeting via Google Meet</strong><br>
             <p>A Google Meet link will be sent to you shortly. Please check your calendar invite.</p>
           </div>`
-    case 'Office Visit':
+    case 'visit_office':
       return `<div style="background:#f0fdf4;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #22c55e;">
           <strong>🏢 Office Visit</strong><br>
           <p>Please visit our office at the scheduled time:</p>
           <p style="font-weight:bold;font-size:15px;">${OFFICE_ADDRESS}</p>
           <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(OFFICE_ADDRESS)}" target="_blank" style="color:#3b82f6;">View on Google Maps</a>
         </div>`
-    case 'Builder Site Visit':
+    case 'builder_site_visit':
       return `<div style="background:#fefce8;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #eab308;">
           <strong>🏗️ Builder Site Visit</strong><br>
           <p>This is a builder site visit. You will be contacted approximately <strong>2 hours before</strong> your appointment with the exact site location and instructions.</p>
@@ -81,15 +90,15 @@ function getCustomerTypeHtml(appointmentType: string, meetLink: string | null, b
   }
 }
 
-function getCustomerTypeSms(appointmentType: string, meetLink: string | null, brandContact: { phoneFormatted: string }): string {
-  switch (appointmentType) {
-    case 'Google Meet':
+function getCustomerTypeSms(mt: string, meetLink: string | null, brandContact: { phoneFormatted: string }): string {
+  switch (mt) {
+    case 'google_meet':
       return meetLink
         ? `\n💻 This is a virtual meeting.\nJoin here: ${meetLink}`
         : '\n💻 This is a virtual meeting. A Google Meet link will be sent to you shortly — check your calendar invite.'
-    case 'Office Visit':
+    case 'visit_office':
       return `\n🏢 Please visit our office at:\n${OFFICE_ADDRESS}`
-    case 'Builder Site Visit':
+    case 'builder_site_visit':
       return `\n🏗️ Builder site visit — you will be contacted ~2 hours before with the site location and instructions.`
     default:
       return `\n📞 We will call you at your phone number at the scheduled time. If you need to reach us: ${brandContact.phoneFormatted}`
@@ -104,7 +113,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required booking data' }, { status: 400 })
     }
 
-    const appointmentType = (booking.appointment_type || 'Phone Call').trim()
+    const meetingFormat = (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
+    const displayType = typeLabel(meetingFormat)
 
     const source =
       booking.table_name === 'fj_bookings' ? 'FJ' :
@@ -129,8 +139,8 @@ export async function POST(request: NextRequest) {
 
     message += `\n📅 Date: ${booking.appointment_date || 'Not specified'}
 🕐 Time: ${booking.appointment_time || 'Not specified'}
-🎯 Type: ${appointmentType}
-${getAdminTypeInstruction(appointmentType)}`
+🎯 Type: ${displayType}
+${getAdminTypeInstruction(meetingFormat)}`
 
     if (booking.message) message += `\n💬 Message: ${booking.message}`
     if (booking.project_url) message += `\n🌐 Project URL: ${booking.project_url}`
@@ -173,7 +183,7 @@ ${getAdminTypeInstruction(appointmentType)}`
     try {
       const adminActionHtml = `
         <div style="background:#fef3c7;padding:14px;border-radius:8px;margin:16px 0;border-left:4px solid #f59e0b;">
-          <strong>${getAdminTypeInstruction(appointmentType)}</strong>
+          <strong>${getAdminTypeInstruction(meetingFormat)}</strong>
         </div>`
 
       const adminEmailHtml = `<!DOCTYPE html><html><head><style>
@@ -201,7 +211,7 @@ ${getAdminTypeInstruction(appointmentType)}`
             <div class="detail-row"><div class="detail-label">📱 Phone:</div><div class="detail-value"><a href="tel:${booking.phone || ''}">${booking.phone || 'Not provided'}</a></div></div>
             <div class="detail-row"><div class="detail-label">📅 Date:</div><div class="detail-value">${booking.appointment_date || 'Not specified'}</div></div>
             <div class="detail-row"><div class="detail-label">🕐 Time:</div><div class="detail-value">${booking.appointment_time || 'Not specified'}</div></div>
-            <div class="detail-row"><div class="detail-label">🎯 Type:</div><div class="detail-value">${appointmentType}</div></div>
+            <div class="detail-row"><div class="detail-label">🎯 Type:</div><div class="detail-value">${displayType}</div></div>
             ${booking.project_name ? `<div class="detail-row"><div class="detail-label">🏢 Project:</div><div class="detail-value">${booking.project_name}</div></div>` : ''}
             ${booking.project_id ? `<div class="detail-row"><div class="detail-label">🆔 Project ID:</div><div class="detail-value">${booking.project_id}</div></div>` : ''}
             ${booking.project_url ? `<div class="detail-row"><div class="detail-label">🌐 Project Link:</div><div class="detail-value"><a href="${booking.project_url}" target="_blank" style="color: #3b82f6;">View Project</a></div></div>` : ''}
@@ -220,7 +230,7 @@ ${getAdminTypeInstruction(appointmentType)}`
           const result = await emailTransporter.sendMail({
             from: `"Property Dashboard" <${process.env.GMAIL_USER || 'info@qikfill.com'}>`,
             to: email,
-            subject: `🔔 New ${source} Booking (${appointmentType}) - ${booking.firstname} ${booking.lastname || ''}`,
+            subject: `🔔 New ${source} Booking (${displayType}) - ${booking.firstname} ${booking.lastname || ''}`,
             html: adminEmailHtml
           })
           adminEmailResults.push({ email, messageId: result.messageId })
@@ -267,7 +277,7 @@ ${getAdminTypeInstruction(appointmentType)}`
     // ── 4. Customer confirmation email (with type-specific block) ──
     let customerEmailResult = null
     try {
-      const typeSpecificHtml = getCustomerTypeHtml(appointmentType, meetLink, brandContact)
+      const typeSpecificHtml = getCustomerTypeHtml(meetingFormat, meetLink, brandContact)
 
       const customerEmailHtml = `<!DOCTYPE html><html><head><style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
@@ -291,7 +301,7 @@ ${getAdminTypeInstruction(appointmentType)}`
           <div class="confirmation">
             <div class="detail-row"><span class="detail-label">📅 Date:</span><span class="detail-value">${booking.appointment_date || 'Not specified'}</span></div>
             <div class="detail-row"><span class="detail-label">🕐 Time:</span><span class="detail-value">${booking.appointment_time || 'Not specified'}</span></div>
-            <div class="detail-row"><span class="detail-label">🎯 Type:</span><span class="detail-value">${appointmentType}</span></div>
+            <div class="detail-row"><span class="detail-label">🎯 Type:</span><span class="detail-value">${displayType}</span></div>
             ${booking.project_name ? `<div class="detail-row"><span class="detail-label">🏢 Project:</span><span class="detail-value">${booking.project_name}</span></div>` : ''}
             ${booking.project_url ? `<div class="detail-row"><span class="detail-label">🌐 Project:</span><span class="detail-value"><a href="${booking.project_url}" target="_blank" style="color: #3b82f6;">View Project Details</a></span></div>` : ''}
           </div>
@@ -311,7 +321,7 @@ ${getAdminTypeInstruction(appointmentType)}`
       customerEmailResult = await emailTransporter.sendMail({
         from: `"${source}" <${process.env.GMAIL_USER || 'info@qikfill.com'}>`,
         to: booking.email,
-        subject: `✅ Appointment Confirmed (${appointmentType}) - ${booking.appointment_date || 'Upcoming'} at ${booking.appointment_time || 'TBD'}`,
+        subject: `✅ Appointment Confirmed (${displayType}) - ${booking.appointment_date || 'Upcoming'} at ${booking.appointment_time || 'TBD'}`,
         html: customerEmailHtml
       })
       console.log('Customer confirmation email sent:', customerEmailResult.messageId)
@@ -323,7 +333,7 @@ ${getAdminTypeInstruction(appointmentType)}`
     let customerSmsResult = null
     try {
       if (booking.phone && accountSid && authToken && twilioPhone) {
-        const typeLine = getCustomerTypeSms(appointmentType, meetLink, brandContact)
+        const typeLine = getCustomerTypeSms(meetingFormat, meetLink, brandContact)
         const customerSmsMessage = `✅ Appointment Confirmed!
 
 📅 ${booking.appointment_date || 'TBD'}
@@ -347,7 +357,7 @@ Need to reschedule? Call ${brandContact.phoneFormatted}
 
     // ── Response ──────────────────────────────────────────────────
     console.log('Booking notifications sent:', {
-      bookingId: booking.id, source, appointmentType,
+      bookingId: booking.id, source, meetingFormat, displayType,
       adminSms: twilioResponses, adminEmails: adminEmailResults,
       customerEmail: customerEmailResult?.messageId || null,
       customerSms: customerSmsResult?.sid || null,

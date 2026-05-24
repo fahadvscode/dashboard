@@ -125,17 +125,26 @@ export async function POST(request: NextRequest) {
     const adjustedEndMinutes = endMinutes >= 60 ? endMinutes - 60 : endMinutes
     const endDateTimeLocal = `${appointmentDate}T${String(adjustedEndHours).padStart(2, '0')}:${String(adjustedEndMinutes).padStart(2, '0')}:00`
 
-    const appointmentType = (booking.appointment_type || 'Phone Call').trim()
+    const meetingFormat = (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
     const brandPhone = brandName === 'FJ' ? '(647) 898-1739' :
                        brandName === 'Precon Factory' ? '(647) 956-4063' :
                        '(416) 399-4289'
 
-    // --- Type-specific location & description ---
+    function typeLabel(t: string): string {
+      switch (t) {
+        case 'google_meet': return 'Google Meet'
+        case 'visit_office': return 'Office Visit'
+        case 'builder_site_visit': return 'Builder Site Visit'
+        default: return 'Phone Call'
+      }
+    }
+    const displayType = typeLabel(meetingFormat)
+
     let location: string
     let description: string
     let isGoogleMeet = false
 
-    const customerLine = `Name: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}\nAppointment Type: ${appointmentType}\n`
+    const customerLine = `Name: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}\nAppointment Type: ${displayType}\n`
     const projectLines = [
       booking.project_name && `Project: ${booking.project_name}`,
       booking.project_id && `Project ID: ${booking.project_id}`,
@@ -143,37 +152,35 @@ export async function POST(request: NextRequest) {
     ].filter(Boolean).join('\n')
     const messageLine = booking.message ? `\n💬 Customer Message:\n${booking.message}\n` : ''
 
-    switch (appointmentType) {
-      case 'Google Meet': {
+    switch (meetingFormat) {
+      case 'google_meet': {
         isGoogleMeet = true
         location = 'Google Meet (auto-generated)'
         description = `💻 GOOGLE MEET APPOINTMENT\n\nCustomer Details:\n${customerLine}\n📋 Meeting Details:\nThis is a virtual meeting via Google Meet. The Meet link is auto-generated and attached to this event.\nAll team members can start/host the meeting.\n\n${projectLines}${messageLine}`
         break
       }
-      case 'Office Visit': {
+      case 'visit_office': {
         location = OFFICE_ADDRESS
         description = `🏢 OFFICE VISIT APPOINTMENT\n\nCustomer Details:\n${customerLine}\n📋 Meeting Details:\nThe customer will visit the office at:\n${OFFICE_ADDRESS}\n\nPlease ensure the meeting room is ready.\n\n${projectLines}${messageLine}`
         break
       }
-      case 'Builder Site Visit': {
+      case 'builder_site_visit': {
         location = 'Builder Site Visit - Location TBD'
         description = `🏗️ BUILDER SITE VISIT APPOINTMENT\n\nCustomer Details:\n${customerLine}\n📋 Meeting Details:\nThis is a builder site visit. The customer will be contacted approximately 2 hours before the appointment with the exact site location and instructions.\n\n${projectLines}${messageLine}`
         break
       }
       default: {
-        // Phone Call (default)
         location = `📞 Phone Call - ${brandPhone}`
         description = `📞 PHONE CALL APPOINTMENT\n\nCustomer Details:\n${customerLine}\n📋 Meeting Details:\nThis is a phone call appointment. We will call the customer at their provided number.\nIf customer needs to reach us: ${brandPhone}\n\n${projectLines}${messageLine}`
         break
       }
     }
 
-    // Build event title including appointment type
     let eventTitle = `Booking: ${booking.firstname} ${booking.lastname || ''}`
     if (booking.project_name) {
       eventTitle += ` - ${booking.project_name}`
     }
-    const enhancedTitle = `${brandName} - ${eventTitle} - ${appointmentType}`
+    const enhancedTitle = `${brandName} - ${eventTitle} - ${displayType}`
 
     const calendar = await getCalendarClient()
 

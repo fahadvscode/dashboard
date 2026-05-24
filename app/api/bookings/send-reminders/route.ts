@@ -15,6 +15,19 @@ const notificationEmails = ['info@fahadsold.com', 'info@preconfactory.com']
 
 const OFFICE_ADDRESS = '600 Matheson Blvd W, Mississauga, ON L5R 4C1'
 
+function getMeetingFormat(booking: Booking): string {
+  return (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
+}
+
+function typeLabel(t: string): string {
+  switch (t) {
+    case 'google_meet': return 'Google Meet'
+    case 'visit_office': return 'Office Visit'
+    case 'builder_site_visit': return 'Builder Site Visit'
+    default: return 'Phone Call'
+  }
+}
+
 /** Twilio expects E.164 (e.g. +16478981739). */
 function toE164NorthAmerica(phone: string): string {
   const digits = phone.replace(/\D/g, '')
@@ -42,6 +55,7 @@ interface Booking {
   appointment_date: string
   appointment_time: string
   appointment_type: string
+  meeting_format?: string
   project_name?: string
   project_url?: string
   message?: string
@@ -232,13 +246,13 @@ async function markReminderSent(tableName: string, bookingId: string, column: st
 function get24hSms(booking: Booking, brandName: string): string {
   const time = formatTime(booking.appointment_time)
   const project = booking.project_name || 'your property search'
-  const type = (booking.appointment_type || 'Phone Call').trim()
-  switch (type) {
-    case 'Google Meet':
+  const mt = getMeetingFormat(booking)
+  switch (mt) {
+    case 'google_meet':
       return `Hi ${booking.firstname}! Reminder — your Google Meet is tomorrow at ${time} to chat about ${project}. Check your calendar invite for the link. Looking forward to it!\n\n- ${brandName} Team`
-    case 'Office Visit':
+    case 'visit_office':
       return `Hi ${booking.firstname}! Reminder — your office visit is tomorrow at ${time} at ${OFFICE_ADDRESS} to chat about ${project}. We look forward to seeing you!\n\n- ${brandName} Team`
-    case 'Builder Site Visit':
+    case 'builder_site_visit':
       return `Hi ${booking.firstname}! Reminder — your builder site visit is tomorrow at ${time} regarding ${project}. We'll contact you ~2 hours before with the site location and instructions.\n\n- ${brandName} Team`
     default:
       return `Hi ${booking.firstname}! Quick reminder - we'll call you tomorrow at ${time} to chat about ${project}. Looking forward to it!\n\n- ${brandName} Team`
@@ -248,18 +262,18 @@ function get24hSms(booking: Booking, brandName: string): string {
 function get24hEmailBody(booking: Booking): string {
   const time = formatTime(booking.appointment_time)
   const project = booking.project_name ? ` for <strong>${booking.project_name}</strong>` : ''
-  const type = (booking.appointment_type || 'Phone Call').trim()
-  switch (type) {
-    case 'Google Meet':
+  const mt = getMeetingFormat(booking)
+  switch (mt) {
+    case 'google_meet':
       return `<p>Hi <strong>${booking.firstname}</strong>,</p>
         <p>Quick reminder — your <strong>Google Meet</strong> is <strong>tomorrow</strong> at <strong>${time}</strong>${project}.</p>
         <p>Please check your calendar invite for the meeting link.</p>`
-    case 'Office Visit':
+    case 'visit_office':
       return `<p>Hi <strong>${booking.firstname}</strong>,</p>
         <p>Quick reminder — your <strong>office visit</strong> is <strong>tomorrow</strong> at <strong>${time}</strong>${project}.</p>
         <p>Our office address: <strong>${OFFICE_ADDRESS}</strong></p>
         <p><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(OFFICE_ADDRESS)}" target="_blank" style="color:#3b82f6;">View on Google Maps</a></p>`
-    case 'Builder Site Visit':
+    case 'builder_site_visit':
       return `<p>Hi <strong>${booking.firstname}</strong>,</p>
         <p>Quick reminder — your <strong>builder site visit</strong> is <strong>tomorrow</strong> at <strong>${time}</strong>${project}.</p>
         <p>We will contact you approximately <strong>2 hours before</strong> your appointment with the exact site location and instructions.</p>`
@@ -272,13 +286,13 @@ function get24hEmailBody(booking: Booking): string {
 
 function get1hSms(booking: Booking, brandName: string): string {
   const time = formatTime(booking.appointment_time)
-  const type = (booking.appointment_type || 'Phone Call').trim()
-  switch (type) {
-    case 'Google Meet':
+  const mt = getMeetingFormat(booking)
+  switch (mt) {
+    case 'google_meet':
       return `Your Google Meet starts in 1 hour (${time}). Check your calendar invite for the link. Have your questions ready! 💻\n\n- ${brandName} Team`
-    case 'Office Visit':
+    case 'visit_office':
       return `Your office visit is in 1 hour (${time}) at ${OFFICE_ADDRESS}. We look forward to seeing you! 🏢\n\n- ${brandName} Team`
-    case 'Builder Site Visit':
+    case 'builder_site_visit':
       return `Your builder site visit is in 1 hour (${time}). Expect a call shortly with the exact location and instructions. 🏗️\n\n- ${brandName} Team`
     default:
       return `We'll call you in 1 hour (${time}). Have your questions ready! 📞\n\n- ${brandName} Team`
@@ -287,16 +301,16 @@ function get1hSms(booking: Booking, brandName: string): string {
 
 function get1hEmailBody(booking: Booking): string {
   const time = formatTime(booking.appointment_time)
-  const type = (booking.appointment_type || 'Phone Call').trim()
-  switch (type) {
-    case 'Google Meet':
+  const mt = getMeetingFormat(booking)
+  switch (mt) {
+    case 'google_meet':
       return `<p>Hi <strong>${booking.firstname}</strong>,</p>
         <p>Your <strong>Google Meet</strong> starts in <strong>1 hour</strong> at <strong>${time}</strong>. Please check your calendar invite for the meeting link.</p>`
-    case 'Office Visit':
+    case 'visit_office':
       return `<p>Hi <strong>${booking.firstname}</strong>,</p>
         <p>Your <strong>office visit</strong> is in <strong>1 hour</strong> at <strong>${time}</strong>.</p>
         <p>Our address: <strong>${OFFICE_ADDRESS}</strong></p>`
-    case 'Builder Site Visit':
+    case 'builder_site_visit':
       return `<p>Hi <strong>${booking.firstname}</strong>,</p>
         <p>Your <strong>builder site visit</strong> is in <strong>1 hour</strong> at <strong>${time}</strong>. Expect a call shortly with the exact location and instructions.</p>`
     default:
@@ -306,13 +320,13 @@ function get1hEmailBody(booking: Booking): string {
 }
 
 function get5minSms(booking: Booking, brandName: string): string {
-  const type = (booking.appointment_type || 'Phone Call').trim()
-  switch (type) {
-    case 'Google Meet':
+  const mt = getMeetingFormat(booking)
+  switch (mt) {
+    case 'google_meet':
       return `Your Google Meet starts in 5 minutes! Join via your calendar invite. 💻\n\n- ${brandName} Team`
-    case 'Office Visit':
+    case 'visit_office':
       return `Your office visit starts in 5 minutes! We're ready for you at ${OFFICE_ADDRESS}. 🏢\n\n- ${brandName} Team`
-    case 'Builder Site Visit':
+    case 'builder_site_visit':
       return `Your builder site visit starts in 5 minutes! 🏗️\n\n- ${brandName} Team`
     default:
       return `We're calling you in 5 minutes! 📞\n\n- ${brandName} Team`
@@ -323,13 +337,13 @@ function getAdmin1hSms(booking: Booking): string {
   const name = `${booking.firstname} ${booking.lastname || ''}`.trim()
   const time = formatTime(booking.appointment_time)
   const project = booking.project_name || 'property inquiry'
-  const type = (booking.appointment_type || 'Phone Call').trim()
-  switch (type) {
-    case 'Google Meet':
+  const mt = getMeetingFormat(booking)
+  switch (mt) {
+    case 'google_meet':
       return `💻 1 HOUR - Google Meet with ${name} about ${project} at ${time}. Join via calendar event.`
-    case 'Office Visit':
+    case 'visit_office':
       return `🏢 1 HOUR - ${name} visiting office about ${project} at ${time}. Prepare meeting room.`
-    case 'Builder Site Visit':
+    case 'builder_site_visit':
       return `🏗️ 1 HOUR - Call ${name} at ${booking.phone} with builder site directions for ${project} at ${time}.`
     default:
       return `📞 1 HOUR - Call ${name} at ${booking.phone} about ${project} at ${time}`
@@ -340,21 +354,21 @@ function getAdmin1hEmailHtml(booking: Booking): string {
   const name = `${booking.firstname} ${booking.lastname || ''}`.trim()
   const time = formatTime(booking.appointment_time)
   const project = booking.project_name || 'Property inquiry'
-  const type = (booking.appointment_type || 'Phone Call').trim()
-  switch (type) {
-    case 'Google Meet':
+  const mt = getMeetingFormat(booking)
+  switch (mt) {
+    case 'google_meet':
       return `<p><strong>💻 1 HOUR – Upcoming Google Meet</strong></p>
         <p>Join the Google Meet with <strong>${name}</strong></p>
         <p>Project: ${project}</p>
         <p>Time: ${booking.appointment_date} at ${time}</p>
         <p>The Meet link is in the calendar event.</p>`
-    case 'Office Visit':
+    case 'visit_office':
       return `<p><strong>🏢 1 HOUR – Customer Arriving at Office</strong></p>
         <p><strong>${name}</strong> is visiting the office</p>
         <p>Project: ${project}</p>
         <p>Time: ${booking.appointment_date} at ${time}</p>
         <p>Please prepare the meeting room.</p>`
-    case 'Builder Site Visit':
+    case 'builder_site_visit':
       return `<p><strong>🏗️ 1 HOUR – Builder Site Visit</strong></p>
         <p>Call <strong>${name}</strong> at ${booking.phone} with builder site directions</p>
         <p>Project: ${project}</p>
@@ -370,13 +384,13 @@ function getAdmin1hEmailHtml(booking: Booking): string {
 function getAdmin15mSms(booking: Booking): string {
   const name = `${booking.firstname} ${booking.lastname || ''}`.trim()
   const project = booking.project_name || 'property inquiry'
-  const type = (booking.appointment_type || 'Phone Call').trim()
-  switch (type) {
-    case 'Google Meet':
+  const mt = getMeetingFormat(booking)
+  switch (mt) {
+    case 'google_meet':
       return `💻 JOIN NOW - Google Meet with ${name} (${project}). Open calendar event.`
-    case 'Office Visit':
+    case 'visit_office':
       return `🏢 ARRIVING NOW - ${name} at office for ${project}.`
-    case 'Builder Site Visit':
+    case 'builder_site_visit':
       return `🏗️ NOW - Ensure ${name} has site directions for ${project}. Call ${booking.phone} if needed.`
     default:
       return `📞 CALL NOW - ${name} at ${booking.phone} (${project})`
@@ -387,18 +401,18 @@ function getAdmin15mEmailHtml(booking: Booking): string {
   const name = `${booking.firstname} ${booking.lastname || ''}`.trim()
   const time = formatTime(booking.appointment_time)
   const project = booking.project_name || 'Property inquiry'
-  const type = (booking.appointment_type || 'Phone Call').trim()
-  switch (type) {
-    case 'Google Meet':
+  const mt = getMeetingFormat(booking)
+  switch (mt) {
+    case 'google_meet':
       return `<p><strong>💻 JOIN NOW – 15 minutes until Google Meet</strong></p>
         <p>Join the Meet with <strong>${name}</strong></p>
         <p>Project: ${project}</p>
         <p>Time: ${booking.appointment_date} at ${time}</p>`
-    case 'Office Visit':
+    case 'visit_office':
       return `<p><strong>🏢 ARRIVING NOW – 15 minutes until office visit</strong></p>
         <p><strong>${name}</strong> is arriving at the office</p>
         <p>Project: ${project}</p>`
-    case 'Builder Site Visit':
+    case 'builder_site_visit':
       return `<p><strong>🏗️ NOW – 15 minutes until builder site visit</strong></p>
         <p>Ensure <strong>${name}</strong> has directions. Call ${booking.phone} if needed.</p>
         <p>Project: ${project}</p>`
@@ -411,21 +425,21 @@ function getAdmin15mEmailHtml(booking: Booking): string {
 }
 
 function getAdmin1hSubject(booking: Booking): string {
-  const type = (booking.appointment_type || 'Phone Call').trim()
-  switch (type) {
-    case 'Google Meet': return '1 HOUR – Upcoming Google Meet'
-    case 'Office Visit': return '1 HOUR – Customer Arriving at Office'
-    case 'Builder Site Visit': return '1 HOUR – Builder Site Visit'
+  const mt = getMeetingFormat(booking)
+  switch (mt) {
+    case 'google_meet': return '1 HOUR – Upcoming Google Meet'
+    case 'visit_office': return '1 HOUR – Customer Arriving at Office'
+    case 'builder_site_visit': return '1 HOUR – Builder Site Visit'
     default: return '1 HOUR – Upcoming Call'
   }
 }
 
 function getAdmin15mSubject(booking: Booking): string {
-  const type = (booking.appointment_type || 'Phone Call').trim()
-  switch (type) {
-    case 'Google Meet': return 'JOIN NOW – Google Meet in 15 min'
-    case 'Office Visit': return 'ARRIVING NOW – Office visit in 15 min'
-    case 'Builder Site Visit': return 'NOW – Builder site visit in 15 min'
+  const mt = getMeetingFormat(booking)
+  switch (mt) {
+    case 'google_meet': return 'JOIN NOW – Google Meet in 15 min'
+    case 'visit_office': return 'ARRIVING NOW – Office visit in 15 min'
+    case 'builder_site_visit': return 'NOW – Builder site visit in 15 min'
     default: return 'CALL NOW – 15 min until appointment'
   }
 }
@@ -505,8 +519,8 @@ async function send15MinAdminReminder(booking: Booking, brandName: string) {
 
 async function sendAdminReminderEmails(booking: Booking, brandName: string, subject: string, htmlBody: string) {
   try {
-    const type = (booking.appointment_type || 'Phone Call').trim()
-    const icon = type === 'Google Meet' ? '💻' : type === 'Office Visit' ? '🏢' : type === 'Builder Site Visit' ? '🏗️' : '📞'
+    const mt = getMeetingFormat(booking)
+    const icon = mt === 'google_meet' ? '💻' : mt === 'visit_office' ? '🏢' : mt === 'builder_site_visit' ? '🏗️' : '📞'
     const fullHtml = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif">${htmlBody}</body></html>`
     for (const email of notificationEmails) {
       await emailTransporter.sendMail({
