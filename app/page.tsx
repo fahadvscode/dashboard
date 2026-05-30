@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import HotLeadsSection from '@/components/HotLeadsSection'
 import LatestProjects from '@/components/LatestProjects'
 import PropertiesTable from '@/components/PropertiesTable'
 import SearchFilters from '@/components/SearchFilters'
@@ -20,6 +21,8 @@ export default function Home() {
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Canada Properties</h1>
         <p className="text-gray-600 mt-1 text-sm md:text-base">Browse and manage all preconstruction projects</p>
       </div>
+
+      <HotLeadsSection />
 
       {/* Latest Projects Section */}
       <LatestProjects />
