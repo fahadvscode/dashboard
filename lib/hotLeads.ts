@@ -1,5 +1,6 @@
 export type HotLeadPriority = 'urgent' | 'active' | 'new'
 export type HotLeadSourceType = 'manual' | 'linked'
+export type ContactSourceKind = 'lead' | 'booking'
 
 export interface HotLead {
   id: string
@@ -38,21 +39,51 @@ export const HOT_LEAD_PRIORITIES = {
   },
 } as const
 
-export const LEAD_SOURCE_TABLES = {
-  fj_leads: { label: 'FJ Leads', route: '/fj-leads' },
-  precon_factory_leads: { label: 'Precon Factory', route: '/precon-leads' },
-  precon_factory_website_leads: { label: 'Precon Website', route: '/precon-factory-website-leads' },
-  gta_lowrise_leads: { label: 'GTA Lowrise', route: '/gta-lowrise-leads' },
-  rental_leads: { label: 'Rental Leads', route: '/rental-leads' },
-  cornerstone_leads: { label: 'Cornerstone', route: '/landing-pages-leads' },
-  novella_leads: { label: 'Novella', route: '/landing-pages-leads' },
-  lakeview_village_leads: { label: 'Lakeview Village', route: '/landing-pages-leads' },
-  rollingwood_leads: { label: 'Rollingwood', route: '/landing-pages-leads' },
+/** All dashboard tables that can be linked from Hot Leads search */
+export const CONTACT_SOURCE_TABLES = {
+  fj_leads: { label: 'FJ Leads', route: '/fj-leads', kind: 'lead' as const },
+  precon_factory_leads: { label: 'Precon Factory Leads', route: '/precon-leads', kind: 'lead' as const },
+  precon_factory_website_leads: {
+    label: 'Precon Website Leads',
+    route: '/precon-factory-website-leads',
+    kind: 'lead' as const,
+  },
+  gta_lowrise_leads: { label: 'GTA Lowrise Leads', route: '/gta-lowrise-leads', kind: 'lead' as const },
+  rental_leads: { label: 'Rental Leads', route: '/rental-leads', kind: 'lead' as const },
+  cornerstone_leads: { label: 'Cornerstone Leads', route: '/landing-pages-leads', kind: 'lead' as const },
+  novella_leads: { label: 'Novella Leads', route: '/landing-pages-leads', kind: 'lead' as const },
+  lakeview_village_leads: {
+    label: 'Lakeview Village Leads',
+    route: '/landing-pages-leads',
+    kind: 'lead' as const,
+  },
+  rollingwood_leads: {
+    label: 'Rollingwood Leads',
+    route: '/landing-pages-leads',
+    kind: 'lead' as const,
+  },
+  fj_bookings: { label: 'FJ Booking', route: '/fj-bookings', kind: 'booking' as const },
+  precon_factory_bookings: {
+    label: 'Precon Factory Booking',
+    route: '/precon-bookings',
+    kind: 'booking' as const,
+  },
+  gta_lowrise_bookings: {
+    label: 'GTA Lowrise Booking',
+    route: '/gta-lowrise-bookings',
+    kind: 'booking' as const,
+  },
 } as const
 
-export type LeadSourceTable = keyof typeof LEAD_SOURCE_TABLES
+export type ContactSourceTable = keyof typeof CONTACT_SOURCE_TABLES
 
-export const SEARCHABLE_LEAD_TABLES: LeadSourceTable[] = [
+/** @deprecated Use CONTACT_SOURCE_TABLES */
+export const LEAD_SOURCE_TABLES = CONTACT_SOURCE_TABLES
+
+/** @deprecated Use ContactSourceTable */
+export type LeadSourceTable = ContactSourceTable
+
+export const SEARCHABLE_LEAD_TABLES: ContactSourceTable[] = [
   'fj_leads',
   'precon_factory_leads',
   'precon_factory_website_leads',
@@ -64,14 +95,39 @@ export const SEARCHABLE_LEAD_TABLES: LeadSourceTable[] = [
   'rollingwood_leads',
 ]
 
-export interface LeadSearchResult {
-  source_table: LeadSourceTable
+export const SEARCHABLE_BOOKING_TABLES: ContactSourceTable[] = [
+  'fj_bookings',
+  'precon_factory_bookings',
+  'gta_lowrise_bookings',
+]
+
+export const SEARCHABLE_CONTACT_TABLES: ContactSourceTable[] = [
+  ...SEARCHABLE_BOOKING_TABLES,
+  ...SEARCHABLE_LEAD_TABLES,
+]
+
+export type ContactSuggestionTag =
+  | 'meeting_passed'
+  | 'meeting_today'
+  | 'meeting_upcoming'
+  | 'recent_lead'
+  | null
+
+export interface ContactSearchResult {
+  source_table: ContactSourceTable
   source_id: string
   display_name: string
   phone: string | null
   email: string | null
   project_name: string | null
+  source_kind: ContactSourceKind
+  activity_at: string
+  activity_summary: string
+  suggestion_tag?: ContactSuggestionTag
 }
+
+/** @deprecated Use ContactSearchResult */
+export type LeadSearchResult = ContactSearchResult
 
 export function buildDisplayName(firstname?: string | null, lastname?: string | null): string {
   const name = [firstname, lastname].filter(Boolean).join(' ').trim()
@@ -80,13 +136,13 @@ export function buildDisplayName(firstname?: string | null, lastname?: string | 
 
 export function getSourceLabel(sourceTable: string | null, sourceType: HotLeadSourceType): string {
   if (sourceType === 'manual' || !sourceTable) return 'Manual'
-  const config = LEAD_SOURCE_TABLES[sourceTable as LeadSourceTable]
+  const config = CONTACT_SOURCE_TABLES[sourceTable as ContactSourceTable]
   return config?.label ?? sourceTable
 }
 
 export function getSourceRoute(sourceTable: string | null): string | null {
   if (!sourceTable) return null
-  const config = LEAD_SOURCE_TABLES[sourceTable as LeadSourceTable]
+  const config = CONTACT_SOURCE_TABLES[sourceTable as ContactSourceTable]
   return config?.route ?? null
 }
 
@@ -94,6 +150,11 @@ export function isValidPriority(value: string): value is HotLeadPriority {
   return value === 'urgent' || value === 'active' || value === 'new'
 }
 
-export function isValidLeadSourceTable(table: string): table is LeadSourceTable {
-  return table in LEAD_SOURCE_TABLES
+export function isValidContactSourceTable(table: string): table is ContactSourceTable {
+  return table in CONTACT_SOURCE_TABLES
+}
+
+/** @deprecated Use isValidContactSourceTable */
+export function isValidLeadSourceTable(table: string): table is ContactSourceTable {
+  return isValidContactSourceTable(table)
 }
