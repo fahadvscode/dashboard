@@ -36,6 +36,7 @@ const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: s
   cornerstone_leads: { websiteName: 'Cornerstone', pageName: 'Cornerstone' },
   novella_leads: { websiteName: 'Novella', pageName: 'Novella' },
   lakeview_village_leads: { websiteName: 'Lakeview Village', pageName: 'Lakeview Village' },
+  rollingwood_leads: { websiteName: 'Rollingwood', pageName: 'Rollingwood' },
 }
 
 function isLandingPageLeadTable(tableName: unknown): tableName is keyof typeof LANDING_PAGE_SHEET_META {
@@ -153,17 +154,20 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'cornerstone_leads' ? 'Cornerstone' :
       lead.table_name === 'novella_leads' ? 'Novella' :
       lead.table_name === 'lakeview_village_leads' ? 'Lakeview Village' :
+      lead.table_name === 'rollingwood_leads' ? 'Rollingwood' :
       'Unknown'
     
     const isRentalLead = lead.table_name === 'rental_leads'
     const isLandingPageLead =
       lead.table_name === 'cornerstone_leads' ||
       lead.table_name === 'novella_leads' ||
-      lead.table_name === 'lakeview_village_leads'
+      lead.table_name === 'lakeview_village_leads' ||
+      lead.table_name === 'rollingwood_leads'
     const landingPageName =
       lead.table_name === 'cornerstone_leads' ? 'Cornerstone' :
       lead.table_name === 'novella_leads' ? 'Novella' :
       lead.table_name === 'lakeview_village_leads' ? 'Lakeview Village' :
+      lead.table_name === 'rollingwood_leads' ? 'Rollingwood' :
       ''
     const leadType = isRentalLead ? 'Rental Inquiry' : (lead.isagent ? 'Agent' : 'Buyer')
     
@@ -173,7 +177,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'precon_factory_website_leads' ? 'precon-factory-website-leads' :
       lead.table_name === 'gta_lowrise_leads' ? 'gta-lowrise-leads' :
       lead.table_name === 'rental_leads' ? 'rental-leads' :
-      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads' || lead.table_name === 'lakeview_village_leads') ? 'landing-pages-leads' :
+      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads' || lead.table_name === 'lakeview_village_leads' || lead.table_name === 'rollingwood_leads') ? 'landing-pages-leads' :
       'rental-leads'
     
     const dashboardUrl = `https://property-dashboard-three.vercel.app/${leadPath}?leadId=${lead.id}`
@@ -249,6 +253,15 @@ export async function POST(request: NextRequest) {
 
       // Lakeview Village fields
       if (lead.table_name === 'lakeview_village_leads') {
+        if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
+        if (lead.home_interest) message += `\n🏠 Home Interest: ${lead.home_interest}`
+        if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
+        if (lead.is_realtor !== undefined) message += `\n🏢 Realtor: ${lead.is_realtor ? 'Yes' : 'No'}`
+        if (lead.consent !== undefined) message += `\n✅ Consent: ${lead.consent ? 'Yes' : 'No'}`
+      }
+
+      // Rollingwood fields (same shape as other landing page tables)
+      if (lead.table_name === 'rollingwood_leads') {
         if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
         if (lead.home_interest) message += `\n🏠 Home Interest: ${lead.home_interest}`
         if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`

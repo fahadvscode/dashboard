@@ -24,3 +24,11 @@ ALTER TABLE lakeview_village_leads
   ADD COLUMN IF NOT EXISTS call_history jsonb DEFAULT '[]',
   ADD COLUMN IF NOT EXISTS call_count integer DEFAULT 0,
   ADD COLUMN IF NOT EXISTS last_note text;
+
+-- rollingwood_leads: add CRM columns (same as other landing page tables)
+ALTER TABLE rollingwood_leads
+  ADD COLUMN IF NOT EXISTS status text DEFAULT 'new',
+  ADD COLUMN IF NOT EXISTS lead_temperature text DEFAULT 'warm',
+  ADD COLUMN IF NOT EXISTS call_history jsonb DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS call_count integer DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS last_note text;

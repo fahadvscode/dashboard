@@ -23,7 +23,7 @@ interface LandingPageLead {
   lastname: string
   email: string
   phone: string
-  source: string // table name: cornerstone_leads, novella_leads, or lakeview_village_leads
+  source: string // table name: cornerstone_leads, novella_leads, lakeview_village_leads, or rollingwood_leads
   table_name: string // for API calls
   status: string
   created_at: string
@@ -123,22 +123,25 @@ export default function LandingPagesLeads() {
 
   async function fetchLeads() {
     try {
-      const [cornerstoneRes, novellaRes, lakeviewRes] = await Promise.all([
+      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes] = await Promise.all([
         supabase.from('cornerstone_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('novella_leads').select('*').order('created_at', { ascending: false }),
-        supabase.from('lakeview_village_leads').select('*').order('created_at', { ascending: false })
+        supabase.from('lakeview_village_leads').select('*').order('created_at', { ascending: false }),
+        supabase.from('rollingwood_leads').select('*').order('created_at', { ascending: false })
       ])
 
       const cornerstone = (cornerstoneRes.data || []).map(r => normalizeLead(r, 'cornerstone_leads'))
       const novella = (novellaRes.data || []).map(r => normalizeLead(r, 'novella_leads'))
       const lakeview = (lakeviewRes.data || []).map(r => normalizeLead(r, 'lakeview_village_leads'))
-      const combined = [...cornerstone, ...novella, ...lakeview].sort(
+      const rollingwood = (rollingwoodRes.data || []).map(r => normalizeLead(r, 'rollingwood_leads'))
+      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
 
       if (cornerstoneRes.error) console.error('cornerstone_leads fetch:', cornerstoneRes.error)
       if (novellaRes.error) console.error('novella_leads fetch:', novellaRes.error)
       if (lakeviewRes.error) console.error('lakeview_village_leads fetch:', lakeviewRes.error)
+      if (rollingwoodRes.error) console.error('rollingwood_leads fetch:', rollingwoodRes.error)
 
       setLeads(combined)
       setInitialLoadDone(true)
@@ -178,6 +181,7 @@ export default function LandingPagesLeads() {
       if (filter === 'cornerstone') return lead.table_name === 'cornerstone_leads'
       if (filter === 'novella') return lead.table_name === 'novella_leads'
       if (filter === 'lakeview') return lead.table_name === 'lakeview_village_leads'
+      if (filter === 'rollingwood') return lead.table_name === 'rollingwood_leads'
       if (filter === 'new') return lead.status === 'new'
       if (filter === 'hot') return lead.lead_temperature === 'hot'
       if (filter === 'warm') return lead.lead_temperature === 'warm'
@@ -521,6 +525,12 @@ export default function LandingPagesLeads() {
             className={`px-4 py-2 rounded-lg ${filter === 'lakeview' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
           >
             Lakeview Village ({leads.filter(l => l.table_name === 'lakeview_village_leads').length})
+          </button>
+          <button
+            onClick={() => setFilter('rollingwood')}
+            className={`px-4 py-2 rounded-lg ${filter === 'rollingwood' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          >
+            Rollingwood ({leads.filter(l => l.table_name === 'rollingwood_leads').length})
           </button>
           <button
             onClick={() => setFilter('new')}

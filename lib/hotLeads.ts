@@ -47,6 +47,7 @@ export const LEAD_SOURCE_TABLES = {
   cornerstone_leads: { label: 'Cornerstone', route: '/landing-pages-leads' },
   novella_leads: { label: 'Novella', route: '/landing-pages-leads' },
   lakeview_village_leads: { label: 'Lakeview Village', route: '/landing-pages-leads' },
+  rollingwood_leads: { label: 'Rollingwood', route: '/landing-pages-leads' },
 } as const
 
 export type LeadSourceTable = keyof typeof LEAD_SOURCE_TABLES
@@ -60,6 +61,7 @@ export const SEARCHABLE_LEAD_TABLES: LeadSourceTable[] = [
   'cornerstone_leads',
   'novella_leads',
   'lakeview_village_leads',
+  'rollingwood_leads',
 ]
 
 export interface LeadSearchResult {

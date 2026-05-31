@@ -13,6 +13,7 @@ const LANDING_PAGE_TABLES = new Set([
   'cornerstone_leads',
   'novella_leads',
   'lakeview_village_leads',
+  'rollingwood_leads',
 ])
 
 function escapeIlike(term: string): string {

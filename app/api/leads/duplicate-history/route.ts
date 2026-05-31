@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     const duplicateHistory: any[] = []
-    const tablesToCheck = ['fj_leads', 'precon_factory_leads', 'precon_factory_website_leads', 'gta_lowrise_leads', 'rental_leads', 'cornerstone_leads', 'novella_leads', 'lakeview_village_leads']
+    const tablesToCheck = ['fj_leads', 'precon_factory_leads', 'precon_factory_website_leads', 'gta_lowrise_leads', 'rental_leads', 'cornerstone_leads', 'novella_leads', 'lakeview_village_leads', 'rollingwood_leads']
 
     // Check both tables
     for (const tableName of tablesToCheck) {
@@ -188,6 +188,7 @@ export async function POST(request: NextRequest) {
             tableName === 'cornerstone_leads' ? 'Cornerstone' :
             tableName === 'novella_leads' ? 'Novella' :
             tableName === 'lakeview_village_leads' ? 'Lakeview Village' :
+            tableName === 'rollingwood_leads' ? 'Rollingwood' :
             tableName
           
           duplicateHistory.push({
