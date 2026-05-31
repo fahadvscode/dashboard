@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
             <div class="contact-info">
               <h3 style="margin-top: 0; color: #024225;">📞 Need Help or Have Questions?</h3>
               <p style="margin: 10px 0;"><strong>Fahad Javed Real Estate</strong></p>
-              <p style="margin: 5px 0;">📧 Email: <a href="mailto:info@fahadsold.com" style="color: #024225; text-decoration: none; font-weight: bold;">info@fahadsold.com</a></p>
+              <p style="margin: 5px 0;">📧 Email: <a href="mailto:fahad@fahadsold.com" style="color: #024225; text-decoration: none; font-weight: bold;">fahad@fahadsold.com</a></p>
               <p style="margin: 5px 0;">📱 Phone: <a href="tel:6478981739" style="color: #024225; text-decoration: none; font-weight: bold;">647.898.1739</a></p>
               <p style="margin-top: 15px; font-size: 14px; color: #6b7280;">We're here to assist you Monday through Friday, 9 AM - 6 PM EST</p>
             </div>
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
           
           <div class="footer">
             <p>This email was sent from Fahad Javed Real Estate</p>
-            <p>📧 info@fahadsold.com | 📱 647.898.1739</p>
+            <p>📧 fahad@fahadsold.com | 📱 647.898.1739</p>
             <p>© ${new Date().getFullYear()} Fahad Javed Real Estate. All rights reserved.</p>
           </div>
         </div>
@@ -128,7 +128,8 @@ export async function POST(request: NextRequest) {
 
     // Send email with PDF attachment
     const result = await emailTransporter.sendMail({
-      from: '"Fahad Javed Real Estate" <info@fahadsold.com>',
+      from: `"Fahad Javed Real Estate" <${process.env.GMAIL_USER || 'info@qikfill.com'}>`,
+      replyTo: 'fahad@fahadsold.com',
       to: email,
       subject: '🏠 Your Rental Application - Fahad Javed Real Estate',
       html: emailHtml,

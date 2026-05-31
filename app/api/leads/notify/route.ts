@@ -7,7 +7,7 @@ const authToken = process.env.TWILIO_AUTH_TOKEN
 const twilioPhone = process.env.TWILIO_PHONE_NUMBER
 const notificationPhones = ['6478981739', '4168296121', '4163994289'] // SMS recipients for all leads
 const rentalOnlyPhones = ['4168395020'] // SMS recipients for rental leads only
-const notificationEmails = ['info@fahadsold.com', 'info@preconfactory.com'] // Email recipients for all leads
+const notificationEmails = ['fahad@fahadsold.com', 'info@preconfactory.com'] // Email recipients for all leads
 const rentalOnlyEmails = ['harjit@hminhas.ca'] // Email recipients for rental leads only
 
 /** Twilio expects E.164 (e.g. +16478981739). */

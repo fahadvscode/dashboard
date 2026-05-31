@@ -6,7 +6,7 @@ const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
 const twilioPhone = process.env.TWILIO_PHONE_NUMBER
 const notificationPhones = ['6478981739', '4168296121', '4163994289']
-const notificationEmails = ['info@fahadsold.com', 'info@preconfactory.com']
+const notificationEmails = ['fahad@fahadsold.com', 'info@preconfactory.com']
 
 const OFFICE_ADDRESS = '600 Matheson Blvd W, Mississauga, ON L5R 4C1'
 
@@ -29,7 +29,7 @@ const emailTransporter = nodemailer.createTransport({
 
 function getBrandContact(source: string) {
   if (source === 'Fahad Javed Real Estate') {
-    return { email: 'info@fahadsold.com', phone: '647.898.1739', phoneFormatted: '(647) 898-1739' }
+    return { email: 'fahad@fahadsold.com', phone: '647.898.1739', phoneFormatted: '(647) 898-1739' }
   } else if (source === 'Precon Factory') {
     return { email: 'info@preconfactory.com', phone: '647.956.4063', phoneFormatted: '(647) 956-4063' }
   }

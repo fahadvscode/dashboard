@@ -174,6 +174,6 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Landing page lead notification triggers created!';
   RAISE NOTICE '📱 New landing page leads will send SMS to: 6478981739, 4168296121, 4163994289';
-  RAISE NOTICE '📧 Email notifications to: info@fahadsold.com, info@preconfactory.com';
+  RAISE NOTICE '📧 Email notifications to: fahad@fahadsold.com, info@preconfactory.com';
   RAISE NOTICE '🔔 Triggers active on: novella_leads, cornerstone_leads, lakeview_village_leads, rollingwood_leads';
 END $$;

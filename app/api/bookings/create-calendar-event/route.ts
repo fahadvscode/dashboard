@@ -14,8 +14,16 @@ const CALENDAR_IDS = {
 
 const OFFICE_ADDRESS = '600 Matheson Blvd W, Mississauga, ON L5R 4C1'
 
-/** All team members invited on every booking event — they can all start/host Google Meet sessions. */
-const TEAM_EMAILS = ['fahad@fahadsold.com', 'info@fahadsold.com', 'info@preconfactory.com']
+/** Internal calendar guests per brand (customer is added separately). */
+function getCalendarTeamEmails(tableName: string): string[] {
+  if (tableName.includes('precon')) {
+    return ['fahad@fahadsold.com', 'info@preconfactory.com']
+  }
+  if (tableName.includes('gta_lowrise') || tableName.includes('gtalowrise')) {
+    return ['fahad@fahadsold.com']
+  }
+  return ['fahad@fahadsold.com']
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -155,7 +163,7 @@ export async function POST(request: NextRequest) {
       case 'google_meet': {
         isGoogleMeet = true
         location = 'Google Meet (auto-generated)'
-        description = `💻 GOOGLE MEET APPOINTMENT\n\nCustomer Details:\n${customerLine}\n📋 Meeting Details:\nThis is a virtual meeting via Google Meet. The Meet link is auto-generated and attached to this event.\nAll team members can start/host the meeting.\n\n${projectLines}${messageLine}`
+        description = `💻 GOOGLE MEET APPOINTMENT\n\nCustomer Details:\n${customerLine}\n📋 Meeting Details:\nThis is a virtual meeting via Google Meet. The Meet link is auto-generated and attached to this event.\nThe Meet link is on this calendar invite.\n\n${projectLines}${messageLine}`
         break
       }
       case 'visit_office': {
@@ -196,7 +204,7 @@ export async function POST(request: NextRequest) {
         responseStatus: 'accepted',
       },
     ]
-    for (const teamEmail of TEAM_EMAILS) {
+    for (const teamEmail of getCalendarTeamEmails(tableName)) {
       if (teamEmail.toLowerCase() !== customerEmailNorm) {
         attendees.push({ email: teamEmail })
       }
