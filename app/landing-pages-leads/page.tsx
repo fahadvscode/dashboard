@@ -10,6 +10,11 @@ import {
   getLeadCreatedAtInterval,
   leadCreatedAtMatchesRange
 } from '@/lib/leadDateRange'
+import {
+  ENCLAVE_LEADS_TABLE,
+  getLandingPageBrandLabel,
+  hasLandingPageCrmColumns
+} from '@/lib/landingPageLeads'
 
 type CallHistoryEntry = {
   outcome: string
@@ -23,8 +28,12 @@ interface LandingPageLead {
   lastname: string
   email: string
   phone: string
-  source: string // table name: cornerstone_leads, novella_leads, lakeview_village_leads, or rollingwood_leads
+  source: string // Supabase table name (e.g. enclave, rollingwood_leads)
   table_name: string // for API calls
+  page_source?: string // UTM / form source column on enclave
+  model?: string
+  collection?: string
+  form_name?: string
   status: string
   created_at: string
   call_count: number | null
@@ -89,8 +98,19 @@ function normalizeLead(raw: Record<string, unknown>, tableName: string): Landing
     buyer_type: raw.buyer_type as string | undefined,
     home_interest: raw.home_interest as string | undefined,
     is_realtor: raw.is_realtor as boolean | undefined,
-    interest: raw.interest as string | undefined
+    interest: raw.interest as string | undefined,
+    page_source: tableName === ENCLAVE_LEADS_TABLE ? (raw.source as string | undefined) : undefined,
+    model: raw.model as string | undefined,
+    collection: raw.collection as string | undefined,
+    form_name: raw.form_name as string | undefined
   }
+}
+
+function leadDetailLabel(lead: LandingPageLead): string {
+  if (lead.table_name === ENCLAVE_LEADS_TABLE) {
+    return [lead.model, lead.collection].filter(Boolean).join(' · ') || '—'
+  }
+  return lead.buyer_type || lead.interest || '—'
 }
 
 export default function LandingPagesLeads() {
@@ -123,18 +143,20 @@ export default function LandingPagesLeads() {
 
   async function fetchLeads() {
     try {
-      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes] = await Promise.all([
+      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes] = await Promise.all([
         supabase.from('cornerstone_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('novella_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('lakeview_village_leads').select('*').order('created_at', { ascending: false }),
-        supabase.from('rollingwood_leads').select('*').order('created_at', { ascending: false })
+        supabase.from('rollingwood_leads').select('*').order('created_at', { ascending: false }),
+        supabase.from(ENCLAVE_LEADS_TABLE).select('*').order('created_at', { ascending: false })
       ])
 
       const cornerstone = (cornerstoneRes.data || []).map(r => normalizeLead(r, 'cornerstone_leads'))
       const novella = (novellaRes.data || []).map(r => normalizeLead(r, 'novella_leads'))
       const lakeview = (lakeviewRes.data || []).map(r => normalizeLead(r, 'lakeview_village_leads'))
       const rollingwood = (rollingwoodRes.data || []).map(r => normalizeLead(r, 'rollingwood_leads'))
-      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood].sort(
+      const enclave = (enclaveRes.data || []).map(r => normalizeLead(r, ENCLAVE_LEADS_TABLE))
+      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
 
@@ -142,6 +164,7 @@ export default function LandingPagesLeads() {
       if (novellaRes.error) console.error('novella_leads fetch:', novellaRes.error)
       if (lakeviewRes.error) console.error('lakeview_village_leads fetch:', lakeviewRes.error)
       if (rollingwoodRes.error) console.error('rollingwood_leads fetch:', rollingwoodRes.error)
+      if (enclaveRes.error) console.error('enclave fetch:', enclaveRes.error)
 
       setLeads(combined)
       setInitialLoadDone(true)
@@ -182,6 +205,7 @@ export default function LandingPagesLeads() {
       if (filter === 'novella') return lead.table_name === 'novella_leads'
       if (filter === 'lakeview') return lead.table_name === 'lakeview_village_leads'
       if (filter === 'rollingwood') return lead.table_name === 'rollingwood_leads'
+      if (filter === 'enclave') return lead.table_name === ENCLAVE_LEADS_TABLE
       if (filter === 'new') return lead.status === 'new'
       if (filter === 'hot') return lead.lead_temperature === 'hot'
       if (filter === 'warm') return lead.lead_temperature === 'warm'
@@ -197,7 +221,12 @@ export default function LandingPagesLeads() {
         lead.lastname,
         lead.email,
         lead.phone,
-        lead.source
+        lead.source,
+        lead.page_source,
+        lead.model,
+        lead.collection,
+        lead.form_name,
+        getLandingPageBrandLabel(lead.table_name)
       ]
         .filter(Boolean)
         .some(v => (v as string).toLowerCase().includes(q))
@@ -533,6 +562,12 @@ export default function LandingPagesLeads() {
             Rollingwood ({leads.filter(l => l.table_name === 'rollingwood_leads').length})
           </button>
           <button
+            onClick={() => setFilter('enclave')}
+            className={`px-4 py-2 rounded-lg ${filter === 'enclave' ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          >
+            Enclave ({leads.filter(l => l.table_name === ENCLAVE_LEADS_TABLE).length})
+          </button>
+          <button
             onClick={() => setFilter('new')}
             className={`px-4 py-2 rounded-lg ${filter === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
           >
@@ -608,30 +643,38 @@ export default function LandingPagesLeads() {
                 <td className="px-6 py-4 text-sm text-gray-700">{lead.phone || '—'}</td>
                 <td className="px-6 py-4 text-sm">
                   <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
-                    {lead.source}
+                    {getLandingPageBrandLabel(lead.table_name)}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-700">
-                  {lead.buyer_type || lead.interest || '—'}
+                  {leadDetailLabel(lead)}
                 </td>
                 <td className="px-6 py-4 text-sm">
-                  <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
-                    {lead.call_count ?? 0} Calls
-                  </span>
+                  {hasLandingPageCrmColumns(lead.table_name) ? (
+                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                      {lead.call_count ?? 0} Calls
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 text-sm" onClick={e => e.stopPropagation()}>
-                  <select
-                    value={lead.lead_temperature || 'warm'}
-                    onChange={e => handleUpdateTemperature(lead.id, e.target.value)}
-                    disabled={updatingTemperature}
-                    className={`text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer ${
-                      LEAD_TEMPERATURES[lead.lead_temperature as keyof typeof LEAD_TEMPERATURES]?.color ?? LEAD_TEMPERATURES.warm.color
-                    }`}
-                  >
-                    <option value="hot">🔴 Hot</option>
-                    <option value="warm">🟢 Warm</option>
-                    <option value="cold">🟠 Cold</option>
-                  </select>
+                  {hasLandingPageCrmColumns(lead.table_name) ? (
+                    <select
+                      value={lead.lead_temperature || 'warm'}
+                      onChange={e => handleUpdateTemperature(lead.id, e.target.value)}
+                      disabled={updatingTemperature}
+                      className={`text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer ${
+                        LEAD_TEMPERATURES[lead.lead_temperature as keyof typeof LEAD_TEMPERATURES]?.color ?? LEAD_TEMPERATURES.warm.color
+                      }`}
+                    >
+                      <option value="hot">🔴 Hot</option>
+                      <option value="warm">🟢 Warm</option>
+                      <option value="cold">🟠 Cold</option>
+                    </select>
+                  ) : (
+                    <span className="text-xs text-gray-400">—</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 text-sm">
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${lead.status === 'new' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
@@ -685,7 +728,7 @@ export default function LandingPagesLeads() {
                   {selectedLead.firstname} {selectedLead.lastname}
                 </h2>
                 <p className="mt-1 text-sm text-gray-500">
-                  {selectedLead.source} · {formatDistanceToNow(new Date(selectedLead.created_at), { addSuffix: true })}
+                  {getLandingPageBrandLabel(selectedLead.table_name)} · {formatDistanceToNow(new Date(selectedLead.created_at), { addSuffix: true })}
                 </p>
               </div>
             </div>
@@ -711,9 +754,25 @@ export default function LandingPagesLeads() {
                   <MapPin className="mr-3 h-4 w-4 text-gray-400" />
                   <span className="font-medium">Landing Page:</span>
                   <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
-                    {selectedLead.source}
+                    {getLandingPageBrandLabel(selectedLead.table_name)}
                   </span>
                 </div>
+                {selectedLead.table_name === ENCLAVE_LEADS_TABLE && (
+                  <div className="flex flex-col gap-1 text-gray-700">
+                    {selectedLead.collection && (
+                      <p><span className="font-medium">Collection:</span> {selectedLead.collection}</p>
+                    )}
+                    {selectedLead.model && (
+                      <p><span className="font-medium">Model:</span> {selectedLead.model}</p>
+                    )}
+                    {selectedLead.form_name && (
+                      <p><span className="font-medium">Form:</span> {selectedLead.form_name}</p>
+                    )}
+                    {selectedLead.page_source && (
+                      <p><span className="font-medium">Source:</span> {selectedLead.page_source}</p>
+                    )}
+                  </div>
+                )}
                 {(selectedLead.buyer_type || selectedLead.interest || selectedLead.home_interest) && (
                   <div className="flex items-start gap-2">
                     <span className="text-xs font-semibold text-gray-500 w-24">Details:</span>
@@ -724,44 +783,52 @@ export default function LandingPagesLeads() {
                 )}
               </div>
               <div className="space-y-3 text-sm">
-                <div>
-                  <span className="text-xs font-semibold uppercase text-gray-500">Calls</span>
-                  <div className="mt-2 inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
-                    {selectedLead.call_count ?? 0} Calls
-                  </div>
-                  {selectedLead.last_note && (
-                    <p className="mt-2 text-xs text-gray-500">Last note: {selectedLead.last_note}</p>
-                  )}
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white/60 p-4">
-                  <span className="text-xs font-semibold uppercase text-gray-500">Log Call</span>
-                  <div className="mt-3 space-y-3">
-                    <select
-                      value={logOutcome}
-                      onChange={e => setLogOutcome(e.target.value)}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                    >
-                      {CALL_OUTCOMES.map(o => (
-                        <option key={o} value={o}>{o}</option>
-                      ))}
-                    </select>
-                    <textarea
-                      value={logNote}
-                      onChange={e => setLogNote(e.target.value)}
-                      placeholder="Add note (optional)"
-                      rows={3}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                    />
-                    {logError && <p className="text-xs text-red-500">{logError}</p>}
-                    <button
-                      onClick={handleLogCall}
-                      disabled={logging}
-                      className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-                    >
-                      {logging ? 'Saving…' : 'Log Call'}
-                    </button>
-                  </div>
-                </div>
+                {hasLandingPageCrmColumns(selectedLead.table_name) ? (
+                  <>
+                    <div>
+                      <span className="text-xs font-semibold uppercase text-gray-500">Calls</span>
+                      <div className="mt-2 inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                        {selectedLead.call_count ?? 0} Calls
+                      </div>
+                      {selectedLead.last_note && (
+                        <p className="mt-2 text-xs text-gray-500">Last note: {selectedLead.last_note}</p>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-white/60 p-4">
+                      <span className="text-xs font-semibold uppercase text-gray-500">Log Call</span>
+                      <div className="mt-3 space-y-3">
+                        <select
+                          value={logOutcome}
+                          onChange={e => setLogOutcome(e.target.value)}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                        >
+                          {CALL_OUTCOMES.map(o => (
+                            <option key={o} value={o}>{o}</option>
+                          ))}
+                        </select>
+                        <textarea
+                          value={logNote}
+                          onChange={e => setLogNote(e.target.value)}
+                          placeholder="Add note (optional)"
+                          rows={3}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                        />
+                        {logError && <p className="text-xs text-red-500">{logError}</p>}
+                        <button
+                          onClick={handleLogCall}
+                          disabled={logging}
+                          className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          {logging ? 'Saving…' : 'Log Call'}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-500 rounded-lg border border-dashed border-gray-200 p-3">
+                    Call logging and lead temperature are not enabled for Enclave until CRM columns are added to the table.
+                  </p>
+                )}
                 <div className="rounded-xl border border-gray-200 bg-white/60 p-4">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-semibold uppercase text-gray-500">Send SMS</span>
@@ -788,21 +855,23 @@ export default function LandingPagesLeads() {
                     <p className="text-xs text-gray-500 mt-2">No phone number available</p>
                   )}
                 </div>
-                <div>
-                  <span className="text-xs font-semibold uppercase text-gray-500">Lead Temperature</span>
-                  <select
-                    value={selectedLead.lead_temperature || 'warm'}
-                    onChange={e => handleUpdateTemperature(selectedLead.id, e.target.value)}
-                    disabled={updatingTemperature}
-                    className={`mt-2 w-full text-xs font-semibold px-3 py-2 rounded-lg cursor-pointer border ${
-                      LEAD_TEMPERATURES[selectedLead.lead_temperature as keyof typeof LEAD_TEMPERATURES]?.color ?? LEAD_TEMPERATURES.warm.color
-                    }`}
-                  >
-                    <option value="hot">🔴 Hot Lead</option>
-                    <option value="warm">🟢 Warm Lead</option>
-                    <option value="cold">🟠 Cold Lead</option>
-                  </select>
-                </div>
+                {hasLandingPageCrmColumns(selectedLead.table_name) && (
+                  <div>
+                    <span className="text-xs font-semibold uppercase text-gray-500">Lead Temperature</span>
+                    <select
+                      value={selectedLead.lead_temperature || 'warm'}
+                      onChange={e => handleUpdateTemperature(selectedLead.id, e.target.value)}
+                      disabled={updatingTemperature}
+                      className={`mt-2 w-full text-xs font-semibold px-3 py-2 rounded-lg cursor-pointer border ${
+                        LEAD_TEMPERATURES[selectedLead.lead_temperature as keyof typeof LEAD_TEMPERATURES]?.color ?? LEAD_TEMPERATURES.warm.color
+                      }`}
+                    >
+                      <option value="hot">🔴 Hot Lead</option>
+                      <option value="warm">🟢 Warm Lead</option>
+                      <option value="cold">🟠 Cold Lead</option>
+                    </select>
+                  </div>
+                )}
                 <div>
                   <span className="text-xs font-semibold uppercase text-gray-500">Status</span>
                   <div className={`mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${selectedLead.status === 'new' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>

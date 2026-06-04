@@ -17,6 +17,7 @@ const LANDING_PAGE_TABLES = new Set<ContactSourceTable>([
   'novella_leads',
   'lakeview_village_leads',
   'rollingwood_leads',
+  'enclave',
 ])
 
 const TABLES_WITH_FULL_NAME = new Set<ContactSourceTable>(['rental_leads'])
@@ -262,6 +263,13 @@ function buildOrFilter(table: ContactSourceTable, query: string): string {
 
   if (!landing) {
     parts.push(`project_name.ilike.${fullPattern}`)
+  } else if (table === 'enclave') {
+    parts.push(
+      `model.ilike.${fullPattern}`,
+      `collection.ilike.${fullPattern}`,
+      `form_name.ilike.${fullPattern}`,
+      `source.ilike.${fullPattern}`
+    )
   }
 
   const words = query.trim().split(/\s+/).filter((w) => w.length > 0)
