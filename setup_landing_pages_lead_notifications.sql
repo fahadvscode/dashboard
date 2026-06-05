@@ -103,10 +103,9 @@ BEGIN
     'email', NEW.email,
     'phone', NEW.phone,
     'buyer_type', NEW.buyer_type,
-    'home_interest', NEW.home_interest,
-    'interest', NEW.interest,
-    'is_realtor', NEW.is_realtor,
+    'project', NEW.project,
     'consent', NEW.consent,
+    'status', NEW.status,
     'table_name', 'lakeview_village_leads',
     'created_at', NEW.created_at
   );

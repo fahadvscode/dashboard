@@ -45,6 +45,7 @@ interface LandingPageLead {
   home_interest?: string
   is_realtor?: boolean
   interest?: string
+  project?: string
 }
 
 const CALL_OUTCOMES = [
@@ -99,6 +100,7 @@ function normalizeLead(raw: Record<string, unknown>, tableName: string): Landing
     home_interest: raw.home_interest as string | undefined,
     is_realtor: raw.is_realtor as boolean | undefined,
     interest: raw.interest as string | undefined,
+    project: raw.project as string | undefined,
     page_source: tableName === ENCLAVE_LEADS_TABLE ? (raw.source as string | undefined) : undefined,
     model: raw.model as string | undefined,
     collection: raw.collection as string | undefined,
@@ -110,7 +112,10 @@ function leadDetailLabel(lead: LandingPageLead): string {
   if (lead.table_name === ENCLAVE_LEADS_TABLE) {
     return [lead.model, lead.collection].filter(Boolean).join(' · ') || '—'
   }
-  return lead.buyer_type || lead.interest || '—'
+  if (lead.table_name === 'lakeview_village_leads') {
+    return [lead.project, lead.buyer_type].filter(Boolean).join(' · ') || '—'
+  }
+  return lead.buyer_type || lead.interest || lead.home_interest || '—'
 }
 
 export default function LandingPagesLeads() {
@@ -773,11 +778,11 @@ export default function LandingPagesLeads() {
                     )}
                   </div>
                 )}
-                {(selectedLead.buyer_type || selectedLead.interest || selectedLead.home_interest) && (
+                {(selectedLead.buyer_type || selectedLead.interest || selectedLead.home_interest || selectedLead.project) && (
                   <div className="flex items-start gap-2">
                     <span className="text-xs font-semibold text-gray-500 w-24">Details:</span>
                     <span className="text-gray-700">
-                      {[selectedLead.buyer_type, selectedLead.interest, selectedLead.home_interest].filter(Boolean).join(' · ')}
+                      {[selectedLead.project, selectedLead.buyer_type, selectedLead.interest, selectedLead.home_interest].filter(Boolean).join(' · ')}
                     </span>
                   </div>
                 )}

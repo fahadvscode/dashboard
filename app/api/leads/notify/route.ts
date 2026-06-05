@@ -98,6 +98,10 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
           (lead.form_name as string) ||
           (lead.source as string) ||
           meta.pageName
+      } else if (lead.table_name === 'lakeview_village_leads' && lead.project) {
+        projectName = `${meta.websiteName} — ${lead.project}`
+        projectId = 'N/A'
+        landingPage = meta.pageName
       } else {
         projectName = websiteFromPayload || meta.websiteName
         projectId = 'N/A'
@@ -265,13 +269,12 @@ export async function POST(request: NextRequest) {
         if (lead.source) message += `\n📌 Source: ${lead.source}`
       }
 
-      // Lakeview Village fields
+      // Lakeview Village fields (schema uses project, not home_interest)
       if (lead.table_name === 'lakeview_village_leads') {
+        if (lead.project) message += `\n🏠 Project: ${lead.project}`
         if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
-        if (lead.home_interest) message += `\n🏠 Home Interest: ${lead.home_interest}`
-        if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
-        if (lead.is_realtor !== undefined) message += `\n🏢 Realtor: ${lead.is_realtor ? 'Yes' : 'No'}`
         if (lead.consent !== undefined) message += `\n✅ Consent: ${lead.consent ? 'Yes' : 'No'}`
+        if (lead.status) message += `\n📋 Status: ${lead.status}`
       }
 
       // Rollingwood fields (same shape as other landing page tables)
