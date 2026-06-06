@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Upload, Copy, Check, Link2, X, Image as ImageIcon, Video } from 'lucide-react'
+import { Upload, Copy, Check, Link2, X, Image as ImageIcon, Video, List, ChevronDown, ChevronUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 interface UploadedFile {
@@ -15,7 +15,10 @@ interface UploadedFile {
 export default function MediaUploadPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [lastBatch, setLastBatch] = useState<UploadedFile[]>([])
+  const [showBulkLinks, setShowBulkLinks] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
+  const [copiedBulk, setCopiedBulk] = useState<'batch' | 'all' | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -26,7 +29,7 @@ export default function MediaUploadPage() {
     setUploading(true)
 
     try {
-      const uploadPromises = Array.from(files).map(async (file) => {
+      const uploadPromises = Array.from(files).map(async (file, index) => {
         // Validate file type
         const isImage = file.type.startsWith('image/')
         const isVideo = file.type.startsWith('video/')
@@ -44,7 +47,7 @@ export default function MediaUploadPage() {
         // Create unique filename
         const timestamp = Date.now()
         const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-        const fileName = `${timestamp}_${sanitizedName}`
+        const fileName = `${timestamp}_${index}_${sanitizedName}`
         
         // Upload to Supabase Storage
         const { data, error: uploadError } = await supabase.storage
@@ -74,6 +77,10 @@ export default function MediaUploadPage() {
 
       const results = await Promise.all(uploadPromises)
       setUploadedFiles((prev) => [...results, ...prev])
+      setLastBatch(results)
+      if (results.length > 1) {
+        setShowBulkLinks(true)
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to upload files')
       console.error('Upload error:', err)
@@ -109,6 +116,19 @@ export default function MediaUploadPage() {
       setTimeout(() => setCopiedUrl(null), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
+    }
+  }
+
+  const compileLinks = (files: UploadedFile[]) => files.map((file) => file.url).join('\n')
+
+  const handleCopyBulkLinks = async (files: UploadedFile[], scope: 'batch' | 'all') => {
+    if (files.length === 0) return
+    try {
+      await navigator.clipboard.writeText(compileLinks(files))
+      setCopiedBulk(scope)
+      setTimeout(() => setCopiedBulk(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy bulk links:', err)
     }
   }
 
@@ -183,12 +203,99 @@ export default function MediaUploadPage() {
           </div>
         )}
 
+        {/* Bulk Links Panel */}
+        {lastBatch.length > 1 && (
+          <div className="mt-6 bg-white border border-green-200 rounded-lg overflow-hidden">
+            <div className="flex items-center justify-between gap-3 p-4 bg-green-50 border-b border-green-200">
+              <div className="flex items-center gap-2 min-w-0">
+                <List className="h-5 w-5 text-green-700 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-semibold text-green-900">
+                    Bulk Links ({lastBatch.length} files)
+                  </p>
+                  <p className="text-sm text-green-700 truncate">
+                    From your latest upload
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => handleCopyBulkLinks(lastBatch, 'batch')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
+                >
+                  {copiedBulk === 'batch' ? (
+                    <>
+                      <Check className="h-4 w-4" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" />
+                      Copy All
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowBulkLinks((prev) => !prev)}
+                  className="flex items-center gap-1 px-3 py-1.5 border border-green-300 text-green-800 text-sm font-medium rounded-md hover:bg-green-100 transition-colors"
+                >
+                  {showBulkLinks ? (
+                    <>
+                      <ChevronUp className="h-4 w-4" />
+                      Hide
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4" />
+                      Show List
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+            {showBulkLinks && (
+              <div className="p-4">
+                <textarea
+                  readOnly
+                  value={compileLinks(lastBatch)}
+                  rows={Math.min(lastBatch.length + 1, 12)}
+                  className="w-full p-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg font-mono resize-y focus:outline-none focus:ring-2 focus:ring-green-500"
+                  onClick={(e) => e.currentTarget.select()}
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  One link per line. Click the box to select all, or use Copy All.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Uploaded Files */}
         {uploadedFiles.length > 0 && (
           <div className="mt-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Uploaded Files ({uploadedFiles.length})
-            </h2>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Uploaded Files ({uploadedFiles.length})
+              </h2>
+              {uploadedFiles.length > 1 && (
+                <button
+                  onClick={() => handleCopyBulkLinks(uploadedFiles, 'all')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-100 transition-colors"
+                >
+                  {copiedBulk === 'all' ? (
+                    <>
+                      <Check className="h-4 w-4 text-green-600" />
+                      Copied all!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" />
+                      Copy all links
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
             
             <div className="space-y-4">
               {uploadedFiles.map((file) => (
@@ -276,7 +383,7 @@ export default function MediaUploadPage() {
             <li>• Click the upload area or drag & drop files to upload</li>
             <li>• Supports images (PNG, JPG, GIF, WEBP) and videos (MP4, MOV, etc.)</li>
             <li>• Get instant public URLs that you can share anywhere</li>
-            <li>• Click "Copy" to copy the URL to your clipboard</li>
+            <li>• Click "Copy" to copy a single URL, or use "Copy All" after bulk uploads</li>
             <li>• Files are stored permanently in Supabase Storage</li>
           </ul>
         </div>
