@@ -63,6 +63,11 @@ export const CONTACT_SOURCE_TABLES = {
     kind: 'lead' as const,
   },
   enclave: { label: 'Enclave Leads', route: '/landing-pages-leads', kind: 'lead' as const },
+  hawthorne_east_village: {
+    label: 'Hawthorne East Village Leads',
+    route: '/landing-pages-leads',
+    kind: 'lead' as const,
+  },
   fj_bookings: { label: 'FJ Booking', route: '/fj-bookings', kind: 'booking' as const },
   precon_factory_bookings: {
     label: 'Precon Factory Booking',
@@ -95,6 +100,7 @@ export const SEARCHABLE_LEAD_TABLES: ContactSourceTable[] = [
   'lakeview_village_leads',
   'rollingwood_leads',
   'enclave',
+  'hawthorne_east_village',
 ]
 
 export const SEARCHABLE_BOOKING_TABLES: ContactSourceTable[] = [

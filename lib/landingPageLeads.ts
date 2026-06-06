@@ -1,5 +1,6 @@
-/** Supabase table for Enclave landing-page leads (schema owned by the website — do not ALTER here). */
+/** Website-owned tables — do not ALTER columns from dashboard SQL scripts. */
 export const ENCLAVE_LEADS_TABLE = 'enclave' as const
+export const HAWTHORNE_EAST_VILLAGE_TABLE = 'hawthorne_east_village' as const
 
 export const LANDING_PAGE_BRAND_LABELS: Record<string, string> = {
   cornerstone_leads: 'Cornerstone',
@@ -7,15 +8,21 @@ export const LANDING_PAGE_BRAND_LABELS: Record<string, string> = {
   lakeview_village_leads: 'Lakeview Village',
   rollingwood_leads: 'Rollingwood',
   [ENCLAVE_LEADS_TABLE]: 'Enclave',
+  [HAWTHORNE_EAST_VILLAGE_TABLE]: 'Hawthorne East Village',
 }
+
+const TABLES_WITHOUT_CRM = new Set<string>([
+  ENCLAVE_LEADS_TABLE,
+  HAWTHORNE_EAST_VILLAGE_TABLE,
+])
 
 export function getLandingPageBrandLabel(tableName: string): string {
   return LANDING_PAGE_BRAND_LABELS[tableName] ?? tableName
 }
 
-/** Enclave uses the website schema only — no call_count / lead_temperature columns yet. */
+/** Tables without call_count / lead_temperature CRM columns. */
 export function hasLandingPageCrmColumns(tableName: string): boolean {
-  return tableName !== ENCLAVE_LEADS_TABLE
+  return !TABLES_WITHOUT_CRM.has(tableName)
 }
 
 export const LANDING_PAGE_LEAD_TABLES = [
@@ -24,4 +31,5 @@ export const LANDING_PAGE_LEAD_TABLES = [
   'lakeview_village_leads',
   'rollingwood_leads',
   ENCLAVE_LEADS_TABLE,
+  HAWTHORNE_EAST_VILLAGE_TABLE,
 ] as const

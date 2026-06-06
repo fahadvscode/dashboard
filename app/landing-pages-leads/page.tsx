@@ -12,9 +12,12 @@ import {
 } from '@/lib/leadDateRange'
 import {
   ENCLAVE_LEADS_TABLE,
+  HAWTHORNE_EAST_VILLAGE_TABLE,
   getLandingPageBrandLabel,
   hasLandingPageCrmColumns
 } from '@/lib/landingPageLeads'
+
+const PAGE_SOURCE_TABLES = new Set([ENCLAVE_LEADS_TABLE, HAWTHORNE_EAST_VILLAGE_TABLE])
 
 type CallHistoryEntry = {
   outcome: string
@@ -46,6 +49,12 @@ interface LandingPageLead {
   is_realtor?: boolean
   interest?: string
   project?: string
+  form_type?: string
+  page_path?: string
+  budget?: string
+  timeline?: string
+  utm_source?: string
+  utm_campaign?: string
 }
 
 const CALL_OUTCOMES = [
@@ -101,10 +110,16 @@ function normalizeLead(raw: Record<string, unknown>, tableName: string): Landing
     is_realtor: raw.is_realtor as boolean | undefined,
     interest: raw.interest as string | undefined,
     project: raw.project as string | undefined,
-    page_source: tableName === ENCLAVE_LEADS_TABLE ? (raw.source as string | undefined) : undefined,
+    page_source: PAGE_SOURCE_TABLES.has(tableName) ? (raw.source as string | undefined) : undefined,
     model: raw.model as string | undefined,
     collection: raw.collection as string | undefined,
-    form_name: raw.form_name as string | undefined
+    form_name: raw.form_name as string | undefined,
+    form_type: raw.form_type as string | undefined,
+    page_path: raw.page_path as string | undefined,
+    budget: raw.budget as string | undefined,
+    timeline: raw.timeline as string | undefined,
+    utm_source: raw.utm_source as string | undefined,
+    utm_campaign: raw.utm_campaign as string | undefined
   }
 }
 
@@ -114,6 +129,9 @@ function leadDetailLabel(lead: LandingPageLead): string {
   }
   if (lead.table_name === 'lakeview_village_leads') {
     return [lead.project, lead.buyer_type].filter(Boolean).join(' · ') || '—'
+  }
+  if (lead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE) {
+    return [lead.interest, lead.budget, lead.timeline].filter(Boolean).join(' · ') || '—'
   }
   return lead.buyer_type || lead.interest || lead.home_interest || '—'
 }
@@ -148,12 +166,13 @@ export default function LandingPagesLeads() {
 
   async function fetchLeads() {
     try {
-      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes] = await Promise.all([
+      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes] = await Promise.all([
         supabase.from('cornerstone_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('novella_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('lakeview_village_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('rollingwood_leads').select('*').order('created_at', { ascending: false }),
-        supabase.from(ENCLAVE_LEADS_TABLE).select('*').order('created_at', { ascending: false })
+        supabase.from(ENCLAVE_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
+        supabase.from(HAWTHORNE_EAST_VILLAGE_TABLE).select('*').order('created_at', { ascending: false })
       ])
 
       const cornerstone = (cornerstoneRes.data || []).map(r => normalizeLead(r, 'cornerstone_leads'))
@@ -161,7 +180,8 @@ export default function LandingPagesLeads() {
       const lakeview = (lakeviewRes.data || []).map(r => normalizeLead(r, 'lakeview_village_leads'))
       const rollingwood = (rollingwoodRes.data || []).map(r => normalizeLead(r, 'rollingwood_leads'))
       const enclave = (enclaveRes.data || []).map(r => normalizeLead(r, ENCLAVE_LEADS_TABLE))
-      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave].sort(
+      const hawthorne = (hawthorneRes.data || []).map(r => normalizeLead(r, HAWTHORNE_EAST_VILLAGE_TABLE))
+      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
 
@@ -170,6 +190,7 @@ export default function LandingPagesLeads() {
       if (lakeviewRes.error) console.error('lakeview_village_leads fetch:', lakeviewRes.error)
       if (rollingwoodRes.error) console.error('rollingwood_leads fetch:', rollingwoodRes.error)
       if (enclaveRes.error) console.error('enclave fetch:', enclaveRes.error)
+      if (hawthorneRes.error) console.error('hawthorne_east_village fetch:', hawthorneRes.error)
 
       setLeads(combined)
       setInitialLoadDone(true)
@@ -211,6 +232,7 @@ export default function LandingPagesLeads() {
       if (filter === 'lakeview') return lead.table_name === 'lakeview_village_leads'
       if (filter === 'rollingwood') return lead.table_name === 'rollingwood_leads'
       if (filter === 'enclave') return lead.table_name === ENCLAVE_LEADS_TABLE
+      if (filter === 'hawthorne') return lead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE
       if (filter === 'new') return lead.status === 'new'
       if (filter === 'hot') return lead.lead_temperature === 'hot'
       if (filter === 'warm') return lead.lead_temperature === 'warm'
@@ -231,6 +253,10 @@ export default function LandingPagesLeads() {
         lead.model,
         lead.collection,
         lead.form_name,
+        lead.form_type,
+        lead.page_path,
+        lead.budget,
+        lead.timeline,
         getLandingPageBrandLabel(lead.table_name)
       ]
         .filter(Boolean)
@@ -573,6 +599,12 @@ export default function LandingPagesLeads() {
             Enclave ({leads.filter(l => l.table_name === ENCLAVE_LEADS_TABLE).length})
           </button>
           <button
+            onClick={() => setFilter('hawthorne')}
+            className={`px-4 py-2 rounded-lg ${filter === 'hawthorne' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          >
+            Hawthorne ({leads.filter(l => l.table_name === HAWTHORNE_EAST_VILLAGE_TABLE).length})
+          </button>
+          <button
             onClick={() => setFilter('new')}
             className={`px-4 py-2 rounded-lg ${filter === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
           >
@@ -778,6 +810,31 @@ export default function LandingPagesLeads() {
                     )}
                   </div>
                 )}
+                {selectedLead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE && (
+                  <div className="flex flex-col gap-1 text-gray-700">
+                    {selectedLead.interest && (
+                      <p><span className="font-medium">Interest:</span> {selectedLead.interest}</p>
+                    )}
+                    {selectedLead.budget && (
+                      <p><span className="font-medium">Budget:</span> {selectedLead.budget}</p>
+                    )}
+                    {selectedLead.timeline && (
+                      <p><span className="font-medium">Timeline:</span> {selectedLead.timeline}</p>
+                    )}
+                    {selectedLead.form_type && (
+                      <p><span className="font-medium">Form:</span> {selectedLead.form_type}</p>
+                    )}
+                    {selectedLead.page_path && (
+                      <p><span className="font-medium">Page:</span> {selectedLead.page_path}</p>
+                    )}
+                    {selectedLead.page_source && (
+                      <p><span className="font-medium">Source:</span> {selectedLead.page_source}</p>
+                    )}
+                    {selectedLead.utm_source && (
+                      <p><span className="font-medium">UTM:</span> {[selectedLead.utm_source, selectedLead.utm_campaign].filter(Boolean).join(' / ')}</p>
+                    )}
+                  </div>
+                )}
                 {(selectedLead.buyer_type || selectedLead.interest || selectedLead.home_interest || selectedLead.project) && (
                   <div className="flex items-start gap-2">
                     <span className="text-xs font-semibold text-gray-500 w-24">Details:</span>
@@ -831,7 +888,7 @@ export default function LandingPagesLeads() {
                   </>
                 ) : (
                   <p className="text-xs text-gray-500 rounded-lg border border-dashed border-gray-200 p-3">
-                    Call logging and lead temperature are not enabled for Enclave until CRM columns are added to the table.
+                    Call logging and lead temperature are not enabled for this landing page until CRM columns are added to the table.
                   </p>
                 )}
                 <div className="rounded-xl border border-gray-200 bg-white/60 p-4">

@@ -18,6 +18,7 @@ const LANDING_PAGE_TABLES = new Set<ContactSourceTable>([
   'lakeview_village_leads',
   'rollingwood_leads',
   'enclave',
+  'hawthorne_east_village',
 ])
 
 const TABLES_WITH_FULL_NAME = new Set<ContactSourceTable>(['rental_leads'])
@@ -268,6 +269,15 @@ function buildOrFilter(table: ContactSourceTable, query: string): string {
       `model.ilike.${fullPattern}`,
       `collection.ilike.${fullPattern}`,
       `form_name.ilike.${fullPattern}`,
+      `source.ilike.${fullPattern}`
+    )
+  } else if (table === 'hawthorne_east_village') {
+    parts.push(
+      `interest.ilike.${fullPattern}`,
+      `budget.ilike.${fullPattern}`,
+      `timeline.ilike.${fullPattern}`,
+      `form_type.ilike.${fullPattern}`,
+      `page_path.ilike.${fullPattern}`,
       `source.ilike.${fullPattern}`
     )
   }

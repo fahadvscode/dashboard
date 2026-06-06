@@ -38,6 +38,7 @@ const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: s
   lakeview_village_leads: { websiteName: 'Lakeview Village', pageName: 'Lakeview Village' },
   rollingwood_leads: { websiteName: 'Rollingwood', pageName: 'Rollingwood' },
   enclave: { websiteName: 'Enclave', pageName: 'Enclave' },
+  hawthorne_east_village: { websiteName: 'Hawthorne East Village', pageName: 'Hawthorne East Village' },
 }
 
 function isLandingPageLeadTable(tableName: unknown): tableName is keyof typeof LANDING_PAGE_SHEET_META {
@@ -102,6 +103,14 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
         projectName = `${meta.websiteName} — ${lead.project}`
         projectId = 'N/A'
         landingPage = meta.pageName
+      } else if (lead.table_name === 'hawthorne_east_village') {
+        const interest = (lead.interest as string) || ''
+        projectName = interest ? `${meta.websiteName} — ${interest}` : meta.websiteName
+        projectId = (lead.budget as string) || 'N/A'
+        landingPage =
+          (lead.page_path as string) ||
+          (lead.form_type as string) ||
+          meta.pageName
       } else {
         projectName = websiteFromPayload || meta.websiteName
         projectId = 'N/A'
@@ -171,6 +180,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'lakeview_village_leads' ? 'Lakeview Village' :
       lead.table_name === 'rollingwood_leads' ? 'Rollingwood' :
       lead.table_name === 'enclave' ? 'Enclave' :
+      lead.table_name === 'hawthorne_east_village' ? 'Hawthorne East Village' :
       'Unknown'
     
     const isRentalLead = lead.table_name === 'rental_leads'
@@ -179,13 +189,15 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'novella_leads' ||
       lead.table_name === 'lakeview_village_leads' ||
       lead.table_name === 'rollingwood_leads' ||
-      lead.table_name === 'enclave'
+      lead.table_name === 'enclave' ||
+      lead.table_name === 'hawthorne_east_village'
     const landingPageName =
       lead.table_name === 'cornerstone_leads' ? 'Cornerstone' :
       lead.table_name === 'novella_leads' ? 'Novella' :
       lead.table_name === 'lakeview_village_leads' ? 'Lakeview Village' :
       lead.table_name === 'rollingwood_leads' ? 'Rollingwood' :
       lead.table_name === 'enclave' ? 'Enclave' :
+      lead.table_name === 'hawthorne_east_village' ? 'Hawthorne East Village' :
       ''
     const leadType = isRentalLead ? 'Rental Inquiry' : (lead.isagent ? 'Agent' : 'Buyer')
     
@@ -195,7 +207,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'precon_factory_website_leads' ? 'precon-factory-website-leads' :
       lead.table_name === 'gta_lowrise_leads' ? 'gta-lowrise-leads' :
       lead.table_name === 'rental_leads' ? 'rental-leads' :
-      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads' || lead.table_name === 'lakeview_village_leads' || lead.table_name === 'rollingwood_leads' || lead.table_name === 'enclave') ? 'landing-pages-leads' :
+      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads' || lead.table_name === 'lakeview_village_leads' || lead.table_name === 'rollingwood_leads' || lead.table_name === 'enclave' || lead.table_name === 'hawthorne_east_village') ? 'landing-pages-leads' :
       'rental-leads'
     
     const dashboardUrl = `https://property-dashboard-three.vercel.app/${leadPath}?leadId=${lead.id}`
@@ -292,6 +304,17 @@ export async function POST(request: NextRequest) {
         if (lead.model) message += `\n🏠 Model: ${lead.model}`
         if (lead.form_name) message += `\n📋 Form: ${lead.form_name}`
         if (lead.source) message += `\n📌 Source: ${lead.source}`
+      }
+
+      // Hawthorne East Village
+      if (lead.table_name === 'hawthorne_east_village') {
+        if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
+        if (lead.budget) message += `\n💰 Budget: ${lead.budget}`
+        if (lead.timeline) message += `\n📅 Timeline: ${lead.timeline}`
+        if (lead.form_type) message += `\n📋 Form: ${lead.form_type}`
+        if (lead.page_path) message += `\n🌐 Page: ${lead.page_path}`
+        if (lead.source) message += `\n📌 Source: ${lead.source}`
+        if (lead.utm_source) message += `\n🔗 UTM: ${lead.utm_source}${lead.utm_campaign ? ` / ${lead.utm_campaign}` : ''}`
       }
     } else {
       // Regular lead format
