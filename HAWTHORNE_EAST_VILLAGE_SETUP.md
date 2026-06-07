@@ -3,7 +3,9 @@
 Supabase table: **`public.hawthorne_east_village`**
 
 Columns (do not ALTER from dashboard):  
-`id`, `first_name`, `last_name`, `email`, `phone`, `interest`, `budget`, `timeline`, `form_type`, `page_path`, `source`, `utm_*`, `created_at`
+`id`, `first_name`, `last_name`, `email`, `phone`, `is_broker`, `form_type`, `page_path`, `source`, `utm_*`, `created_at`
+
+If you changed the schema after the first deploy, re-run **`fix_hawthorne_east_village_lead_notifications.sql`** in Supabase.
 
 ## Supabase (run in order)
 

@@ -51,8 +51,7 @@ interface LandingPageLead {
   project?: string
   form_type?: string
   page_path?: string
-  budget?: string
-  timeline?: string
+  is_broker?: string | boolean
   utm_source?: string
   utm_campaign?: string
 }
@@ -116,8 +115,7 @@ function normalizeLead(raw: Record<string, unknown>, tableName: string): Landing
     form_name: raw.form_name as string | undefined,
     form_type: raw.form_type as string | undefined,
     page_path: raw.page_path as string | undefined,
-    budget: raw.budget as string | undefined,
-    timeline: raw.timeline as string | undefined,
+    is_broker: raw.is_broker as string | boolean | undefined,
     utm_source: raw.utm_source as string | undefined,
     utm_campaign: raw.utm_campaign as string | undefined
   }
@@ -131,7 +129,11 @@ function leadDetailLabel(lead: LandingPageLead): string {
     return [lead.project, lead.buyer_type].filter(Boolean).join(' · ') || '—'
   }
   if (lead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE) {
-    return [lead.interest, lead.budget, lead.timeline].filter(Boolean).join(' · ') || '—'
+    const broker =
+      lead.is_broker !== undefined && lead.is_broker !== null && String(lead.is_broker).trim() !== ''
+        ? `Broker: ${lead.is_broker}`
+        : ''
+    return [lead.form_type, broker].filter(Boolean).join(' · ') || '—'
   }
   return lead.buyer_type || lead.interest || lead.home_interest || '—'
 }
@@ -255,8 +257,7 @@ export default function LandingPagesLeads() {
         lead.form_name,
         lead.form_type,
         lead.page_path,
-        lead.budget,
-        lead.timeline,
+        lead.is_broker !== undefined && lead.is_broker !== null ? String(lead.is_broker) : '',
         getLandingPageBrandLabel(lead.table_name)
       ]
         .filter(Boolean)
@@ -812,14 +813,10 @@ export default function LandingPagesLeads() {
                 )}
                 {selectedLead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE && (
                   <div className="flex flex-col gap-1 text-gray-700">
-                    {selectedLead.interest && (
-                      <p><span className="font-medium">Interest:</span> {selectedLead.interest}</p>
-                    )}
-                    {selectedLead.budget && (
-                      <p><span className="font-medium">Budget:</span> {selectedLead.budget}</p>
-                    )}
-                    {selectedLead.timeline && (
-                      <p><span className="font-medium">Timeline:</span> {selectedLead.timeline}</p>
+                    {selectedLead.is_broker !== undefined &&
+                      selectedLead.is_broker !== null &&
+                      String(selectedLead.is_broker).trim() !== '' && (
+                      <p><span className="font-medium">Broker:</span> {String(selectedLead.is_broker)}</p>
                     )}
                     {selectedLead.form_type && (
                       <p><span className="font-medium">Form:</span> {selectedLead.form_type}</p>

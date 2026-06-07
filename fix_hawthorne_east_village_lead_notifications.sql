@@ -1,8 +1,8 @@
 -- =============================================================================
--- SAFE: public.hawthorne_east_village ONLY
--- - Does NOT alter table columns or modify/delete existing rows
--- - Dedicated function notify_new_hawthorne_east_village_lead()
--- - AFTER INSERT on new rows only
+-- Fix Hawthorne notifications after schema change
+-- Removed: interest, budget, timeline
+-- Current: is_broker, form_type, page_path, source, utm_*
+-- SAFE: hawthorne_east_village only — no column changes, no row deletes
 -- =============================================================================
 
 BEGIN;
@@ -59,7 +59,7 @@ CREATE TRIGGER notify_new_hawthorne_east_village_lead
 
 COMMIT;
 
-SELECT trigger_name, event_object_table, action_timing, event_manipulation
+SELECT trigger_name, event_object_table
 FROM information_schema.triggers
 WHERE event_object_table = 'hawthorne_east_village'
   AND trigger_name = 'notify_new_hawthorne_east_village_lead';

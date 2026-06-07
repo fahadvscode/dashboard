@@ -104,12 +104,15 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
         projectId = 'N/A'
         landingPage = meta.pageName
       } else if (lead.table_name === 'hawthorne_east_village') {
-        const interest = (lead.interest as string) || ''
-        projectName = interest ? `${meta.websiteName} — ${interest}` : meta.websiteName
-        projectId = (lead.budget as string) || 'N/A'
+        const formLabel = (lead.form_type as string) || ''
+        projectName = formLabel ? `${meta.websiteName} — ${formLabel}` : meta.websiteName
+        projectId =
+          lead.is_broker !== undefined && lead.is_broker !== null && String(lead.is_broker).trim() !== ''
+            ? `Broker: ${String(lead.is_broker)}`
+            : 'N/A'
         landingPage =
           (lead.page_path as string) ||
-          (lead.form_type as string) ||
+          (lead.source as string) ||
           meta.pageName
       } else {
         projectName = websiteFromPayload || meta.websiteName
@@ -308,9 +311,9 @@ export async function POST(request: NextRequest) {
 
       // Hawthorne East Village
       if (lead.table_name === 'hawthorne_east_village') {
-        if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
-        if (lead.budget) message += `\n💰 Budget: ${lead.budget}`
-        if (lead.timeline) message += `\n📅 Timeline: ${lead.timeline}`
+        if (lead.is_broker !== undefined && lead.is_broker !== null && String(lead.is_broker).trim() !== '') {
+          message += `\n🏢 Broker: ${lead.is_broker}`
+        }
         if (lead.form_type) message += `\n📋 Form: ${lead.form_type}`
         if (lead.page_path) message += `\n🌐 Page: ${lead.page_path}`
         if (lead.source) message += `\n📌 Source: ${lead.source}`

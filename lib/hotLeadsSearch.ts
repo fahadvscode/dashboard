@@ -273,9 +273,7 @@ function buildOrFilter(table: ContactSourceTable, query: string): string {
     )
   } else if (table === 'hawthorne_east_village') {
     parts.push(
-      `interest.ilike.${fullPattern}`,
-      `budget.ilike.${fullPattern}`,
-      `timeline.ilike.${fullPattern}`,
+      `is_broker.ilike.${fullPattern}`,
       `form_type.ilike.${fullPattern}`,
       `page_path.ilike.${fullPattern}`,
       `source.ilike.${fullPattern}`
