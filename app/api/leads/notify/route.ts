@@ -32,18 +32,78 @@ const emailTransporter = nodemailer.createTransport({
 // Google Sheets configuration
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID
 
-const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: string }> = {
-  cornerstone_leads: { websiteName: 'Cornerstone', pageName: 'Cornerstone' },
-  novella_leads: { websiteName: 'Novella', pageName: 'Novella' },
-  lakeview_village_leads: { websiteName: 'Lakeview Village', pageName: 'Lakeview Village' },
-  rollingwood_leads: { websiteName: 'Rollingwood', pageName: 'Rollingwood' },
-  enclave: { websiteName: 'Enclave', pageName: 'Enclave' },
-  hawthorne_east_village: { websiteName: 'Hawthorne East Village', pageName: 'Hawthorne East Village' },
-  bronte_trails: { websiteName: 'Bronte Trails', pageName: 'Bronte Trails' },
+const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: string; siteUrl: string }> = {
+  cornerstone_leads: {
+    websiteName: 'Cornerstone',
+    pageName: 'Cornerstone',
+    siteUrl: 'https://www.newcornerstonehomes.ca',
+  },
+  novella_leads: {
+    websiteName: 'Novella',
+    pageName: 'Novella',
+    siteUrl: 'https://www.newnovellahomes.ca',
+  },
+  lakeview_village_leads: {
+    websiteName: 'Lakeview Village',
+    pageName: 'Lakeview Village',
+    siteUrl: 'https://lakeviewvillagetownhome.ca',
+  },
+  rollingwood_leads: {
+    websiteName: 'Rollingwood',
+    pageName: 'Rollingwood',
+    siteUrl: 'https://www.rollingwoodtowns.ca',
+  },
+  enclave: {
+    websiteName: 'Enclave',
+    pageName: 'Enclave',
+    siteUrl: 'https://enclave1.vercel.app',
+  },
+  hawthorne_east_village: {
+    websiteName: 'Hawthorne East Village',
+    pageName: 'Hawthorne East Village',
+    siteUrl: 'https://hawthorneeast-village.com',
+  },
+  bronte_trails: {
+    websiteName: 'Bronte Trails',
+    pageName: 'Bronte Trails',
+    siteUrl: 'https://www.brontetrails.ca',
+  },
 }
 
 function isLandingPageLeadTable(tableName: unknown): tableName is keyof typeof LANDING_PAGE_SHEET_META {
   return typeof tableName === 'string' && tableName in LANDING_PAGE_SHEET_META
+}
+
+/** Build a full https URL for the Google Sheet "Landing Page" column. */
+function resolveLandingPageLink(
+  lead: Record<string, unknown>,
+  meta: { siteUrl: string }
+): string {
+  const redirect = String(lead.redirect_link ?? '').trim()
+  if (redirect) {
+    if (/^https?:\/\//i.test(redirect)) return redirect
+    if (redirect.includes('.')) return `https://${redirect.replace(/^\/\//, '')}`
+  }
+
+  const source = String(lead.source ?? '').trim()
+  const pagePathRaw = String(lead.page_path ?? '/').trim() || '/'
+  const pagePath = pagePathRaw.startsWith('/') ? pagePathRaw : `/${pagePathRaw}`
+
+  // Domain in source (e.g. www.brontetrails.ca) + optional path
+  if (source.includes('.')) {
+    const host = source.replace(/^https?:\/\//i, '').replace(/\/$/, '')
+    return `https://${host}${pagePath === '/' ? '/' : pagePath}`
+  }
+
+  if (/^https?:\/\//i.test(meta.siteUrl)) {
+    try {
+      return new URL(pagePath, meta.siteUrl).href
+    } catch {
+      return meta.siteUrl
+    }
+  }
+
+  return meta.siteUrl
 }
 
 async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
@@ -98,14 +158,9 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
         const collection = (lead.collection as string) || ''
         projectName = collection ? `${meta.websiteName} — ${collection}` : meta.websiteName
         projectId = (lead.model as string) || 'N/A'
-        landingPage =
-          (lead.form_name as string) ||
-          (lead.source as string) ||
-          meta.pageName
       } else if (lead.table_name === 'lakeview_village_leads' && lead.project) {
         projectName = `${meta.websiteName} — ${lead.project}`
         projectId = 'N/A'
-        landingPage = meta.pageName
       } else if (lead.table_name === 'hawthorne_east_village' || lead.table_name === 'bronte_trails') {
         const formLabel = (lead.form_type as string) || ''
         const projectTag = (lead.project_tag as string) || ''
@@ -118,15 +173,11 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
           lead.is_broker !== undefined && lead.is_broker !== null && String(lead.is_broker).trim() !== ''
             ? `Broker: ${String(lead.is_broker)}`
             : 'N/A'
-        landingPage =
-          (lead.page_path as string) ||
-          (lead.source as string) ||
-          meta.pageName
       } else {
         projectName = websiteFromPayload || meta.websiteName
         projectId = 'N/A'
-        landingPage = (lead.redirect_link as string) || meta.pageName
       }
+      landingPage = resolveLandingPageLink(lead, meta)
       company = `Landing Page - ${meta.pageName}`
     }
 
