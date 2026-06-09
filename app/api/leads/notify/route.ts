@@ -86,10 +86,12 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       lead.table_name === 'gta_lowrise_leads' ? 'GTA Lowrise' :
       lead.table_name === 'rental_leads' ? 'Rental' :
       'Unknown'
+    let tag = ''
 
-    // Landing pages: Project Name = website, Company = "Landing Page - {name}"
+    // Landing pages: Project Name = website, Company = "Landing Page - {name}", Tag = page name
     if (isLandingPageLeadTable(lead.table_name)) {
       const meta = LANDING_PAGE_SHEET_META[lead.table_name]
+      tag = meta.pageName
       const websiteFromPayload = (lead.website_name as string) || (lead.website as string)
       if (lead.table_name === 'enclave') {
         const collection = (lead.collection as string) || ''
@@ -132,18 +134,19 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       landingPage,
       company,
       timestamp,
+      tag,
     ]
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Sheet1!A:I',
+      range: 'Sheet1!A:J',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [row],
       },
     })
 
-    console.log('Lead appended to Google Sheet successfully:', { firstName, lastName, projectName, company })
+    console.log('Lead appended to Google Sheet successfully:', { firstName, lastName, projectName, company, tag })
   } catch (error) {
     console.error('Error appending lead to Google Sheet:', error)
     // Don't throw - Google Sheets failure should not break the lead notification flow
