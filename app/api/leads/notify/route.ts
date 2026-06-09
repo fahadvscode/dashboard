@@ -106,6 +106,51 @@ function resolveLandingPageLink(
   return meta.siteUrl
 }
 
+function formatBrokerSheetValue(lead: Record<string, unknown>): string {
+  if (!isLandingPageLeadTable(lead.table_name)) return 'N/A'
+
+  const raw =
+    lead.table_name === 'hawthorne_east_village' || lead.table_name === 'bronte_trails'
+      ? lead.is_broker
+      : lead.table_name === 'cornerstone_leads' || lead.table_name === 'rollingwood_leads'
+        ? lead.is_realtor
+        : null
+
+  if (raw === null || raw === undefined) return 'N/A'
+
+  if (typeof raw === 'boolean') return raw ? 'Yes' : 'No'
+
+  const value = String(raw).trim()
+  if (!value) return 'N/A'
+  const lower = value.toLowerCase()
+  if (lower === 'true' || lower === 'yes' || lower === 'y' || lower === '1') return 'Yes'
+  if (lower === 'false' || lower === 'no' || lower === 'n' || lower === '0') return 'No'
+  return value
+}
+
+function resolveInterestedSheetValue(lead: Record<string, unknown>): string {
+  if (!isLandingPageLeadTable(lead.table_name)) return 'N/A'
+
+  switch (lead.table_name) {
+    case 'enclave':
+      return (lead.model as string) || 'N/A'
+    case 'bronte_trails':
+      return (lead.project_tag as string) || 'N/A'
+    case 'cornerstone_leads':
+      return (lead.interest as string) || (lead.buyer_type as string) || 'N/A'
+    case 'novella_leads':
+      return (lead.home_interest as string) || (lead.buyer_type as string) || 'N/A'
+    case 'lakeview_village_leads':
+      return (lead.project as string) || (lead.buyer_type as string) || 'N/A'
+    case 'rollingwood_leads':
+      return (lead.purchase_timeframe as string) || (lead.lead_type as string) || 'N/A'
+    case 'hawthorne_east_village':
+      return 'N/A'
+    default:
+      return 'N/A'
+  }
+}
+
 async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
   try {
     const { google } = await import('googleapis')
@@ -148,19 +193,22 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       lead.table_name === 'rental_leads' ? 'Rental' :
       'Unknown'
     let tag = ''
+    let broker = 'N/A'
+    let interested = 'N/A'
 
     // Landing pages: Project Name = website, Company = "Landing Page - {name}", Tag = "Landing Page"
     if (isLandingPageLeadTable(lead.table_name)) {
       const meta = LANDING_PAGE_SHEET_META[lead.table_name]
       tag = 'Landing Page'
+      broker = formatBrokerSheetValue(lead)
+      interested = resolveInterestedSheetValue(lead)
+      projectId = 'N/A'
       const websiteFromPayload = (lead.website_name as string) || (lead.website as string)
       if (lead.table_name === 'enclave') {
         const collection = (lead.collection as string) || ''
         projectName = collection ? `${meta.websiteName} — ${collection}` : meta.websiteName
-        projectId = (lead.model as string) || 'N/A'
       } else if (lead.table_name === 'lakeview_village_leads' && lead.project) {
         projectName = `${meta.websiteName} — ${lead.project}`
-        projectId = 'N/A'
       } else if (lead.table_name === 'hawthorne_east_village' || lead.table_name === 'bronte_trails') {
         const formLabel = (lead.form_type as string) || ''
         const projectTag = (lead.project_tag as string) || ''
@@ -169,13 +217,8 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
           : formLabel
             ? `${meta.websiteName} — ${formLabel}`
             : meta.websiteName
-        projectId =
-          lead.is_broker !== undefined && lead.is_broker !== null && String(lead.is_broker).trim() !== ''
-            ? `Broker: ${String(lead.is_broker)}`
-            : 'N/A'
       } else {
         projectName = websiteFromPayload || meta.websiteName
-        projectId = 'N/A'
       }
       landingPage = resolveLandingPageLink(lead, meta)
       company = `Landing Page - ${meta.pageName}`
@@ -192,18 +235,28 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       company,
       timestamp,
       tag,
+      broker,
+      interested,
     ]
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Sheet1!A:J',
+      range: 'Sheet1!A:L',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [row],
       },
     })
 
-    console.log('Lead appended to Google Sheet successfully:', { firstName, lastName, projectName, company, tag })
+    console.log('Lead appended to Google Sheet successfully:', {
+      firstName,
+      lastName,
+      projectName,
+      company,
+      tag,
+      broker,
+      interested,
+    })
   } catch (error) {
     console.error('Error appending lead to Google Sheet:', error)
     // Don't throw - Google Sheets failure should not break the lead notification flow
