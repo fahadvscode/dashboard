@@ -39,6 +39,7 @@ const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: s
   rollingwood_leads: { websiteName: 'Rollingwood', pageName: 'Rollingwood' },
   enclave: { websiteName: 'Enclave', pageName: 'Enclave' },
   hawthorne_east_village: { websiteName: 'Hawthorne East Village', pageName: 'Hawthorne East Village' },
+  bronte_trails: { websiteName: 'Bronte Trails', pageName: 'Bronte Trails' },
 }
 
 function isLandingPageLeadTable(tableName: unknown): tableName is keyof typeof LANDING_PAGE_SHEET_META {
@@ -88,10 +89,10 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       'Unknown'
     let tag = ''
 
-    // Landing pages: Project Name = website, Company = "Landing Page - {name}", Tag = page name
+    // Landing pages: Project Name = website, Company = "Landing Page - {name}", Tag = "Landing Page"
     if (isLandingPageLeadTable(lead.table_name)) {
       const meta = LANDING_PAGE_SHEET_META[lead.table_name]
-      tag = meta.pageName
+      tag = 'Landing Page'
       const websiteFromPayload = (lead.website_name as string) || (lead.website as string)
       if (lead.table_name === 'enclave') {
         const collection = (lead.collection as string) || ''
@@ -105,9 +106,14 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
         projectName = `${meta.websiteName} — ${lead.project}`
         projectId = 'N/A'
         landingPage = meta.pageName
-      } else if (lead.table_name === 'hawthorne_east_village') {
+      } else if (lead.table_name === 'hawthorne_east_village' || lead.table_name === 'bronte_trails') {
         const formLabel = (lead.form_type as string) || ''
-        projectName = formLabel ? `${meta.websiteName} — ${formLabel}` : meta.websiteName
+        const projectTag = (lead.project_tag as string) || ''
+        projectName = projectTag
+          ? `${meta.websiteName} — ${projectTag}`
+          : formLabel
+            ? `${meta.websiteName} — ${formLabel}`
+            : meta.websiteName
         projectId =
           lead.is_broker !== undefined && lead.is_broker !== null && String(lead.is_broker).trim() !== ''
             ? `Broker: ${String(lead.is_broker)}`
@@ -187,6 +193,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'rollingwood_leads' ? 'Rollingwood' :
       lead.table_name === 'enclave' ? 'Enclave' :
       lead.table_name === 'hawthorne_east_village' ? 'Hawthorne East Village' :
+      lead.table_name === 'bronte_trails' ? 'Bronte Trails' :
       'Unknown'
     
     const isRentalLead = lead.table_name === 'rental_leads'
@@ -196,7 +203,8 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'lakeview_village_leads' ||
       lead.table_name === 'rollingwood_leads' ||
       lead.table_name === 'enclave' ||
-      lead.table_name === 'hawthorne_east_village'
+      lead.table_name === 'hawthorne_east_village' ||
+      lead.table_name === 'bronte_trails'
     const landingPageName =
       lead.table_name === 'cornerstone_leads' ? 'Cornerstone' :
       lead.table_name === 'novella_leads' ? 'Novella' :
@@ -204,6 +212,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'rollingwood_leads' ? 'Rollingwood' :
       lead.table_name === 'enclave' ? 'Enclave' :
       lead.table_name === 'hawthorne_east_village' ? 'Hawthorne East Village' :
+      lead.table_name === 'bronte_trails' ? 'Bronte Trails' :
       ''
     const leadType = isRentalLead ? 'Rental Inquiry' : (lead.isagent ? 'Agent' : 'Buyer')
     
@@ -213,7 +222,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'precon_factory_website_leads' ? 'precon-factory-website-leads' :
       lead.table_name === 'gta_lowrise_leads' ? 'gta-lowrise-leads' :
       lead.table_name === 'rental_leads' ? 'rental-leads' :
-      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads' || lead.table_name === 'lakeview_village_leads' || lead.table_name === 'rollingwood_leads' || lead.table_name === 'enclave' || lead.table_name === 'hawthorne_east_village') ? 'landing-pages-leads' :
+      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads' || lead.table_name === 'lakeview_village_leads' || lead.table_name === 'rollingwood_leads' || lead.table_name === 'enclave' || lead.table_name === 'hawthorne_east_village' || lead.table_name === 'bronte_trails') ? 'landing-pages-leads' :
       'rental-leads'
     
     const dashboardUrl = `https://property-dashboard-three.vercel.app/${leadPath}?leadId=${lead.id}`
@@ -312,11 +321,12 @@ export async function POST(request: NextRequest) {
         if (lead.source) message += `\n📌 Source: ${lead.source}`
       }
 
-      // Hawthorne East Village
-      if (lead.table_name === 'hawthorne_east_village') {
+      // Hawthorne East Village / Bronte Trails (same form shape)
+      if (lead.table_name === 'hawthorne_east_village' || lead.table_name === 'bronte_trails') {
         if (lead.is_broker !== undefined && lead.is_broker !== null && String(lead.is_broker).trim() !== '') {
           message += `\n🏢 Broker: ${lead.is_broker}`
         }
+        if (lead.project_tag) message += `\n🏷️ Project: ${lead.project_tag}`
         if (lead.form_type) message += `\n📋 Form: ${lead.form_type}`
         if (lead.page_path) message += `\n🌐 Page: ${lead.page_path}`
         if (lead.source) message += `\n📌 Source: ${lead.source}`
