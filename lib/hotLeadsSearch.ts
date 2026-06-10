@@ -20,6 +20,7 @@ const LANDING_PAGE_TABLES = new Set<ContactSourceTable>([
   'enclave',
   'hawthorne_east_village',
   'bronte_trails',
+  'spruce_trails',
 ])
 
 const TABLES_WITH_FULL_NAME = new Set<ContactSourceTable>(['rental_leads'])
@@ -272,15 +273,18 @@ function buildOrFilter(table: ContactSourceTable, query: string): string {
       `form_name.ilike.${fullPattern}`,
       `source.ilike.${fullPattern}`
     )
-  } else if (table === 'hawthorne_east_village' || table === 'bronte_trails') {
+  } else if (table === 'hawthorne_east_village' || table === 'bronte_trails' || table === 'spruce_trails') {
     parts.push(
       `is_broker.ilike.${fullPattern}`,
       `form_type.ilike.${fullPattern}`,
       `page_path.ilike.${fullPattern}`,
       `source.ilike.${fullPattern}`
     )
-    if (table === 'bronte_trails') {
+    if (table === 'bronte_trails' || table === 'spruce_trails') {
       parts.push(`project_tag.ilike.${fullPattern}`)
+    }
+    if (table === 'spruce_trails') {
+      parts.push(`interest.ilike.${fullPattern}`)
     }
   }
 

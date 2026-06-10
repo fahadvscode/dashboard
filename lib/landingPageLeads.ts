@@ -2,6 +2,7 @@
 export const ENCLAVE_LEADS_TABLE = 'enclave' as const
 export const HAWTHORNE_EAST_VILLAGE_TABLE = 'hawthorne_east_village' as const
 export const BRONTE_TRAILS_TABLE = 'bronte_trails' as const
+export const SPRUCE_TRAILS_TABLE = 'spruce_trails' as const
 
 export const LANDING_PAGE_BRAND_LABELS: Record<string, string> = {
   cornerstone_leads: 'Cornerstone',
@@ -11,18 +12,21 @@ export const LANDING_PAGE_BRAND_LABELS: Record<string, string> = {
   [ENCLAVE_LEADS_TABLE]: 'Enclave',
   [HAWTHORNE_EAST_VILLAGE_TABLE]: 'Hawthorne East Village',
   [BRONTE_TRAILS_TABLE]: 'Bronte Trails',
+  [SPRUCE_TRAILS_TABLE]: 'Spruce Trails',
 }
 
 const TABLES_WITHOUT_CRM = new Set<string>([
   ENCLAVE_LEADS_TABLE,
   HAWTHORNE_EAST_VILLAGE_TABLE,
   BRONTE_TRAILS_TABLE,
+  SPRUCE_TRAILS_TABLE,
 ])
 
 export const WEBSITE_FORM_TABLES = new Set<string>([
   ENCLAVE_LEADS_TABLE,
   HAWTHORNE_EAST_VILLAGE_TABLE,
   BRONTE_TRAILS_TABLE,
+  SPRUCE_TRAILS_TABLE,
 ])
 
 export function getLandingPageBrandLabel(tableName: string): string {
@@ -42,4 +46,5 @@ export const LANDING_PAGE_LEAD_TABLES = [
   ENCLAVE_LEADS_TABLE,
   HAWTHORNE_EAST_VILLAGE_TABLE,
   BRONTE_TRAILS_TABLE,
+  SPRUCE_TRAILS_TABLE,
 ] as const

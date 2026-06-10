@@ -14,6 +14,7 @@ import {
   BRONTE_TRAILS_TABLE,
   ENCLAVE_LEADS_TABLE,
   HAWTHORNE_EAST_VILLAGE_TABLE,
+  SPRUCE_TRAILS_TABLE,
   WEBSITE_FORM_TABLES,
   getLandingPageBrandLabel,
   hasLandingPageCrmColumns
@@ -130,12 +131,16 @@ function leadDetailLabel(lead: LandingPageLead): string {
   if (lead.table_name === 'lakeview_village_leads') {
     return [lead.project, lead.buyer_type].filter(Boolean).join(' · ') || '—'
   }
-  if (lead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE || lead.table_name === BRONTE_TRAILS_TABLE) {
+  if (
+    lead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE ||
+    lead.table_name === BRONTE_TRAILS_TABLE ||
+    lead.table_name === SPRUCE_TRAILS_TABLE
+  ) {
     const broker =
       lead.is_broker !== undefined && lead.is_broker !== null && String(lead.is_broker).trim() !== ''
         ? `Broker: ${lead.is_broker}`
         : ''
-    return [lead.project_tag, lead.form_type, broker].filter(Boolean).join(' · ') || '—'
+    return [lead.interest, lead.project_tag, lead.form_type, broker].filter(Boolean).join(' · ') || '—'
   }
   return lead.buyer_type || lead.interest || lead.home_interest || '—'
 }
@@ -170,14 +175,15 @@ export default function LandingPagesLeads() {
 
   async function fetchLeads() {
     try {
-      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes] = await Promise.all([
+      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes, spruceRes] = await Promise.all([
         supabase.from('cornerstone_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('novella_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('lakeview_village_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('rollingwood_leads').select('*').order('created_at', { ascending: false }),
         supabase.from(ENCLAVE_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
         supabase.from(HAWTHORNE_EAST_VILLAGE_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(BRONTE_TRAILS_TABLE).select('*').order('created_at', { ascending: false })
+        supabase.from(BRONTE_TRAILS_TABLE).select('*').order('created_at', { ascending: false }),
+        supabase.from(SPRUCE_TRAILS_TABLE).select('*').order('created_at', { ascending: false })
       ])
 
       const cornerstone = (cornerstoneRes.data || []).map(r => normalizeLead(r, 'cornerstone_leads'))
@@ -187,7 +193,8 @@ export default function LandingPagesLeads() {
       const enclave = (enclaveRes.data || []).map(r => normalizeLead(r, ENCLAVE_LEADS_TABLE))
       const hawthorne = (hawthorneRes.data || []).map(r => normalizeLead(r, HAWTHORNE_EAST_VILLAGE_TABLE))
       const bronte = (bronteRes.data || []).map(r => normalizeLead(r, BRONTE_TRAILS_TABLE))
-      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte].sort(
+      const spruce = (spruceRes.data || []).map(r => normalizeLead(r, SPRUCE_TRAILS_TABLE))
+      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte, ...spruce].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
 
@@ -198,6 +205,7 @@ export default function LandingPagesLeads() {
       if (enclaveRes.error) console.error('enclave fetch:', enclaveRes.error)
       if (hawthorneRes.error) console.error('hawthorne_east_village fetch:', hawthorneRes.error)
       if (bronteRes.error) console.error('bronte_trails fetch:', bronteRes.error)
+      if (spruceRes.error) console.error('spruce_trails fetch:', spruceRes.error)
 
       setLeads(combined)
       setInitialLoadDone(true)
@@ -241,6 +249,7 @@ export default function LandingPagesLeads() {
       if (filter === 'enclave') return lead.table_name === ENCLAVE_LEADS_TABLE
       if (filter === 'hawthorne') return lead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE
       if (filter === 'bronte') return lead.table_name === BRONTE_TRAILS_TABLE
+      if (filter === 'spruce') return lead.table_name === SPRUCE_TRAILS_TABLE
       if (filter === 'new') return lead.status === 'new'
       if (filter === 'hot') return lead.lead_temperature === 'hot'
       if (filter === 'warm') return lead.lead_temperature === 'warm'
@@ -265,6 +274,7 @@ export default function LandingPagesLeads() {
         lead.page_path,
         lead.is_broker !== undefined && lead.is_broker !== null ? String(lead.is_broker) : '',
         lead.project_tag,
+        lead.interest,
         getLandingPageBrandLabel(lead.table_name)
       ]
         .filter(Boolean)
@@ -619,6 +629,12 @@ export default function LandingPagesLeads() {
             Bronte Trails ({leads.filter(l => l.table_name === BRONTE_TRAILS_TABLE).length})
           </button>
           <button
+            onClick={() => setFilter('spruce')}
+            className={`px-4 py-2 rounded-lg ${filter === 'spruce' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          >
+            Spruce Trails ({leads.filter(l => l.table_name === SPRUCE_TRAILS_TABLE).length})
+          </button>
+          <button
             onClick={() => setFilter('new')}
             className={`px-4 py-2 rounded-lg ${filter === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
           >
@@ -825,12 +841,16 @@ export default function LandingPagesLeads() {
                   </div>
                 )}
                 {(selectedLead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE ||
-                  selectedLead.table_name === BRONTE_TRAILS_TABLE) && (
+                  selectedLead.table_name === BRONTE_TRAILS_TABLE ||
+                  selectedLead.table_name === SPRUCE_TRAILS_TABLE) && (
                   <div className="flex flex-col gap-1 text-gray-700">
                     {selectedLead.is_broker !== undefined &&
                       selectedLead.is_broker !== null &&
                       String(selectedLead.is_broker).trim() !== '' && (
                       <p><span className="font-medium">Broker:</span> {String(selectedLead.is_broker)}</p>
+                    )}
+                    {selectedLead.interest && (
+                      <p><span className="font-medium">Interest:</span> {selectedLead.interest}</p>
                     )}
                     {selectedLead.project_tag && (
                       <p><span className="font-medium">Project:</span> {selectedLead.project_tag}</p>

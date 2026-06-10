@@ -73,6 +73,11 @@ export const CONTACT_SOURCE_TABLES = {
     route: '/landing-pages-leads',
     kind: 'lead' as const,
   },
+  spruce_trails: {
+    label: 'Spruce Trails Leads',
+    route: '/landing-pages-leads',
+    kind: 'lead' as const,
+  },
   fj_bookings: { label: 'FJ Booking', route: '/fj-bookings', kind: 'booking' as const },
   precon_factory_bookings: {
     label: 'Precon Factory Booking',
@@ -107,6 +112,7 @@ export const SEARCHABLE_LEAD_TABLES: ContactSourceTable[] = [
   'enclave',
   'hawthorne_east_village',
   'bronte_trails',
+  'spruce_trails',
 ]
 
 export const SEARCHABLE_BOOKING_TABLES: ContactSourceTable[] = [

@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     const duplicateHistory: any[] = []
-    const tablesToCheck = ['fj_leads', 'precon_factory_leads', 'precon_factory_website_leads', 'gta_lowrise_leads', 'rental_leads', 'cornerstone_leads', 'novella_leads', 'lakeview_village_leads', 'rollingwood_leads', 'enclave', 'hawthorne_east_village', 'bronte_trails']
+    const tablesToCheck = ['fj_leads', 'precon_factory_leads', 'precon_factory_website_leads', 'gta_lowrise_leads', 'rental_leads', 'cornerstone_leads', 'novella_leads', 'lakeview_village_leads', 'rollingwood_leads', 'enclave', 'hawthorne_east_village', 'bronte_trails', 'spruce_trails']
 
     // Check both tables
     for (const tableName of tablesToCheck) {
@@ -192,6 +192,7 @@ export async function POST(request: NextRequest) {
             tableName === 'enclave' ? 'Enclave' :
             tableName === 'hawthorne_east_village' ? 'Hawthorne East Village' :
             tableName === 'bronte_trails' ? 'Bronte Trails' :
+            tableName === 'spruce_trails' ? 'Spruce Trails' :
             tableName
           
           duplicateHistory.push({
