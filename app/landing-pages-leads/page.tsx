@@ -131,6 +131,19 @@ function leadDetailLabel(lead: LandingPageLead): string {
   if (lead.table_name === 'lakeview_village_leads') {
     return [lead.project, lead.buyer_type].filter(Boolean).join(' · ') || '—'
   }
+  if (lead.table_name === 'cornerstone_leads') {
+    const broker =
+      lead.is_broker !== undefined && lead.is_broker !== null
+        ? lead.is_broker
+          ? 'Broker: Yes'
+          : 'Broker: No'
+        : lead.is_realtor !== undefined
+          ? lead.is_realtor
+            ? 'Broker: Yes'
+            : 'Broker: No'
+          : ''
+    return [lead.interest, lead.buyer_type, broker].filter(Boolean).join(' · ') || '—'
+  }
   if (
     lead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE ||
     lead.table_name === BRONTE_TRAILS_TABLE ||
@@ -273,6 +286,7 @@ export default function LandingPagesLeads() {
         lead.form_type,
         lead.page_path,
         lead.is_broker !== undefined && lead.is_broker !== null ? String(lead.is_broker) : '',
+        lead.is_realtor !== undefined ? (lead.is_realtor ? 'yes broker' : 'no broker') : '',
         lead.project_tag,
         lead.interest,
         getLandingPageBrandLabel(lead.table_name)
@@ -824,6 +838,32 @@ export default function LandingPagesLeads() {
                     {getLandingPageBrandLabel(selectedLead.table_name)}
                   </span>
                 </div>
+                {selectedLead.table_name === 'cornerstone_leads' && (
+                  <div className="flex flex-col gap-1 text-gray-700">
+                    {(selectedLead.is_broker !== undefined && selectedLead.is_broker !== null) ||
+                    selectedLead.is_realtor !== undefined ? (
+                      <p>
+                        <span className="font-medium">Broker:</span>{' '}
+                        {selectedLead.is_broker !== undefined && selectedLead.is_broker !== null
+                          ? selectedLead.is_broker
+                            ? 'Yes'
+                            : 'No'
+                          : selectedLead.is_realtor
+                            ? 'Yes'
+                            : 'No'}
+                      </p>
+                    ) : null}
+                    {selectedLead.interest && (
+                      <p><span className="font-medium">Interest:</span> {selectedLead.interest}</p>
+                    )}
+                    {selectedLead.buyer_type && (
+                      <p><span className="font-medium">Buyer Type:</span> {selectedLead.buyer_type}</p>
+                    )}
+                    {selectedLead.page_source && (
+                      <p><span className="font-medium">Source:</span> {selectedLead.page_source}</p>
+                    )}
+                  </div>
+                )}
                 {selectedLead.table_name === ENCLAVE_LEADS_TABLE && (
                   <div className="flex flex-col gap-1 text-gray-700">
                     {selectedLead.collection && (

@@ -62,6 +62,7 @@ BEGIN
     'email', NEW.email,
     'phone', NEW.phone,
     'is_realtor', NEW.is_realtor,
+    'is_broker', NEW.is_broker,
     'interest', NEW.interest,
     'buyer_type', NEW.buyer_type,
     'source', NEW.source,

@@ -111,17 +111,27 @@ function resolveLandingPageLink(
   return meta.siteUrl
 }
 
+function getBrokerFieldForLead(lead: Record<string, unknown>): unknown {
+  const table = lead.table_name
+  if (
+    table === 'hawthorne_east_village' ||
+    table === 'bronte_trails' ||
+    table === 'spruce_trails'
+  ) {
+    return lead.is_broker
+  }
+  if (table === 'cornerstone_leads') {
+    if (lead.is_broker !== undefined && lead.is_broker !== null) return lead.is_broker
+    return lead.is_realtor
+  }
+  if (table === 'rollingwood_leads') return lead.is_realtor
+  return null
+}
+
 function formatBrokerSheetValue(lead: Record<string, unknown>): string {
   if (!isLandingPageLeadTable(lead.table_name)) return 'N/A'
 
-  const raw =
-    lead.table_name === 'hawthorne_east_village' ||
-    lead.table_name === 'bronte_trails' ||
-    lead.table_name === 'spruce_trails'
-      ? lead.is_broker
-      : lead.table_name === 'cornerstone_leads' || lead.table_name === 'rollingwood_leads'
-        ? lead.is_realtor
-        : null
+  const raw = getBrokerFieldForLead(lead)
 
   if (raw === null || raw === undefined) return 'N/A'
 
@@ -408,9 +418,10 @@ export async function POST(request: NextRequest) {
         if (lead.consent !== undefined) message += `\n✅ Consent: ${lead.consent ? 'Yes' : 'No'}`
       }
 
-      // Cornerstone fields: is_realtor, interest, buyer_type, source
+      // Cornerstone fields: is_broker, interest, buyer_type, source
       if (lead.table_name === 'cornerstone_leads') {
-        if (lead.is_realtor !== undefined) message += `\n🏢 Realtor: ${lead.is_realtor ? 'Yes' : 'No'}`
+        const broker = formatBrokerSheetValue(lead)
+        if (broker !== 'N/A') message += `\n🏢 Broker: ${broker}`
         if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
         if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
         if (lead.source) message += `\n📌 Source: ${lead.source}`
