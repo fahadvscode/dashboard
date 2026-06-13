@@ -14,6 +14,7 @@ import {
   BRONTE_TRAILS_TABLE,
   ENCLAVE_LEADS_TABLE,
   HAWTHORNE_EAST_VILLAGE_TABLE,
+  MEADOWVALE_BROOKS_TABLE,
   SPRUCE_TRAILS_TABLE,
   WEBSITE_FORM_TABLES,
   getLandingPageBrandLabel,
@@ -54,6 +55,9 @@ interface LandingPageLead {
   page_path?: string
   is_broker?: string | boolean
   project_tag?: string
+  realtor?: string
+  timeline?: string
+  source_page?: string
   utm_source?: string
   utm_campaign?: string
 }
@@ -111,7 +115,9 @@ function normalizeLead(raw: Record<string, unknown>, tableName: string): Landing
     is_realtor: raw.is_realtor as boolean | undefined,
     interest: raw.interest as string | undefined,
     project: raw.project as string | undefined,
-    page_source: WEBSITE_FORM_TABLES.has(tableName) ? (raw.source as string | undefined) : undefined,
+    page_source: WEBSITE_FORM_TABLES.has(tableName)
+      ? ((raw.source_page ?? raw.source) as string | undefined)
+      : undefined,
     model: raw.model as string | undefined,
     collection: raw.collection as string | undefined,
     form_name: raw.form_name as string | undefined,
@@ -119,6 +125,9 @@ function normalizeLead(raw: Record<string, unknown>, tableName: string): Landing
     page_path: raw.page_path as string | undefined,
     is_broker: raw.is_broker as string | boolean | undefined,
     project_tag: raw.project_tag as string | undefined,
+    realtor: raw.realtor as string | undefined,
+    timeline: raw.timeline as string | undefined,
+    source_page: raw.source_page as string | undefined,
     utm_source: raw.utm_source as string | undefined,
     utm_campaign: raw.utm_campaign as string | undefined
   }
@@ -128,8 +137,12 @@ function leadDetailLabel(lead: LandingPageLead): string {
   if (lead.table_name === ENCLAVE_LEADS_TABLE) {
     return [lead.model, lead.collection].filter(Boolean).join(' · ') || '—'
   }
-  if (lead.table_name === 'lakeview_village_leads') {
-    return [lead.project, lead.buyer_type].filter(Boolean).join(' · ') || '—'
+  if (lead.table_name === 'lakeview_village_leads' || lead.table_name === MEADOWVALE_BROOKS_TABLE) {
+    const broker =
+      lead.table_name === MEADOWVALE_BROOKS_TABLE && lead.realtor
+        ? `Broker: ${lead.realtor}`
+        : ''
+    return [lead.project, lead.buyer_type, lead.timeline, broker].filter(Boolean).join(' · ') || '—'
   }
   if (lead.table_name === 'cornerstone_leads') {
     const broker =
@@ -188,7 +201,7 @@ export default function LandingPagesLeads() {
 
   async function fetchLeads() {
     try {
-      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes, spruceRes] = await Promise.all([
+      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes, spruceRes, meadowvaleRes] = await Promise.all([
         supabase.from('cornerstone_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('novella_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('lakeview_village_leads').select('*').order('created_at', { ascending: false }),
@@ -196,7 +209,8 @@ export default function LandingPagesLeads() {
         supabase.from(ENCLAVE_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
         supabase.from(HAWTHORNE_EAST_VILLAGE_TABLE).select('*').order('created_at', { ascending: false }),
         supabase.from(BRONTE_TRAILS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(SPRUCE_TRAILS_TABLE).select('*').order('created_at', { ascending: false })
+        supabase.from(SPRUCE_TRAILS_TABLE).select('*').order('created_at', { ascending: false }),
+        supabase.from(MEADOWVALE_BROOKS_TABLE).select('*').order('created_at', { ascending: false })
       ])
 
       const cornerstone = (cornerstoneRes.data || []).map(r => normalizeLead(r, 'cornerstone_leads'))
@@ -207,7 +221,8 @@ export default function LandingPagesLeads() {
       const hawthorne = (hawthorneRes.data || []).map(r => normalizeLead(r, HAWTHORNE_EAST_VILLAGE_TABLE))
       const bronte = (bronteRes.data || []).map(r => normalizeLead(r, BRONTE_TRAILS_TABLE))
       const spruce = (spruceRes.data || []).map(r => normalizeLead(r, SPRUCE_TRAILS_TABLE))
-      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte, ...spruce].sort(
+      const meadowvale = (meadowvaleRes.data || []).map(r => normalizeLead(r, MEADOWVALE_BROOKS_TABLE))
+      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte, ...spruce, ...meadowvale].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
 
@@ -219,6 +234,7 @@ export default function LandingPagesLeads() {
       if (hawthorneRes.error) console.error('hawthorne_east_village fetch:', hawthorneRes.error)
       if (bronteRes.error) console.error('bronte_trails fetch:', bronteRes.error)
       if (spruceRes.error) console.error('spruce_trails fetch:', spruceRes.error)
+      if (meadowvaleRes.error) console.error('meadowvale_brooks fetch:', meadowvaleRes.error)
 
       setLeads(combined)
       setInitialLoadDone(true)
@@ -263,6 +279,7 @@ export default function LandingPagesLeads() {
       if (filter === 'hawthorne') return lead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE
       if (filter === 'bronte') return lead.table_name === BRONTE_TRAILS_TABLE
       if (filter === 'spruce') return lead.table_name === SPRUCE_TRAILS_TABLE
+      if (filter === 'meadowvale') return lead.table_name === MEADOWVALE_BROOKS_TABLE
       if (filter === 'new') return lead.status === 'new'
       if (filter === 'hot') return lead.lead_temperature === 'hot'
       if (filter === 'warm') return lead.lead_temperature === 'warm'
@@ -289,6 +306,9 @@ export default function LandingPagesLeads() {
         lead.is_realtor !== undefined ? (lead.is_realtor ? 'yes broker' : 'no broker') : '',
         lead.project_tag,
         lead.interest,
+        lead.realtor,
+        lead.timeline,
+        lead.source_page,
         getLandingPageBrandLabel(lead.table_name)
       ]
         .filter(Boolean)
@@ -649,6 +669,12 @@ export default function LandingPagesLeads() {
             Spruce Trails ({leads.filter(l => l.table_name === SPRUCE_TRAILS_TABLE).length})
           </button>
           <button
+            onClick={() => setFilter('meadowvale')}
+            className={`px-4 py-2 rounded-lg ${filter === 'meadowvale' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          >
+            Meadowvale Brooks ({leads.filter(l => l.table_name === MEADOWVALE_BROOKS_TABLE).length})
+          </button>
+          <button
             onClick={() => setFilter('new')}
             className={`px-4 py-2 rounded-lg ${filter === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
           >
@@ -861,6 +887,28 @@ export default function LandingPagesLeads() {
                     )}
                     {selectedLead.page_source && (
                       <p><span className="font-medium">Source:</span> {selectedLead.page_source}</p>
+                    )}
+                  </div>
+                )}
+                {selectedLead.table_name === MEADOWVALE_BROOKS_TABLE && (
+                  <div className="flex flex-col gap-1 text-gray-700">
+                    {selectedLead.realtor && (
+                      <p><span className="font-medium">Broker:</span> {selectedLead.realtor}</p>
+                    )}
+                    {selectedLead.buyer_type && (
+                      <p><span className="font-medium">Buyer Type:</span> {selectedLead.buyer_type}</p>
+                    )}
+                    {selectedLead.timeline && (
+                      <p><span className="font-medium">Timeline:</span> {selectedLead.timeline}</p>
+                    )}
+                    {selectedLead.project && (
+                      <p><span className="font-medium">Project:</span> {selectedLead.project}</p>
+                    )}
+                    {selectedLead.source_page && (
+                      <p><span className="font-medium">Page:</span> {selectedLead.source_page}</p>
+                    )}
+                    {selectedLead.utm_source && (
+                      <p><span className="font-medium">UTM:</span> {[selectedLead.utm_source, selectedLead.utm_campaign].filter(Boolean).join(' / ')}</p>
                     )}
                   </div>
                 )}

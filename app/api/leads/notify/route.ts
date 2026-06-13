@@ -73,6 +73,11 @@ const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: s
     pageName: 'Spruce Trails',
     siteUrl: 'https://sprucetrails.ca',
   },
+  meadowvale_brooks: {
+    websiteName: 'Meadowvale Brooks',
+    pageName: 'Meadowvale Brooks',
+    siteUrl: 'https://meadowvalebrooks.ca',
+  },
 }
 
 function isLandingPageLeadTable(tableName: unknown): tableName is keyof typeof LANDING_PAGE_SHEET_META {
@@ -91,7 +96,7 @@ function resolveLandingPageLink(
   }
 
   const source = String(lead.source ?? '').trim()
-  const pagePathRaw = String(lead.page_path ?? '/').trim() || '/'
+  const pagePathRaw = String(lead.page_path ?? lead.source_page ?? '/').trim() || '/'
   const pagePath = pagePathRaw.startsWith('/') ? pagePathRaw : `/${pagePathRaw}`
 
   // Domain in source (e.g. www.brontetrails.ca) + optional path
@@ -125,6 +130,7 @@ function getBrokerFieldForLead(lead: Record<string, unknown>): unknown {
     return lead.is_realtor
   }
   if (table === 'rollingwood_leads') return lead.is_realtor
+  if (table === 'meadowvale_brooks') return lead.realtor
   return null
 }
 
@@ -161,6 +167,10 @@ function resolveInterestedSheetValue(lead: Record<string, unknown>): string {
       return (lead.home_interest as string) || (lead.buyer_type as string) || 'N/A'
     case 'lakeview_village_leads':
       return (lead.project as string) || (lead.buyer_type as string) || 'N/A'
+    case 'meadowvale_brooks': {
+      const parts = [lead.buyer_type, lead.timeline].filter(Boolean) as string[]
+      return parts.length ? parts.join(' · ') : 'N/A'
+    }
     case 'rollingwood_leads':
       return (lead.purchase_timeframe as string) || (lead.lead_type as string) || 'N/A'
     case 'hawthorne_east_village':
@@ -227,6 +237,8 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
         const collection = (lead.collection as string) || ''
         projectName = collection ? `${meta.websiteName} — ${collection}` : meta.websiteName
       } else if (lead.table_name === 'lakeview_village_leads' && lead.project) {
+        projectName = `${meta.websiteName} — ${lead.project}`
+      } else if (lead.table_name === 'meadowvale_brooks' && lead.project) {
         projectName = `${meta.websiteName} — ${lead.project}`
       } else if (
         lead.table_name === 'hawthorne_east_village' ||
@@ -322,6 +334,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'hawthorne_east_village' ? 'Hawthorne East Village' :
       lead.table_name === 'bronte_trails' ? 'Bronte Trails' :
       lead.table_name === 'spruce_trails' ? 'Spruce Trails' :
+      lead.table_name === 'meadowvale_brooks' ? 'Meadowvale Brooks' :
       'Unknown'
     
     const isRentalLead = lead.table_name === 'rental_leads'
@@ -333,7 +346,8 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'enclave' ||
       lead.table_name === 'hawthorne_east_village' ||
       lead.table_name === 'bronte_trails' ||
-      lead.table_name === 'spruce_trails'
+      lead.table_name === 'spruce_trails' ||
+      lead.table_name === 'meadowvale_brooks'
     const landingPageName =
       lead.table_name === 'cornerstone_leads' ? 'Cornerstone' :
       lead.table_name === 'novella_leads' ? 'Novella' :
@@ -343,6 +357,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'hawthorne_east_village' ? 'Hawthorne East Village' :
       lead.table_name === 'bronte_trails' ? 'Bronte Trails' :
       lead.table_name === 'spruce_trails' ? 'Spruce Trails' :
+      lead.table_name === 'meadowvale_brooks' ? 'Meadowvale Brooks' :
       ''
     const leadType = isRentalLead ? 'Rental Inquiry' : (lead.isagent ? 'Agent' : 'Buyer')
     
@@ -352,7 +367,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'precon_factory_website_leads' ? 'precon-factory-website-leads' :
       lead.table_name === 'gta_lowrise_leads' ? 'gta-lowrise-leads' :
       lead.table_name === 'rental_leads' ? 'rental-leads' :
-      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads' || lead.table_name === 'lakeview_village_leads' || lead.table_name === 'rollingwood_leads' || lead.table_name === 'enclave' || lead.table_name === 'hawthorne_east_village' || lead.table_name === 'bronte_trails' || lead.table_name === 'spruce_trails') ? 'landing-pages-leads' :
+      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads' || lead.table_name === 'lakeview_village_leads' || lead.table_name === 'rollingwood_leads' || lead.table_name === 'enclave' || lead.table_name === 'hawthorne_east_village' || lead.table_name === 'bronte_trails' || lead.table_name === 'spruce_trails' || lead.table_name === 'meadowvale_brooks') ? 'landing-pages-leads' :
       'rental-leads'
     
     const dashboardUrl = `https://property-dashboard-three.vercel.app/${leadPath}?leadId=${lead.id}`
@@ -450,6 +465,17 @@ export async function POST(request: NextRequest) {
         if (lead.model) message += `\n🏠 Model: ${lead.model}`
         if (lead.form_name) message += `\n📋 Form: ${lead.form_name}`
         if (lead.source) message += `\n📌 Source: ${lead.source}`
+      }
+
+      // Meadowvale Brooks (VIP registration — realtor, buyer_type, timeline)
+      if (lead.table_name === 'meadowvale_brooks') {
+        const broker = formatBrokerSheetValue(lead)
+        if (broker !== 'N/A') message += `\n🏢 Broker: ${broker}`
+        if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
+        if (lead.timeline) message += `\n📅 Timeline: ${lead.timeline}`
+        if (lead.project) message += `\n🏠 Project: ${lead.project}`
+        if (lead.source_page) message += `\n🌐 Page: ${lead.source_page}`
+        if (lead.utm_source) message += `\n🔗 UTM: ${lead.utm_source}${lead.utm_campaign ? ` / ${lead.utm_campaign}` : ''}`
       }
 
       // Hawthorne East Village / Bronte Trails / Spruce Trails (same form shape)
