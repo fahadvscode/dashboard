@@ -6,7 +6,7 @@ import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSqua
 import { useState } from 'react'
 import { logout } from '@/lib/auth'
 
-const TASK_MANAGER_URL = 'https://v0-task-management-app-y4.vercel.app/'
+const TASK_MANAGER_URL = 'https://task-management-app-flame-seven.vercel.app/'
 
 const navigation = [
   { name: 'Canada Properties', href: '/', icon: Building2 },
