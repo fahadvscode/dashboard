@@ -16,6 +16,7 @@ import {
   HAWTHORNE_EAST_VILLAGE_TABLE,
   MEADOWVALE_BROOKS_TABLE,
   SPRUCE_TRAILS_TABLE,
+  THE_LEGACY_TABLE,
   WEBSITE_FORM_TABLES,
   getLandingPageBrandLabel,
   hasLandingPageCrmColumns
@@ -137,12 +138,17 @@ function leadDetailLabel(lead: LandingPageLead): string {
   if (lead.table_name === ENCLAVE_LEADS_TABLE) {
     return [lead.model, lead.collection].filter(Boolean).join(' · ') || '—'
   }
-  if (lead.table_name === 'lakeview_village_leads' || lead.table_name === MEADOWVALE_BROOKS_TABLE) {
+  if (lead.table_name === 'lakeview_village_leads') {
+    return [lead.project, lead.buyer_type].filter(Boolean).join(' · ') || '—'
+  }
+  if (lead.table_name === MEADOWVALE_BROOKS_TABLE || lead.table_name === THE_LEGACY_TABLE) {
     const broker =
-      lead.table_name === MEADOWVALE_BROOKS_TABLE && lead.realtor
-        ? `Broker: ${lead.realtor}`
-        : ''
-    return [lead.project, lead.buyer_type, lead.timeline, broker].filter(Boolean).join(' · ') || '—'
+      lead.realtor ? `Broker: ${lead.realtor}` : ''
+    const details =
+      lead.table_name === MEADOWVALE_BROOKS_TABLE
+        ? [lead.project, lead.buyer_type, lead.timeline, broker]
+        : [lead.project, broker]
+    return details.filter(Boolean).join(' · ') || '—'
   }
   if (lead.table_name === 'cornerstone_leads') {
     const broker =
@@ -201,7 +207,7 @@ export default function LandingPagesLeads() {
 
   async function fetchLeads() {
     try {
-      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes, spruceRes, meadowvaleRes] = await Promise.all([
+      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes, spruceRes, meadowvaleRes, legacyRes] = await Promise.all([
         supabase.from('cornerstone_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('novella_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('lakeview_village_leads').select('*').order('created_at', { ascending: false }),
@@ -210,7 +216,8 @@ export default function LandingPagesLeads() {
         supabase.from(HAWTHORNE_EAST_VILLAGE_TABLE).select('*').order('created_at', { ascending: false }),
         supabase.from(BRONTE_TRAILS_TABLE).select('*').order('created_at', { ascending: false }),
         supabase.from(SPRUCE_TRAILS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(MEADOWVALE_BROOKS_TABLE).select('*').order('created_at', { ascending: false })
+        supabase.from(MEADOWVALE_BROOKS_TABLE).select('*').order('created_at', { ascending: false }),
+        supabase.from(THE_LEGACY_TABLE).select('*').order('created_at', { ascending: false })
       ])
 
       const cornerstone = (cornerstoneRes.data || []).map(r => normalizeLead(r, 'cornerstone_leads'))
@@ -222,7 +229,8 @@ export default function LandingPagesLeads() {
       const bronte = (bronteRes.data || []).map(r => normalizeLead(r, BRONTE_TRAILS_TABLE))
       const spruce = (spruceRes.data || []).map(r => normalizeLead(r, SPRUCE_TRAILS_TABLE))
       const meadowvale = (meadowvaleRes.data || []).map(r => normalizeLead(r, MEADOWVALE_BROOKS_TABLE))
-      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte, ...spruce, ...meadowvale].sort(
+      const legacy = (legacyRes.data || []).map(r => normalizeLead(r, THE_LEGACY_TABLE))
+      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte, ...spruce, ...meadowvale, ...legacy].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
 
@@ -235,6 +243,7 @@ export default function LandingPagesLeads() {
       if (bronteRes.error) console.error('bronte_trails fetch:', bronteRes.error)
       if (spruceRes.error) console.error('spruce_trails fetch:', spruceRes.error)
       if (meadowvaleRes.error) console.error('meadowvale_brooks fetch:', meadowvaleRes.error)
+      if (legacyRes.error) console.error('the_legacy fetch:', legacyRes.error)
 
       setLeads(combined)
       setInitialLoadDone(true)
@@ -280,6 +289,7 @@ export default function LandingPagesLeads() {
       if (filter === 'bronte') return lead.table_name === BRONTE_TRAILS_TABLE
       if (filter === 'spruce') return lead.table_name === SPRUCE_TRAILS_TABLE
       if (filter === 'meadowvale') return lead.table_name === MEADOWVALE_BROOKS_TABLE
+      if (filter === 'legacy') return lead.table_name === THE_LEGACY_TABLE
       if (filter === 'new') return lead.status === 'new'
       if (filter === 'hot') return lead.lead_temperature === 'hot'
       if (filter === 'warm') return lead.lead_temperature === 'warm'
@@ -675,6 +685,12 @@ export default function LandingPagesLeads() {
             Meadowvale Brooks ({leads.filter(l => l.table_name === MEADOWVALE_BROOKS_TABLE).length})
           </button>
           <button
+            onClick={() => setFilter('legacy')}
+            className={`px-4 py-2 rounded-lg ${filter === 'legacy' ? 'bg-rose-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          >
+            The Legacy ({leads.filter(l => l.table_name === THE_LEGACY_TABLE).length})
+          </button>
+          <button
             onClick={() => setFilter('new')}
             className={`px-4 py-2 rounded-lg ${filter === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
           >
@@ -890,15 +906,16 @@ export default function LandingPagesLeads() {
                     )}
                   </div>
                 )}
-                {selectedLead.table_name === MEADOWVALE_BROOKS_TABLE && (
+                {(selectedLead.table_name === MEADOWVALE_BROOKS_TABLE ||
+                  selectedLead.table_name === THE_LEGACY_TABLE) && (
                   <div className="flex flex-col gap-1 text-gray-700">
                     {selectedLead.realtor && (
                       <p><span className="font-medium">Broker:</span> {selectedLead.realtor}</p>
                     )}
-                    {selectedLead.buyer_type && (
+                    {selectedLead.table_name === MEADOWVALE_BROOKS_TABLE && selectedLead.buyer_type && (
                       <p><span className="font-medium">Buyer Type:</span> {selectedLead.buyer_type}</p>
                     )}
-                    {selectedLead.timeline && (
+                    {selectedLead.table_name === MEADOWVALE_BROOKS_TABLE && selectedLead.timeline && (
                       <p><span className="font-medium">Timeline:</span> {selectedLead.timeline}</p>
                     )}
                     {selectedLead.project && (

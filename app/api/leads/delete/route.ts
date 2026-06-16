@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate table name
-    const validTables = ['fj_leads', 'precon_factory_leads', 'precon_factory_website_leads', 'gta_lowrise_leads', 'rental_leads', 'cornerstone_leads', 'novella_leads', 'lakeview_village_leads', 'rollingwood_leads', 'enclave', 'hawthorne_east_village', 'bronte_trails', 'spruce_trails', 'meadowvale_brooks']
+    const validTables = ['fj_leads', 'precon_factory_leads', 'precon_factory_website_leads', 'gta_lowrise_leads', 'rental_leads', 'cornerstone_leads', 'novella_leads', 'lakeview_village_leads', 'rollingwood_leads', 'enclave', 'hawthorne_east_village', 'bronte_trails', 'spruce_trails', 'meadowvale_brooks', 'the_legacy']
     if (!validTables.includes(table)) {
       return NextResponse.json(
         { error: 'Invalid table name' },

@@ -22,6 +22,7 @@ const LANDING_PAGE_TABLES = new Set<ContactSourceTable>([
   'bronte_trails',
   'spruce_trails',
   'meadowvale_brooks',
+  'the_legacy',
 ])
 
 const TABLES_WITH_FULL_NAME = new Set<ContactSourceTable>(['rental_leads'])
@@ -287,14 +288,15 @@ function buildOrFilter(table: ContactSourceTable, query: string): string {
     if (table === 'spruce_trails') {
       parts.push(`interest.ilike.${fullPattern}`)
     }
-  } else if (table === 'meadowvale_brooks') {
+  } else if (table === 'meadowvale_brooks' || table === 'the_legacy') {
     parts.push(
       `realtor.ilike.${fullPattern}`,
-      `buyer_type.ilike.${fullPattern}`,
-      `timeline.ilike.${fullPattern}`,
       `project.ilike.${fullPattern}`,
       `source_page.ilike.${fullPattern}`
     )
+    if (table === 'meadowvale_brooks') {
+      parts.push(`buyer_type.ilike.${fullPattern}`, `timeline.ilike.${fullPattern}`)
+    }
   }
 
   const words = query.trim().split(/\s+/).filter((w) => w.length > 0)

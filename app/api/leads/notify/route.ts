@@ -78,6 +78,11 @@ const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: s
     pageName: 'Meadowvale Brooks',
     siteUrl: 'https://meadowvalebrooks.ca',
   },
+  the_legacy: {
+    websiteName: 'The Legacy',
+    pageName: 'The Legacy',
+    siteUrl: 'https://thelegacyburlington.ca',
+  },
 }
 
 function isLandingPageLeadTable(tableName: unknown): tableName is keyof typeof LANDING_PAGE_SHEET_META {
@@ -130,7 +135,7 @@ function getBrokerFieldForLead(lead: Record<string, unknown>): unknown {
     return lead.is_realtor
   }
   if (table === 'rollingwood_leads') return lead.is_realtor
-  if (table === 'meadowvale_brooks') return lead.realtor
+  if (table === 'meadowvale_brooks' || table === 'the_legacy') return lead.realtor
   return null
 }
 
@@ -238,7 +243,10 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
         projectName = collection ? `${meta.websiteName} — ${collection}` : meta.websiteName
       } else if (lead.table_name === 'lakeview_village_leads' && lead.project) {
         projectName = `${meta.websiteName} — ${lead.project}`
-      } else if (lead.table_name === 'meadowvale_brooks' && lead.project) {
+      } else if (
+        (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy') &&
+        lead.project
+      ) {
         projectName = `${meta.websiteName} — ${lead.project}`
       } else if (
         lead.table_name === 'hawthorne_east_village' ||
@@ -335,6 +343,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'bronte_trails' ? 'Bronte Trails' :
       lead.table_name === 'spruce_trails' ? 'Spruce Trails' :
       lead.table_name === 'meadowvale_brooks' ? 'Meadowvale Brooks' :
+      lead.table_name === 'the_legacy' ? 'The Legacy' :
       'Unknown'
     
     const isRentalLead = lead.table_name === 'rental_leads'
@@ -347,7 +356,8 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'hawthorne_east_village' ||
       lead.table_name === 'bronte_trails' ||
       lead.table_name === 'spruce_trails' ||
-      lead.table_name === 'meadowvale_brooks'
+      lead.table_name === 'meadowvale_brooks' ||
+      lead.table_name === 'the_legacy'
     const landingPageName =
       lead.table_name === 'cornerstone_leads' ? 'Cornerstone' :
       lead.table_name === 'novella_leads' ? 'Novella' :
@@ -358,6 +368,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'bronte_trails' ? 'Bronte Trails' :
       lead.table_name === 'spruce_trails' ? 'Spruce Trails' :
       lead.table_name === 'meadowvale_brooks' ? 'Meadowvale Brooks' :
+      lead.table_name === 'the_legacy' ? 'The Legacy' :
       ''
     const leadType = isRentalLead ? 'Rental Inquiry' : (lead.isagent ? 'Agent' : 'Buyer')
     
@@ -367,7 +378,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'precon_factory_website_leads' ? 'precon-factory-website-leads' :
       lead.table_name === 'gta_lowrise_leads' ? 'gta-lowrise-leads' :
       lead.table_name === 'rental_leads' ? 'rental-leads' :
-      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads' || lead.table_name === 'lakeview_village_leads' || lead.table_name === 'rollingwood_leads' || lead.table_name === 'enclave' || lead.table_name === 'hawthorne_east_village' || lead.table_name === 'bronte_trails' || lead.table_name === 'spruce_trails' || lead.table_name === 'meadowvale_brooks') ? 'landing-pages-leads' :
+      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads' || lead.table_name === 'lakeview_village_leads' || lead.table_name === 'rollingwood_leads' || lead.table_name === 'enclave' || lead.table_name === 'hawthorne_east_village' || lead.table_name === 'bronte_trails' || lead.table_name === 'spruce_trails' || lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy') ? 'landing-pages-leads' :
       'rental-leads'
     
     const dashboardUrl = `https://property-dashboard-three.vercel.app/${leadPath}?leadId=${lead.id}`
@@ -467,8 +478,8 @@ export async function POST(request: NextRequest) {
         if (lead.source) message += `\n📌 Source: ${lead.source}`
       }
 
-      // Meadowvale Brooks (VIP registration — realtor, buyer_type, timeline)
-      if (lead.table_name === 'meadowvale_brooks') {
+      // Meadowvale Brooks / The Legacy (VIP registration — realtor, project)
+      if (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy') {
         const broker = formatBrokerSheetValue(lead)
         if (broker !== 'N/A') message += `\n🏢 Broker: ${broker}`
         if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
