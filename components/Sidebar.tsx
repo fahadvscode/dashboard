@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Smartphone, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned } from 'lucide-react'
+import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Smartphone, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned, PlusCircle } from 'lucide-react'
 import { useState } from 'react'
 import { logout } from '@/lib/auth'
 
@@ -10,6 +10,7 @@ const TASK_MANAGER_URL = 'https://task-management-app-flame-seven.vercel.app/'
 
 const navigation = [
   { name: 'Canada Properties', href: '/', icon: Building2 },
+  { name: 'Upload Project', href: '/project-upload', icon: PlusCircle },
   { name: 'Project Presentation', href: '/project-presentation', icon: MapPinned },
   { name: 'Project Collections', href: '/collections', icon: FolderOpen },
   { name: 'AI Lead Insights', href: '/ai-insights', icon: Brain },
