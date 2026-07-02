@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, MapPin } from 'lucide-react'
 import { loadGoogleMapsScript } from '@/lib/loadGoogleMapsScript'
+import { getFirstPropertyImage, parsePropertyPictures } from '@/lib/propertyImages'
 
 export type MapCompany = 'fj' | 'precon_factory'
 
@@ -72,9 +73,8 @@ function safeHttpUrl(url: string | null | undefined): string | null {
 }
 
 function firstImageUrl(pictures: string | null | undefined): string | null {
-  if (!pictures?.trim()) return null
-  const first = pictures.split(',')[0]?.trim()
-  return first && /^https?:\/\//i.test(first) ? first : null
+  const first = getFirstPropertyImage(pictures)
+  return first.includes('data:image/svg') ? null : first
 }
 
 function truncateLabel(name: string, max = 20): string {

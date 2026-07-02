@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/supabase'
+import { getPropertyImagePublicUrl } from '@/lib/propertyImages'
 
 const STORAGE_BUCKET = 'property-images'
 
@@ -288,8 +289,7 @@ async function uploadImageToStorage(
   contentType: string
 ): Promise<string | null> {
   const supabase = getSupabaseAdmin()
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
-  const publicUrl = `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${filePath}`
+  const publicUrl = getPropertyImagePublicUrl(filePath)
 
   const headResponse = await fetch(publicUrl, { method: 'HEAD', signal: AbortSignal.timeout(10000) })
   if (headResponse.ok) return publicUrl
@@ -299,13 +299,15 @@ async function uploadImageToStorage(
     upsert: false,
   })
 
-  if (!error) return publicUrl
-
-  if (error.message?.includes('already exists') || (error as { statusCode?: string }).statusCode === '409') {
-    return publicUrl
+  if (error) {
+    const isDuplicate =
+      error.message?.includes('already exists') ||
+      (error as { statusCode?: string }).statusCode === '409'
+    if (!isDuplicate) return null
   }
 
-  return null
+  const verifyResponse = await fetch(publicUrl, { method: 'HEAD', signal: AbortSignal.timeout(10000) })
+  return verifyResponse.ok ? publicUrl : null
 }
 
 function extensionFromFilename(filename: string): string {

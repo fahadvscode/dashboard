@@ -4,6 +4,12 @@ import { useEffect, useState } from 'react'
 import { ExternalLink, MapPin, DollarSign, BedDouble, Bath, Ruler, X, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { loadGoogleMapsScript } from '@/lib/loadGoogleMapsScript'
+import {
+  getFirstPropertyImage,
+  handlePropertyImageError,
+  parsePropertyPictures,
+  PROPERTY_IMAGE_PLACEHOLDER,
+} from '@/lib/propertyImages'
 
 type Company = 'fj' | 'precon_factory'
 
@@ -54,12 +60,8 @@ export default function CollectionProjectCard({
     setMapAddrInput(property.map_address ?? '')
   }, [property.id, property.map_address])
 
-  const getImages = () => {
-    if (!property.pictures) return []
-    return property.pictures.split(',').map(url => url.trim()).filter(url => url)
-  }
-  const images = getImages()
-  const firstImage = images[0] || 'https://via.placeholder.com/400x200?text=Property+Image'
+  const images = parsePropertyPictures(property.pictures)
+  const firstImage = images[0] ?? PROPERTY_IMAGE_PLACEHOLDER
 
   async function saveMapLocation() {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
@@ -132,9 +134,7 @@ export default function CollectionProjectCard({
             src={firstImage}
             alt={property.project_name}
             className="w-full h-full min-h-[140px] object-cover"
-            onError={(e) => {
-              e.currentTarget.src = 'https://via.placeholder.com/400x200?text=Property+Image'
-            }}
+            onError={(e) => handlePropertyImageError(e.currentTarget)}
           />
           {showRemove && onRemove && (
             <button

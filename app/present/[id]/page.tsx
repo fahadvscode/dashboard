@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getFirstPropertyImage } from '@/lib/propertyImages'
 import { Building2, Loader2, MapPin, BedDouble, Bath, Ruler, DollarSign, Printer, ExternalLink } from 'lucide-react'
 import PresentationMapView, { type PresentationProperty } from '@/components/PresentationMapView'
 
@@ -203,8 +204,8 @@ function PublicPrintView({
 }) {
   const brand = BRAND[brandKey]
   const landingPage = brandKey === 'fj' ? property.fj_landing_page : property.precon_factory_landing_page
-  const firstImage = property.pictures?.split(',')[0]?.trim()
-  const hasImage = firstImage && /^https?:\/\//i.test(firstImage)
+  const firstImage = getFirstPropertyImage(property.pictures)
+  const hasImage = !firstImage.includes('data:image/svg')
 
   return (
     <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', maxWidth: '850px', margin: '0 auto', padding: '24px 32px' }}>

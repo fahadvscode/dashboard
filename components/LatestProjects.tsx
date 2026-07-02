@@ -1,6 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import {
+  getFirstPropertyImage,
+  handlePropertyImageError,
+} from '@/lib/propertyImages'
 import { supabase } from '@/lib/supabase'
 import { Clock, MapPin, DollarSign, BedDouble, Bath } from 'lucide-react'
 import { formatDistanceToNow, differenceInDays } from 'date-fns'
@@ -59,11 +63,7 @@ export default function LatestProjects() {
     }
   }
 
-  const getFirstImage = (pictures: string) => {
-    if (!pictures) return '/placeholder-property.jpg'
-    const imageUrls = pictures.split(',')
-    return imageUrls[0]?.trim() || '/placeholder-property.jpg'
-  }
+  const getFirstImage = (pictures: string) => getFirstPropertyImage(pictures)
 
   if (loading) {
     return (
@@ -102,9 +102,7 @@ export default function LatestProjects() {
                 src={getFirstImage(property.pictures)}
                 alt={property.project_name}
                 className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.src = 'https://via.placeholder.com/400x200?text=Property+Image'
-                }}
+                onError={(e) => handlePropertyImageError(e.currentTarget)}
               />
               <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
                 New

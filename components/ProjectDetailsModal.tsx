@@ -2,6 +2,7 @@
 
 import { X, ExternalLink, MapPin, DollarSign, Home, Ruler, Building2, Calendar } from 'lucide-react'
 import { useState } from 'react'
+import { handlePropertyImageError, parsePropertyPictures } from '@/lib/propertyImages'
 
 interface Property {
   id: string
@@ -32,12 +33,7 @@ interface Props {
 export default function ProjectDetailsModal({ property, onClose }: Props) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   
-  const getImages = () => {
-    if (!property.pictures) return []
-    return property.pictures.split(',').map(url => url.trim()).filter(url => url)
-  }
-
-  const images = getImages()
+  const images = parsePropertyPictures(property.pictures)
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto">
@@ -63,9 +59,7 @@ export default function ProjectDetailsModal({ property, onClose }: Props) {
               src={images[currentImageIndex]}
               alt={property.project_name}
               className="w-full h-64 md:h-96 object-cover"
-              onError={(e) => {
-                e.currentTarget.src = 'https://via.placeholder.com/800x400?text=Property+Image'
-              }}
+              onError={(e) => handlePropertyImageError(e.currentTarget)}
             />
             {images.length > 1 && (
               <>

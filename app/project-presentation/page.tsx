@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getFirstPropertyImage, parsePropertyPictures } from '@/lib/propertyImages'
 import {
   Search,
   ArrowLeft,
@@ -200,14 +201,12 @@ export default function ProjectPresentationPage() {
   const hasActiveFilters = searchQuery || cityFilter || bedsFilter || bathsFilter
 
   function firstImageUrl(pictures: string | undefined): string | null {
-    if (!pictures?.trim()) return null
-    const first = pictures.split(',')[0]?.trim()
-    return first && /^https?:\/\//i.test(first) ? first : null
+    const first = getFirstPropertyImage(pictures)
+    return first.includes('data:image/svg') ? null : first
   }
 
   function getImages(pictures: string | undefined): string[] {
-    if (!pictures?.trim()) return []
-    return pictures.split(',').map(u => u.trim()).filter(u => /^https?:\/\//i.test(u))
+    return parsePropertyPictures(pictures)
   }
 
   // Fetch nearby competing projects
