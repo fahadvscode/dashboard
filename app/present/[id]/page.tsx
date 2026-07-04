@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getFirstPropertyImage } from '@/lib/propertyImages'
+import { getCdnStoragePublicUrl, getFirstPropertyImage } from '@/lib/propertyImages'
 import { Building2, Loader2, MapPin, BedDouble, Bath, Ruler, DollarSign, Printer, ExternalLink } from 'lucide-react'
 import PresentationMapView, { type PresentationProperty } from '@/components/PresentationMapView'
 
@@ -24,14 +24,14 @@ const BRAND = {
     primary: '#1a3c34',
     secondary: '#c5a55a',
     gradient: 'from-[#1a3c34] to-[#0f2b24]',
-    logo: 'https://cfzuypbljirmibmxpabi.supabase.co/storage/v1/object/public/email-images/fj%20logo.png',
+    logo: getCdnStoragePublicUrl('email-images/fj%20logo.png'),
   },
   precon_factory: {
     label: 'Precon Factory',
     primary: '#e52d27',
     secondary: '#ffffff',
     gradient: 'from-[#e52d27] to-[#b31217]',
-    logo: 'https://cfzuypbljirmibmxpabi.supabase.co/storage/v1/object/public/email-images/preconfactorylogo.webp',
+    logo: getCdnStoragePublicUrl('email-images/preconfactorylogo.webp'),
   },
 } as const
 

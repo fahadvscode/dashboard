@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { createClient } from '@supabase/supabase-js'
+import { getCdnStoragePublicUrl } from '@/lib/propertyImages'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
       <body>
         <div class="container">
           <div class="logo-header">
-            <img src="https://cfzuypbljirmibmxpabi.supabase.co/storage/v1/object/public/email-images/fj%20logo.png" alt="Fahad Javed Real Estate" class="logo-img" />
+            <img src="${getCdnStoragePublicUrl('email-images/fj%20logo.png')}" alt="Fahad Javed Real Estate" class="logo-img" />
           </div>
           <div class="header">
             <h1 style="margin: 0;">🏠 Rental Application</h1>

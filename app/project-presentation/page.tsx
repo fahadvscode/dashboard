@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getFirstPropertyImage, parsePropertyPictures } from '@/lib/propertyImages'
+import { getCdnStoragePublicUrl, getFirstPropertyImage, parsePropertyPictures } from '@/lib/propertyImages'
 import {
   Search,
   ArrowLeft,
@@ -50,7 +50,7 @@ const BRAND_CONFIG: Record<Company, { label: string; gradient: string; primary: 
     gradient: 'from-[#1a3c34] to-[#0f2b24]',
     primary: '#1a3c34',
     secondary: '#c5a55a',
-    logo: 'https://cfzuypbljirmibmxpabi.supabase.co/storage/v1/object/public/email-images/fj%20logo.png',
+    logo: getCdnStoragePublicUrl('email-images/fj%20logo.png'),
     textOnBg: '#c5a55a',
   },
   precon_factory: {
@@ -58,7 +58,7 @@ const BRAND_CONFIG: Record<Company, { label: string; gradient: string; primary: 
     gradient: 'from-[#e52d27] to-[#b31217]',
     primary: '#e52d27',
     secondary: '#ffffff',
-    logo: 'https://cfzuypbljirmibmxpabi.supabase.co/storage/v1/object/public/email-images/preconfactorylogo.webp',
+    logo: getCdnStoragePublicUrl('email-images/preconfactorylogo.webp'),
     textOnBg: '#ffffff',
   },
 }
