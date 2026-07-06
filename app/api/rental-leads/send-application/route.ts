@@ -7,6 +7,27 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
+// PDF bytes rarely change — cache in memory so each email doesn't re-download from Storage.
+let cachedRentalPdf: Buffer | null = null
+let cachedRentalPdfAt = 0
+const RENTAL_PDF_CACHE_MS = 60 * 60 * 1000 // 1 hour
+
+async function getRentalApplicationPdf(): Promise<Buffer> {
+  const now = Date.now()
+  if (cachedRentalPdf && now - cachedRentalPdfAt < RENTAL_PDF_CACHE_MS) {
+    return cachedRentalPdf
+  }
+  const { data: pdfData, error: storageError } = await supabase.storage
+    .from('rental-documents')
+    .download('rental-application.pdf')
+  if (storageError || !pdfData) {
+    throw storageError ?? new Error('Rental application PDF not found in storage')
+  }
+  cachedRentalPdf = Buffer.from(await pdfData.arrayBuffer())
+  cachedRentalPdfAt = now
+  return cachedRentalPdf
+}
+
 const emailTransporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -26,22 +47,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Download PDF from Supabase Storage
-    const { data: pdfData, error: storageError } = await supabase
-      .storage
-      .from('rental-documents')
-      .download('rental-application.pdf')
-    
-    if (storageError || !pdfData) {
+    let pdfBuffer: Buffer
+    try {
+      pdfBuffer = await getRentalApplicationPdf()
+    } catch (storageError) {
       console.error('PDF not found in Supabase Storage:', storageError)
       return NextResponse.json(
         { error: 'Rental application PDF not found in storage. Please upload it to Supabase Storage bucket "rental-documents".' },
         { status: 500 }
       )
     }
-
-    // Convert blob to buffer for nodemailer
-    const pdfBuffer = Buffer.from(await pdfData.arrayBuffer())
 
     // Professional email content
     const emailHtml = `

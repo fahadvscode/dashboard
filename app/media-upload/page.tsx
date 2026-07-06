@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Upload, Copy, Check, Link2, X, Image as ImageIcon, Video, List, ChevronDown, ChevronUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { getRentalDocumentPublicUrl, STORAGE_UPLOAD_CACHE_CONTROL } from '@/lib/propertyImages'
 
 interface UploadedFile {
   name: string
@@ -50,10 +51,10 @@ export default function MediaUploadPage() {
         const fileName = `${timestamp}_${index}_${sanitizedName}`
         
         // Upload to Supabase Storage
-        const { data, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('rental-documents')
           .upload(fileName, file, {
-            cacheControl: '3600',
+            cacheControl: STORAGE_UPLOAD_CACHE_CONTROL,
             upsert: false
           })
 
@@ -61,14 +62,9 @@ export default function MediaUploadPage() {
           throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`)
         }
 
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('rental-documents')
-          .getPublicUrl(fileName)
-
         return {
           name: file.name,
-          url: publicUrl,
+          url: getRentalDocumentPublicUrl(fileName),
           type: file.type,
           size: file.size,
           timestamp: new Date()

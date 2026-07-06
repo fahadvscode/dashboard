@@ -40,6 +40,14 @@ export function getCdnStoragePublicUrl(objectPath: string): string {
   return `${imagesCdnBase()}/storage/v1/object/public/${cleanPath}`
 }
 
+/** rental-documents bucket — always serve via images CDN, never raw supabase.co */
+export function getRentalDocumentPublicUrl(fileName: string): string {
+  return getCdnStoragePublicUrl(`rental-documents/${fileName.replace(/^\/+/, '')}`)
+}
+
+/** Long-lived cache header for public storage uploads (edge CDN caches separately). */
+export const STORAGE_UPLOAD_CACHE_CONTROL = '31536000'
+
 /** Normalize picture URLs from canada_properties (full URL, relative, or bucket path). */
 export function normalizePropertyImageUrl(raw: string): string | null {
   const url = raw.trim()

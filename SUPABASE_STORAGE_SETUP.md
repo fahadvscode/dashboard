@@ -104,6 +104,13 @@ bucket_id = 'rental-documents'
 rental-documents/rental-application.pdf
 ```
 
+### Public URL (use CDN — not raw supabase.co):
+```
+https://images.preconfactory.com/storage/v1/object/public/rental-documents/rental-application.pdf
+```
+
+Media upload tool and landing pages should always use `images.preconfactory.com` so Cloudflare caches at the edge.
+
 ### API Endpoint:
 ```
 /api/rental-leads/send-application
