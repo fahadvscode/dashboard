@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import twilio from 'twilio'
 import nodemailer from 'nodemailer'
+import { resolveCustomerNotes } from '@/lib/customerNotes'
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
@@ -294,7 +295,7 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
     }
 
     const sheetMessage = isEmailLeadTable(lead.table_name)
-      ? String(lead.message ?? '').trim()
+      ? resolveCustomerNotes(lead)
       : ''
 
     const row = [
@@ -402,8 +403,9 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'the_legacy' ? 'The Legacy' :
       ''
     const leadType = isRentalLead ? 'Rental Inquiry' : (lead.isagent ? 'Agent' : 'Buyer')
+    const customerNotes = isEmailLeadTable(lead.table_name) ? resolveCustomerNotes(lead) : ''
     
-    const leadPath = 
+    const leadPath =
       lead.table_name === 'fj_leads' ? 'fj-leads' :
       lead.table_name === 'precon_factory_leads' ? 'precon-leads' :
       lead.table_name === 'precon_factory_website_leads' ? 'precon-factory-website-leads' :
@@ -555,8 +557,8 @@ export async function POST(request: NextRequest) {
       message += `\n🌐 Landing Page: ${lead.redirect_link}`
     }
 
-    if (lead.message) {
-      message += `\n💬 Message: ${lead.message}`
+    if (customerNotes) {
+      message += `\n💬 Message: ${customerNotes}`
     }
     
       message += `\n🎯 Type: ${leadType}`
@@ -675,10 +677,10 @@ export async function POST(request: NextRequest) {
             <div class="data-label">Source URL</div>
             <div class="data-value"><a href="${lead.redirect_link}" style="color: #2563eb; text-decoration: none; word-break: break-all;">${lead.redirect_link}</a></div>
           </div>` : ''}
-          ${lead.message ? `
+          ${customerNotes ? `
           <div class="data-row">
             <div class="data-label">Message</div>
-            <div class="data-value">${lead.message}</div>
+            <div class="data-value">${customerNotes}</div>
           </div>` : ''}
           <div class="data-row">
             <div class="data-label">Type</div>

@@ -25,6 +25,7 @@ BEGIN
     'redirect_link', NEW.redirect_link,
     'source', NEW.source,
     'isagent', NEW.isagent,
+    'notes', NEW.notes,
     'table_name', TG_TABLE_NAME,
     'created_at', NEW.created_at
   );

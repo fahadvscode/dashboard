@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import twilio from 'twilio'
 import nodemailer from 'nodemailer'
 import { appendBookingToGoogleSheet } from '@/lib/googleSheetsBookings'
+import { resolveCustomerNotes } from '@/lib/customerNotes'
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
@@ -127,6 +128,7 @@ export async function POST(request: NextRequest) {
       'gta-lowrise-bookings'
     const dashboardUrl = `https://property-dashboard-three.vercel.app/${bookingPath}`
     const brandContact = getBrandContact(source)
+    const customerNotes = resolveCustomerNotes(booking)
 
     // ── 1. Admin SMS ──────────────────────────────────────────────
     let message = `🔔 New ${source} Booking!
@@ -143,7 +145,7 @@ export async function POST(request: NextRequest) {
 🎯 Type: ${displayType}
 ${getAdminTypeInstruction(meetingFormat)}`
 
-    if (booking.message) message += `\n💬 Message: ${booking.message}`
+    if (customerNotes) message += `\n💬 Message: ${customerNotes}`
     if (booking.project_url) message += `\n🌐 Project URL: ${booking.project_url}`
     if (booking.status) message += `\n📊 Status: ${booking.status}`
     message += `\n⏰ Just now\n\n👉 View in Dashboard: ${dashboardUrl}`
@@ -216,7 +218,7 @@ ${getAdminTypeInstruction(meetingFormat)}`
             ${booking.project_name ? `<div class="detail-row"><div class="detail-label">🏢 Project:</div><div class="detail-value">${booking.project_name}</div></div>` : ''}
             ${booking.project_id ? `<div class="detail-row"><div class="detail-label">🆔 Project ID:</div><div class="detail-value">${booking.project_id}</div></div>` : ''}
             ${booking.project_url ? `<div class="detail-row"><div class="detail-label">🌐 Project Link:</div><div class="detail-value"><a href="${booking.project_url}" target="_blank" style="color: #3b82f6;">View Project</a></div></div>` : ''}
-            ${booking.message ? `<div class="detail-row"><div class="detail-label">💬 Message:</div><div class="detail-value">${booking.message}</div></div>` : ''}
+            ${customerNotes ? `<div class="detail-row"><div class="detail-label">💬 Message:</div><div class="detail-value">${customerNotes}</div></div>` : ''}
           </div>
           <div style="text-align: center; margin: 30px 0;">
             <a href="${dashboardUrl}" class="button">👉 View in Dashboard</a>

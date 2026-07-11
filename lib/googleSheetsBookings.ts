@@ -1,3 +1,5 @@
+import { resolveCustomerNotes } from '@/lib/customerNotes'
+
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID
 
 function isBookingTable(tableName: unknown): boolean {
@@ -66,7 +68,7 @@ export async function appendBookingToGoogleSheet(booking: Record<string, unknown
       'N/A'
     const company = resolveBookingCompany(booking.table_name)
 
-    const sheetMessage = String(booking.message ?? '').trim()
+    const sheetMessage = resolveCustomerNotes(booking)
 
     const row = [
       firstName,
