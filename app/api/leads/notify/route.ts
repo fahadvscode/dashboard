@@ -173,6 +173,12 @@ function formatBrokerSheetValue(lead: Record<string, unknown>): string {
   return value
 }
 
+function resolveLandingPageSheetTag(lead: Record<string, unknown>): string {
+  const broker = formatBrokerSheetValue(lead)
+  if (broker === 'Yes') return 'Landing Page, realtor'
+  return 'Landing Page'
+}
+
 function resolveInterestedSheetValue(lead: Record<string, unknown>): string {
   if (!isLandingPageLeadTable(lead.table_name)) return 'N/A'
 
@@ -250,7 +256,7 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
     // Landing pages: Project Name = website, Company = "Landing Page - {name}", Tag = "Landing Page"
     if (isLandingPageLeadTable(lead.table_name)) {
       const meta = LANDING_PAGE_SHEET_META[lead.table_name]
-      tag = 'Landing Page'
+      tag = resolveLandingPageSheetTag(lead)
       broker = formatBrokerSheetValue(lead)
       interested = resolveInterestedSheetValue(lead)
       projectId = 'N/A'
