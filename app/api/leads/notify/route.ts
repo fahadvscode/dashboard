@@ -293,6 +293,10 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       tag = resolveEmailLeadSheetTag(lead)
     }
 
+    const sheetMessage = isEmailLeadTable(lead.table_name)
+      ? String(lead.message ?? '').trim()
+      : ''
+
     const row = [
       firstName,
       lastName,
@@ -306,11 +310,12 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       tag,
       broker,
       interested,
+      sheetMessage,
     ]
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Sheet1!A:L',
+      range: 'Sheet1!A:M',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [row],
@@ -549,6 +554,10 @@ export async function POST(request: NextRequest) {
     if (lead.redirect_link) {
       message += `\n🌐 Landing Page: ${lead.redirect_link}`
     }
+
+    if (lead.message) {
+      message += `\n💬 Message: ${lead.message}`
+    }
     
       message += `\n🎯 Type: ${leadType}`
     }
@@ -665,6 +674,11 @@ export async function POST(request: NextRequest) {
           <div class="data-row">
             <div class="data-label">Source URL</div>
             <div class="data-value"><a href="${lead.redirect_link}" style="color: #2563eb; text-decoration: none; word-break: break-all;">${lead.redirect_link}</a></div>
+          </div>` : ''}
+          ${lead.message ? `
+          <div class="data-row">
+            <div class="data-label">Message</div>
+            <div class="data-value">${lead.message}</div>
           </div>` : ''}
           <div class="data-row">
             <div class="data-label">Type</div>

@@ -66,6 +66,8 @@ export async function appendBookingToGoogleSheet(booking: Record<string, unknown
       'N/A'
     const company = resolveBookingCompany(booking.table_name)
 
+    const sheetMessage = String(booking.message ?? '').trim()
+
     const row = [
       firstName,
       lastName,
@@ -79,11 +81,12 @@ export async function appendBookingToGoogleSheet(booking: Record<string, unknown
       'Booking',
       '',
       '',
+      sheetMessage,
     ]
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Sheet1!A:L',
+      range: 'Sheet1!A:M',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [row],
