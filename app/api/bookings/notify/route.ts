@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import twilio from 'twilio'
 import nodemailer from 'nodemailer'
+import { appendBookingToGoogleSheet } from '@/lib/googleSheetsBookings'
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
@@ -353,6 +354,13 @@ Need to reschedule? Call ${brandContact.phoneFormatted}
       }
     } catch (smsError) {
       console.error('Error sending customer confirmation SMS:', smsError)
+    }
+
+    // Append booking to Google Sheet (non-blocking, won't break existing flow)
+    try {
+      await appendBookingToGoogleSheet(booking)
+    } catch (sheetError) {
+      console.error('Google Sheets error (non-critical):', sheetError)
     }
 
     // ── Response ──────────────────────────────────────────────────
