@@ -121,6 +121,23 @@ function resolveLandingPageLink(
   return meta.siteUrl
 }
 
+function isEmailLeadTable(tableName: unknown): boolean {
+  return (
+    tableName === 'fj_leads' ||
+    tableName === 'precon_factory_leads' ||
+    tableName === 'precon_factory_website_leads' ||
+    tableName === 'gta_lowrise_leads'
+  )
+}
+
+function formatIsAgentBrokerSheetValue(lead: Record<string, unknown>): 'Yes' | 'No' {
+  return lead.isagent ? 'Yes' : 'No'
+}
+
+function resolveEmailLeadSheetTag(lead: Record<string, unknown>): string {
+  return lead.isagent ? 'realtor' : ''
+}
+
 function getBrokerFieldForLead(lead: Record<string, unknown>): unknown {
   const table = lead.table_name
   if (
@@ -265,6 +282,9 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       }
       landingPage = resolveLandingPageLink(lead, meta)
       company = `Landing Page - ${meta.pageName}`
+    } else if (isEmailLeadTable(lead.table_name)) {
+      broker = formatIsAgentBrokerSheetValue(lead)
+      tag = resolveEmailLeadSheetTag(lead)
     }
 
     const row = [
