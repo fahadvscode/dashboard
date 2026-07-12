@@ -248,16 +248,20 @@ export async function POST(request: NextRequest) {
     })
 
     const meetLink = isGoogleMeet ? (response.data.hangoutLink || null) : null
+    const eventId = response.data.id || null
 
-    // Store Meet link in booking row so reminders can reference it
-    if (meetLink && booking.table_name) {
+    // Store calendar event ID (and Meet link) on the booking row
+    if (booking.table_name && (meetLink || eventId)) {
       try {
         await supabase
           .from(booking.table_name)
-          .update({ meet_link: meetLink })
+          .update({
+            ...(meetLink ? { meet_link: meetLink } : {}),
+            ...(eventId ? { calendar_event_id: eventId } : {}),
+          })
           .eq('id', booking.id)
       } catch (e) {
-        console.warn('Could not store meet_link in booking row:', e)
+        console.warn('Could not store calendar fields in booking row:', e)
       }
     }
 

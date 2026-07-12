@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Calendar, Download, Mail, Phone, User, Trash2, X, Clock, Tag, MapPin, Link as LinkIcon, MessageSquare } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
+import BookingReschedulePanel from '@/components/BookingReschedulePanel'
 
 interface Booking {
   id: string
@@ -195,6 +196,17 @@ export default function FJBookings() {
     } finally {
       setSendingSms(false)
     }
+  }
+
+  const handleRescheduled = (updated: { appointment_date: string; appointment_time: string }) => {
+    setBookings((prev) =>
+      prev.map((booking) =>
+        booking.id === selectedBooking?.id
+          ? { ...booking, ...updated }
+          : booking
+      )
+    )
+    setSelectedBooking((prev) => (prev ? { ...prev, ...updated } : prev))
   }
 
   if (loading) {
@@ -433,6 +445,14 @@ export default function FJBookings() {
                 </p>
               </div>
             )}
+
+            <div className="border-t border-gray-100 px-6 py-4">
+              <BookingReschedulePanel
+                booking={selectedBooking}
+                table="fj_bookings"
+                onRescheduled={handleRescheduled}
+              />
+            </div>
 
             {/* Send SMS Section */}
             <div className="border-t border-gray-100 px-6 py-4">
