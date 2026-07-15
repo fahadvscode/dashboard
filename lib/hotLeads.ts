@@ -88,6 +88,11 @@ export const CONTACT_SOURCE_TABLES = {
     route: '/landing-pages-leads',
     kind: 'lead' as const,
   },
+  ivy_rouge_landing_leads: {
+    label: 'Ivy Rouge Leads',
+    route: '/landing-pages-leads',
+    kind: 'lead' as const,
+  },
   fj_bookings: { label: 'FJ Booking', route: '/fj-bookings', kind: 'booking' as const },
   precon_factory_bookings: {
     label: 'Precon Factory Booking',
@@ -125,6 +130,7 @@ export const SEARCHABLE_LEAD_TABLES: ContactSourceTable[] = [
   'spruce_trails',
   'meadowvale_brooks',
   'the_legacy',
+  'ivy_rouge_landing_leads',
 ]
 
 export const SEARCHABLE_BOOKING_TABLES: ContactSourceTable[] = [

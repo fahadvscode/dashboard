@@ -23,6 +23,7 @@ const LANDING_PAGE_TABLES = new Set<ContactSourceTable>([
   'spruce_trails',
   'meadowvale_brooks',
   'the_legacy',
+  'ivy_rouge_landing_leads',
 ])
 
 const TABLES_WITH_FULL_NAME = new Set<ContactSourceTable>(['rental_leads'])

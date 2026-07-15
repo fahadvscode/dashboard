@@ -84,10 +84,36 @@ const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: s
     pageName: 'The Legacy',
     siteUrl: 'https://thelegacyburlington.ca',
   },
+  ivy_rouge_landing_leads: {
+    websiteName: 'Ivy Rouge',
+    pageName: 'Ivy Rouge',
+    siteUrl: 'https://ivyrouge.ca',
+  },
 }
 
 function isLandingPageLeadTable(tableName: unknown): tableName is keyof typeof LANDING_PAGE_SHEET_META {
   return typeof tableName === 'string' && tableName in LANDING_PAGE_SHEET_META
+}
+
+function resolveLeadSourceName(tableName: unknown): string {
+  if (isLandingPageLeadTable(tableName)) {
+    return LANDING_PAGE_SHEET_META[tableName].websiteName
+  }
+
+  switch (tableName) {
+    case 'fj_leads':
+      return 'FJ'
+    case 'precon_factory_leads':
+      return 'Precon Factory'
+    case 'precon_factory_website_leads':
+      return 'Precon Factory Website'
+    case 'gta_lowrise_leads':
+      return 'GTA Lowrise'
+    case 'rental_leads':
+      return 'Rental'
+    default:
+      return 'Unknown'
+  }
 }
 
 /** Build a full https URL for the Google Sheet "Landing Page" column. */
@@ -154,6 +180,11 @@ function getBrokerFieldForLead(lead: Record<string, unknown>): unknown {
   }
   if (table === 'rollingwood_leads') return lead.is_realtor
   if (table === 'meadowvale_brooks' || table === 'the_legacy') return lead.realtor
+  if (table === 'ivy_rouge_landing_leads') {
+    if (lead.realtor !== undefined && lead.realtor !== null) return lead.realtor
+    if (lead.is_broker !== undefined && lead.is_broker !== null) return lead.is_broker
+    if (lead.is_realtor !== undefined && lead.is_realtor !== null) return lead.is_realtor
+  }
   return null
 }
 
@@ -198,6 +229,11 @@ function resolveInterestedSheetValue(lead: Record<string, unknown>): string {
       return (lead.project as string) || (lead.buyer_type as string) || 'N/A'
     case 'meadowvale_brooks': {
       const parts = [lead.buyer_type, lead.timeline].filter(Boolean) as string[]
+      return parts.length ? parts.join(' · ') : 'N/A'
+    }
+    case 'ivy_rouge_landing_leads': {
+      const parts = [lead.buyer_type, lead.timeline, lead.interest, lead.home_interest, lead.project]
+        .filter(Boolean) as string[]
       return parts.length ? parts.join(' · ') : 'N/A'
     }
     case 'rollingwood_leads':
@@ -268,7 +304,7 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       } else if (lead.table_name === 'lakeview_village_leads' && lead.project) {
         projectName = `${meta.websiteName} — ${lead.project}`
       } else if (
-        (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy') &&
+        (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy' || lead.table_name === 'ivy_rouge_landing_leads') &&
         lead.project
       ) {
         projectName = `${meta.websiteName} — ${lead.project}`
@@ -360,48 +396,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine source
-    const source = 
-      lead.table_name === 'fj_leads' ? 'FJ' :
-      lead.table_name === 'precon_factory_leads' ? 'Precon Factory' :
-      lead.table_name === 'precon_factory_website_leads' ? 'Precon Factory Website' :
-      lead.table_name === 'gta_lowrise_leads' ? 'GTA Lowrise' :
-      lead.table_name === 'rental_leads' ? 'Rental' :
-      lead.table_name === 'cornerstone_leads' ? 'Cornerstone' :
-      lead.table_name === 'novella_leads' ? 'Novella' :
-      lead.table_name === 'lakeview_village_leads' ? 'Lakeview Village' :
-      lead.table_name === 'rollingwood_leads' ? 'Rollingwood' :
-      lead.table_name === 'enclave' ? 'Enclave' :
-      lead.table_name === 'hawthorne_east_village' ? 'Hawthorne East Village' :
-      lead.table_name === 'bronte_trails' ? 'Bronte Trails' :
-      lead.table_name === 'spruce_trails' ? 'Spruce Trails' :
-      lead.table_name === 'meadowvale_brooks' ? 'Meadowvale Brooks' :
-      lead.table_name === 'the_legacy' ? 'The Legacy' :
-      'Unknown'
+    const source = resolveLeadSourceName(lead.table_name)
     
     const isRentalLead = lead.table_name === 'rental_leads'
-    const isLandingPageLead =
-      lead.table_name === 'cornerstone_leads' ||
-      lead.table_name === 'novella_leads' ||
-      lead.table_name === 'lakeview_village_leads' ||
-      lead.table_name === 'rollingwood_leads' ||
-      lead.table_name === 'enclave' ||
-      lead.table_name === 'hawthorne_east_village' ||
-      lead.table_name === 'bronte_trails' ||
-      lead.table_name === 'spruce_trails' ||
-      lead.table_name === 'meadowvale_brooks' ||
-      lead.table_name === 'the_legacy'
-    const landingPageName =
-      lead.table_name === 'cornerstone_leads' ? 'Cornerstone' :
-      lead.table_name === 'novella_leads' ? 'Novella' :
-      lead.table_name === 'lakeview_village_leads' ? 'Lakeview Village' :
-      lead.table_name === 'rollingwood_leads' ? 'Rollingwood' :
-      lead.table_name === 'enclave' ? 'Enclave' :
-      lead.table_name === 'hawthorne_east_village' ? 'Hawthorne East Village' :
-      lead.table_name === 'bronte_trails' ? 'Bronte Trails' :
-      lead.table_name === 'spruce_trails' ? 'Spruce Trails' :
-      lead.table_name === 'meadowvale_brooks' ? 'Meadowvale Brooks' :
-      lead.table_name === 'the_legacy' ? 'The Legacy' :
-      ''
+    const isLandingPageLead = isLandingPageLeadTable(lead.table_name)
+    const landingPageName = isLandingPageLead ? LANDING_PAGE_SHEET_META[lead.table_name].websiteName : ''
     const leadType = isRentalLead ? 'Rental Inquiry' : (lead.isagent ? 'Agent' : 'Buyer')
     const customerNotes = isEmailLeadTable(lead.table_name) ? resolveCustomerNotes(lead) : ''
     
@@ -411,7 +410,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'precon_factory_website_leads' ? 'precon-factory-website-leads' :
       lead.table_name === 'gta_lowrise_leads' ? 'gta-lowrise-leads' :
       lead.table_name === 'rental_leads' ? 'rental-leads' :
-      (lead.table_name === 'cornerstone_leads' || lead.table_name === 'novella_leads' || lead.table_name === 'lakeview_village_leads' || lead.table_name === 'rollingwood_leads' || lead.table_name === 'enclave' || lead.table_name === 'hawthorne_east_village' || lead.table_name === 'bronte_trails' || lead.table_name === 'spruce_trails' || lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy') ? 'landing-pages-leads' :
+      (isLandingPageLeadTable(lead.table_name)) ? 'landing-pages-leads' :
       'rental-leads'
     
     const dashboardUrl = `https://property-dashboard-three.vercel.app/${leadPath}?leadId=${lead.id}`
@@ -511,12 +510,14 @@ export async function POST(request: NextRequest) {
         if (lead.source) message += `\n📌 Source: ${lead.source}`
       }
 
-      // Meadowvale Brooks / The Legacy (VIP registration — realtor, project)
-      if (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy') {
+      // Meadowvale Brooks / The Legacy / Ivy Rouge (VIP registration — realtor, project)
+      if (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy' || lead.table_name === 'ivy_rouge_landing_leads') {
         const broker = formatBrokerSheetValue(lead)
         if (broker !== 'N/A') message += `\n🏢 Broker: ${broker}`
         if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
         if (lead.timeline) message += `\n📅 Timeline: ${lead.timeline}`
+        if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
+        if (lead.home_interest) message += `\n🏠 Home Interest: ${lead.home_interest}`
         if (lead.project) message += `\n🏠 Project: ${lead.project}`
         if (lead.source_page) message += `\n🌐 Page: ${lead.source_page}`
         if (lead.utm_source) message += `\n🔗 UTM: ${lead.utm_source}${lead.utm_campaign ? ` / ${lead.utm_campaign}` : ''}`

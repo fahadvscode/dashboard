@@ -5,6 +5,7 @@ export const BRONTE_TRAILS_TABLE = 'bronte_trails' as const
 export const SPRUCE_TRAILS_TABLE = 'spruce_trails' as const
 export const MEADOWVALE_BROOKS_TABLE = 'meadowvale_brooks' as const
 export const THE_LEGACY_TABLE = 'the_legacy' as const
+export const IVY_ROUGE_LANDING_LEADS_TABLE = 'ivy_rouge_landing_leads' as const
 
 export const LANDING_PAGE_BRAND_LABELS: Record<string, string> = {
   cornerstone_leads: 'Cornerstone',
@@ -17,6 +18,7 @@ export const LANDING_PAGE_BRAND_LABELS: Record<string, string> = {
   [SPRUCE_TRAILS_TABLE]: 'Spruce Trails',
   [MEADOWVALE_BROOKS_TABLE]: 'Meadowvale Brooks',
   [THE_LEGACY_TABLE]: 'The Legacy',
+  [IVY_ROUGE_LANDING_LEADS_TABLE]: 'Ivy Rouge',
 }
 
 const TABLES_WITHOUT_CRM = new Set<string>([
@@ -26,6 +28,7 @@ const TABLES_WITHOUT_CRM = new Set<string>([
   SPRUCE_TRAILS_TABLE,
   MEADOWVALE_BROOKS_TABLE,
   THE_LEGACY_TABLE,
+  IVY_ROUGE_LANDING_LEADS_TABLE,
 ])
 
 export const WEBSITE_FORM_TABLES = new Set<string>([
@@ -35,6 +38,7 @@ export const WEBSITE_FORM_TABLES = new Set<string>([
   SPRUCE_TRAILS_TABLE,
   MEADOWVALE_BROOKS_TABLE,
   THE_LEGACY_TABLE,
+  IVY_ROUGE_LANDING_LEADS_TABLE,
 ])
 
 export function getLandingPageBrandLabel(tableName: string): string {
@@ -57,4 +61,5 @@ export const LANDING_PAGE_LEAD_TABLES = [
   SPRUCE_TRAILS_TABLE,
   MEADOWVALE_BROOKS_TABLE,
   THE_LEGACY_TABLE,
+  IVY_ROUGE_LANDING_LEADS_TABLE,
 ] as const
