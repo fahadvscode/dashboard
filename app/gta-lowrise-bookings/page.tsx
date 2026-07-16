@@ -209,6 +209,17 @@ export default function GTALowriseBookings() {
     setSelectedBooking((prev) => (prev ? { ...prev, ...updated } : prev))
   }
 
+  const handleCancelled = (updated: { status: string }) => {
+    setBookings((prev) =>
+      prev.map((booking) =>
+        booking.id === selectedBooking?.id
+          ? { ...booking, ...updated }
+          : booking
+      )
+    )
+    setSelectedBooking((prev) => (prev ? { ...prev, ...updated } : prev))
+  }
+
   if (loading) {
     return <div className="p-8"><div className="animate-pulse">Loading...</div></div>
   }
@@ -451,6 +462,7 @@ export default function GTALowriseBookings() {
                 booking={selectedBooking}
                 table="gta_lowrise_bookings"
                 onRescheduled={handleRescheduled}
+                onCancelled={handleCancelled}
               />
             </div>
 

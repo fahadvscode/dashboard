@@ -1,8 +1,9 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { calendar_v3 } from 'googleapis'
 import {
   BOOKING_TIMEZONE,
   buildAppointmentDateTimes,
+  getReminderResetFields,
 } from '@/lib/bookingTimes'
 
 export {
@@ -176,4 +177,74 @@ export async function updateCalendarEventTime(
       end: { dateTime: endDateTimeLocal, timeZone: BOOKING_TIMEZONE },
     },
   })
+}
+
+export async function cancelCalendarEvent(
+  calendar: calendar_v3.Calendar,
+  calendarId: string,
+  eventId: string
+) {
+  return calendar.events.delete({
+    calendarId,
+    eventId,
+    sendUpdates: 'all',
+  })
+}
+
+export async function updateBookingAppointment(
+  supabase: SupabaseClient,
+  table: string,
+  bookingId: string,
+  appointmentDate: string,
+  appointmentTime: string,
+  calendarEventId: string | null
+) {
+  const minimalUpdate = {
+    appointment_date: appointmentDate,
+    appointment_time: appointmentTime,
+  }
+
+  const { data, error } = await supabase
+    .from(table)
+    .update(minimalUpdate)
+    .eq('id', bookingId)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  const optionalPatches: Record<string, unknown>[] = [getReminderResetFields()]
+  if (calendarEventId) {
+    optionalPatches.push({ calendar_event_id: calendarEventId })
+  }
+
+  for (const patch of optionalPatches) {
+    const { error: optionalError } = await supabase.from(table).update(patch).eq('id', bookingId)
+    if (optionalError) {
+      console.warn(`Optional booking update skipped for ${table}:`, optionalError.message)
+    }
+  }
+
+  return data
+}
+
+export async function cancelBookingStatus(
+  supabase: SupabaseClient,
+  table: string,
+  bookingId: string
+) {
+  const { data, error } = await supabase
+    .from(table)
+    .update({ status: 'cancelled' })
+    .eq('id', bookingId)
+    .select('*')
+    .single()
+
+  if (error) {
+    throw error
+  }
+
+  return data
 }

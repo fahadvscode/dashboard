@@ -10,9 +10,6 @@ import {
   getCalendarClient,
   getCalendarIdForTable,
   isValidBookingTable,
-  normalizeAppointmentTime,
-  updateBookingAppointment,
-  updateCalendarEventTime,
 } from '@/lib/bookingCalendar'
 
 function toE164NorthAmerica(phone: string): string {
@@ -22,35 +19,14 @@ function toE164NorthAmerica(phone: string): string {
   return phone.startsWith('+') ? phone : `+${digits}`
 }
 
-function buildRescheduleSms(
-  booking: {
-    firstname: string
-    appointment_date: string
-    appointment_time: string
-    meet_link?: string | null
-    appointment_type?: string | null
-    meeting_format?: string | null
-  },
+function buildCancelSms(
+  booking: { firstname: string; appointment_date: string; appointment_time: string },
   brandName: string
 ) {
   const brandContact = getBrandContact(brandName)
-  const meetingFormat = (booking.meeting_format || booking.appointment_type || '')
-    .trim()
-    .toLowerCase()
+  return `Hi ${booking.firstname}, your appointment on ${booking.appointment_date} at ${booking.appointment_time} has been cancelled.
 
-  let typeLine = ''
-  if (meetingFormat === 'google_meet' && booking.meet_link) {
-    typeLine = `\n💻 Join here: ${booking.meet_link}`
-  } else if (meetingFormat === 'visit_office') {
-    typeLine = '\n🏢 Office visit — see your calendar invite for the address.'
-  }
-
-  return `Hi ${booking.firstname}, your appointment has been rescheduled.
-
-📅 New date: ${booking.appointment_date}
-🕐 New time: ${booking.appointment_time}${typeLine}
-
-Questions? Call ${brandContact.phoneFormatted}
+To book a new time, please contact us at ${brandContact.phoneFormatted}.
 
 - ${brandName} Team`
 }
@@ -58,22 +34,17 @@ Questions? Call ${brandContact.phoneFormatted}
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { table, bookingId, appointment_date, appointment_time, sendSms = true } = body
+    const { table, bookingId, sendSms = true } = body
 
-    if (!table || !bookingId || !appointment_date || !appointment_time) {
-      return NextResponse.json(
-        { error: 'Table, booking ID, appointment date, and appointment time are required.' },
-        { status: 400 }
-      )
+    if (!table || !bookingId) {
+      return NextResponse.json({ error: 'Table and booking ID are required.' }, { status: 400 })
     }
 
     if (!isValidBookingTable(table)) {
       return NextResponse.json({ error: 'Invalid table name.' }, { status: 400 })
     }
 
-    const normalizedTime = normalizeAppointmentTime(appointment_time)
     const supabase = await getBookingSupabase()
-
     const { data: booking, error: fetchError } = await supabase
       .from(table)
       .select('*')
@@ -84,21 +55,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Booking not found.' }, { status: 404 })
     }
 
-    if (
-      booking.appointment_date === appointment_date &&
-      normalizeAppointmentTime(booking.appointment_time) === normalizedTime
-    ) {
-      return NextResponse.json(
-        { error: 'The selected date and time are the same as the current appointment.' },
-        { status: 400 }
-      )
+    if (String(booking.status || '').toLowerCase() === 'cancelled') {
+      return NextResponse.json({ error: 'This appointment is already cancelled.' }, { status: 400 })
     }
 
     const brandName = getBrandFromTable(table)
     const calendarId = getCalendarIdForTable(table)
-    const previousDate = booking.appointment_date
-    const previousTime = booking.appointment_time
-
     let calendarUpdated = false
     let calendarEventId: string | null = booking.calendar_event_id || null
     let calendarWarning: string | null = null
@@ -111,38 +73,25 @@ export async function POST(request: NextRequest) {
           email: booking.email,
           firstname: booking.firstname,
           lastname: booking.lastname,
-          appointment_date: previousDate,
-          appointment_time: previousTime,
+          appointment_date: booking.appointment_date,
+          appointment_time: booking.appointment_time,
         })
       }
 
       if (calendarEventId) {
-        await updateCalendarEventTime(
-          calendar,
-          calendarId,
-          calendarEventId,
-          appointment_date,
-          normalizedTime
-        )
+        await cancelCalendarEvent(calendar, calendarId, calendarEventId)
         calendarUpdated = true
       } else {
         calendarWarning =
-          'Booking updated in dashboard, but no matching Google Calendar event was found. Please update the calendar manually.'
+          'Appointment cancelled in dashboard, but no matching Google Calendar event was found. Please remove it manually.'
       }
     } catch (calendarError) {
-      console.error('Error updating calendar event during reschedule:', calendarError)
+      console.error('Error cancelling calendar event:', calendarError)
       calendarWarning =
-        'Booking updated in dashboard, but Google Calendar could not be updated. Please update the calendar manually.'
+        'Appointment cancelled in dashboard, but Google Calendar could not be updated. Please remove the event manually.'
     }
 
-    const updatedBooking = await updateBookingAppointment(
-      supabase,
-      table,
-      bookingId,
-      appointment_date,
-      normalizedTime,
-      calendarEventId
-    )
+    const updatedBooking = await cancelBookingStatus(supabase, table, bookingId)
 
     let smsSent = false
     let smsError: string | null = null
@@ -155,14 +104,11 @@ export async function POST(request: NextRequest) {
       if (accountSid && authToken && twilioPhone) {
         try {
           const client = twilio(accountSid, authToken)
-          const message = buildRescheduleSms(
+          const message = buildCancelSms(
             {
               firstname: updatedBooking.firstname,
-              appointment_date,
-              appointment_time: normalizedTime,
-              meet_link: updatedBooking.meet_link,
-              appointment_type: updatedBooking.appointment_type,
-              meeting_format: updatedBooking.meeting_format,
+              appointment_date: booking.appointment_date,
+              appointment_time: booking.appointment_time,
             },
             brandName
           )
@@ -188,10 +134,10 @@ export async function POST(request: NextRequest) {
               lead_table: table,
             })
           } catch (logError) {
-            console.warn('Could not log reschedule SMS:', logError)
+            console.warn('Could not log cancel SMS:', logError)
           }
         } catch (error) {
-          console.error('Error sending reschedule SMS:', error)
+          console.error('Error sending cancel SMS:', error)
           smsError = error instanceof Error ? error.message : 'Failed to send SMS'
         }
       } else {
@@ -208,17 +154,17 @@ export async function POST(request: NextRequest) {
       smsSent,
       smsError,
       message: calendarWarning
-        ? 'Appointment rescheduled in dashboard with warnings.'
-        : 'Appointment rescheduled successfully.',
+        ? 'Appointment cancelled in dashboard with warnings.'
+        : 'Appointment cancelled successfully.',
     })
   } catch (error: unknown) {
-    console.error('Error rescheduling booking:', error)
+    console.error('Error cancelling booking:', error)
     const message =
       error && typeof error === 'object' && 'message' in error
         ? String((error as { message: unknown }).message)
         : error instanceof Error
           ? error.message
-          : 'Failed to reschedule booking.'
+          : 'Failed to cancel booking.'
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

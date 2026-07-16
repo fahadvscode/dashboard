@@ -208,6 +208,17 @@ export default function PreconFactoryBookings() {
     setSelectedBooking((prev) => (prev ? { ...prev, ...updated } : prev))
   }
 
+  const handleCancelled = (updated: { status: string }) => {
+    setBookings((prev) =>
+      prev.map((booking) =>
+        booking.id === selectedBooking?.id
+          ? { ...booking, ...updated }
+          : booking
+      )
+    )
+    setSelectedBooking((prev) => (prev ? { ...prev, ...updated } : prev))
+  }
+
   if (loading) {
     return <div className="p-8"><div className="animate-pulse">Loading...</div></div>
   }
@@ -457,6 +468,7 @@ export default function PreconFactoryBookings() {
                 booking={selectedBooking}
                 table="precon_factory_bookings"
                 onRescheduled={handleRescheduled}
+                onCancelled={handleCancelled}
               />
             </div>
 

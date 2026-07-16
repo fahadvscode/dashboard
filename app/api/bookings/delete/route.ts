@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate table name
-    const validTables = ['fj_bookings', 'precon_factory_bookings']
+    const validTables = ['fj_bookings', 'precon_factory_bookings', 'gta_lowrise_bookings']
     if (!validTables.includes(table)) {
       return NextResponse.json(
         { error: 'Invalid table name' },
