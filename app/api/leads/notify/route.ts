@@ -89,18 +89,51 @@ const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: s
     pageName: 'Ivy Rouge',
     siteUrl: 'https://ivyrouge.ca',
   },
+  abacot_hill_leads: {
+    websiteName: 'Abacot Hill',
+    pageName: 'Abacot Hill',
+    siteUrl: 'https://abacothill.com',
+  },
+}
+
+const LEAD_TABLE_ALIASES: Record<string, keyof typeof LANDING_PAGE_SHEET_META> = {
+  abacot_hill: 'abacot_hill_leads',
+}
+
+function normalizeLeadTableName(tableName: unknown): string | undefined {
+  if (typeof tableName !== 'string') return undefined
+  const normalized = tableName.trim().toLowerCase()
+  if (!normalized) return undefined
+  return LEAD_TABLE_ALIASES[normalized] ?? normalized
+}
+
+/** Resolve table from payload fields (trigger may send table_name, table, or tableName). */
+function resolveLeadTableName(lead: Record<string, unknown>): string | undefined {
+  for (const key of ['table_name', 'tableName', 'table'] as const) {
+    const resolved = normalizeLeadTableName(lead[key])
+    if (resolved) return resolved
+  }
+
+  const hint = [lead.source, lead.project_name, lead.website_name, lead.website, lead.source_page]
+    .map((value) => (typeof value === 'string' ? value.toLowerCase() : ''))
+    .join(' ')
+  if (hint.includes('abacot')) return 'abacot_hill_leads'
+
+  return undefined
 }
 
 function isLandingPageLeadTable(tableName: unknown): tableName is keyof typeof LANDING_PAGE_SHEET_META {
-  return typeof tableName === 'string' && tableName in LANDING_PAGE_SHEET_META
+  const normalized = normalizeLeadTableName(tableName)
+  return typeof normalized === 'string' && normalized in LANDING_PAGE_SHEET_META
 }
 
 function resolveLeadSourceName(tableName: unknown): string {
-  if (isLandingPageLeadTable(tableName)) {
-    return LANDING_PAGE_SHEET_META[tableName].websiteName
+  const normalized = normalizeLeadTableName(tableName)
+  if (isLandingPageLeadTable(normalized)) {
+    return LANDING_PAGE_SHEET_META[normalized].websiteName
   }
 
-  switch (tableName) {
+  switch (normalized) {
     case 'fj_leads':
       return 'FJ'
     case 'precon_factory_leads':
@@ -185,6 +218,11 @@ function getBrokerFieldForLead(lead: Record<string, unknown>): unknown {
     if (lead.is_broker !== undefined && lead.is_broker !== null) return lead.is_broker
     if (lead.is_realtor !== undefined && lead.is_realtor !== null) return lead.is_realtor
   }
+  if (table === 'abacot_hill_leads') {
+    if (lead.is_broker !== undefined && lead.is_broker !== null) return lead.is_broker
+    if (lead.is_realtor !== undefined && lead.is_realtor !== null) return lead.is_realtor
+    if (lead.realtor !== undefined && lead.realtor !== null) return lead.realtor
+  }
   return null
 }
 
@@ -232,6 +270,11 @@ function resolveInterestedSheetValue(lead: Record<string, unknown>): string {
       return parts.length ? parts.join(' · ') : 'N/A'
     }
     case 'ivy_rouge_landing_leads': {
+      const parts = [lead.buyer_type, lead.timeline, lead.interest, lead.home_interest, lead.project]
+        .filter(Boolean) as string[]
+      return parts.length ? parts.join(' · ') : 'N/A'
+    }
+    case 'abacot_hill_leads': {
       const parts = [lead.buyer_type, lead.timeline, lead.interest, lead.home_interest, lead.project]
         .filter(Boolean) as string[]
       return parts.length ? parts.join(' · ') : 'N/A'
@@ -304,7 +347,7 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       } else if (lead.table_name === 'lakeview_village_leads' && lead.project) {
         projectName = `${meta.websiteName} — ${lead.project}`
       } else if (
-        (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy' || lead.table_name === 'ivy_rouge_landing_leads') &&
+        (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy' || lead.table_name === 'ivy_rouge_landing_leads' || lead.table_name === 'abacot_hill_leads') &&
         lead.project
       ) {
         projectName = `${meta.websiteName} — ${lead.project}`
@@ -378,9 +421,15 @@ export async function POST(request: NextRequest) {
   try {
     const lead = await request.json()
 
+    const resolvedTableName = resolveLeadTableName(lead)
+    if (resolvedTableName) {
+      lead.table_name = resolvedTableName
+    }
+
     // Log the received payload for debugging
     console.log('===========================================')
     console.log('Received Lead Notification Payload:')
+    console.log('Table Name:', lead.table_name)
     console.log('Project Name:', lead.project_name)
     console.log('Project ID:', lead.project_id)
     console.log('Redirect Link:', lead.redirect_link)
@@ -511,7 +560,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Meadowvale Brooks / The Legacy / Ivy Rouge (VIP registration — realtor, project)
-      if (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy' || lead.table_name === 'ivy_rouge_landing_leads') {
+      if (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy' || lead.table_name === 'ivy_rouge_landing_leads' || lead.table_name === 'abacot_hill_leads') {
         const broker = formatBrokerSheetValue(lead)
         if (broker !== 'N/A') message += `\n🏢 Broker: ${broker}`
         if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`

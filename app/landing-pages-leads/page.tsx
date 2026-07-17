@@ -18,6 +18,7 @@ import {
   SPRUCE_TRAILS_TABLE,
   THE_LEGACY_TABLE,
   IVY_ROUGE_LANDING_LEADS_TABLE,
+  ABACOT_HILL_LEADS_TABLE,
   WEBSITE_FORM_TABLES,
   getLandingPageBrandLabel,
   hasLandingPageCrmColumns
@@ -142,11 +143,11 @@ function leadDetailLabel(lead: LandingPageLead): string {
   if (lead.table_name === 'lakeview_village_leads') {
     return [lead.project, lead.buyer_type].filter(Boolean).join(' · ') || '—'
   }
-  if (lead.table_name === MEADOWVALE_BROOKS_TABLE || lead.table_name === THE_LEGACY_TABLE || lead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE) {
+  if (lead.table_name === MEADOWVALE_BROOKS_TABLE || lead.table_name === THE_LEGACY_TABLE || lead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE || lead.table_name === ABACOT_HILL_LEADS_TABLE) {
     const broker =
       lead.realtor ? `Broker: ${lead.realtor}` : ''
     const details =
-      lead.table_name === MEADOWVALE_BROOKS_TABLE || lead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE
+      lead.table_name === MEADOWVALE_BROOKS_TABLE || lead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE || lead.table_name === ABACOT_HILL_LEADS_TABLE
         ? [lead.project, lead.buyer_type, lead.timeline, lead.interest, lead.home_interest, broker]
         : [lead.project, broker]
     return details.filter(Boolean).join(' · ') || '—'
@@ -208,7 +209,7 @@ export default function LandingPagesLeads() {
 
   async function fetchLeads() {
     try {
-      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes, spruceRes, meadowvaleRes, legacyRes, ivyRougeRes] = await Promise.all([
+      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes, spruceRes, meadowvaleRes, legacyRes, ivyRougeRes, abacotHillRes] = await Promise.all([
         supabase.from('cornerstone_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('novella_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('lakeview_village_leads').select('*').order('created_at', { ascending: false }),
@@ -219,7 +220,8 @@ export default function LandingPagesLeads() {
         supabase.from(SPRUCE_TRAILS_TABLE).select('*').order('created_at', { ascending: false }),
         supabase.from(MEADOWVALE_BROOKS_TABLE).select('*').order('created_at', { ascending: false }),
         supabase.from(THE_LEGACY_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(IVY_ROUGE_LANDING_LEADS_TABLE).select('*').order('created_at', { ascending: false })
+        supabase.from(IVY_ROUGE_LANDING_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
+        supabase.from(ABACOT_HILL_LEADS_TABLE).select('*').order('created_at', { ascending: false })
       ])
 
       const cornerstone = (cornerstoneRes.data || []).map(r => normalizeLead(r, 'cornerstone_leads'))
@@ -233,7 +235,8 @@ export default function LandingPagesLeads() {
       const meadowvale = (meadowvaleRes.data || []).map(r => normalizeLead(r, MEADOWVALE_BROOKS_TABLE))
       const legacy = (legacyRes.data || []).map(r => normalizeLead(r, THE_LEGACY_TABLE))
       const ivyRouge = (ivyRougeRes.data || []).map(r => normalizeLead(r, IVY_ROUGE_LANDING_LEADS_TABLE))
-      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte, ...spruce, ...meadowvale, ...legacy, ...ivyRouge].sort(
+      const abacotHill = (abacotHillRes.data || []).map(r => normalizeLead(r, ABACOT_HILL_LEADS_TABLE))
+      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte, ...spruce, ...meadowvale, ...legacy, ...ivyRouge, ...abacotHill].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
 
@@ -248,6 +251,7 @@ export default function LandingPagesLeads() {
       if (meadowvaleRes.error) console.error('meadowvale_brooks fetch:', meadowvaleRes.error)
       if (legacyRes.error) console.error('the_legacy fetch:', legacyRes.error)
       if (ivyRougeRes.error) console.error('ivy_rouge_landing_leads fetch:', ivyRougeRes.error)
+      if (abacotHillRes.error) console.error('abacot_hill_leads fetch:', abacotHillRes.error)
 
       setLeads(combined)
       setInitialLoadDone(true)
@@ -295,6 +299,7 @@ export default function LandingPagesLeads() {
       if (filter === 'meadowvale') return lead.table_name === MEADOWVALE_BROOKS_TABLE
       if (filter === 'legacy') return lead.table_name === THE_LEGACY_TABLE
       if (filter === 'ivyrouge') return lead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE
+      if (filter === 'abacothill') return lead.table_name === ABACOT_HILL_LEADS_TABLE
       if (filter === 'new') return lead.status === 'new'
       if (filter === 'hot') return lead.lead_temperature === 'hot'
       if (filter === 'warm') return lead.lead_temperature === 'warm'
@@ -702,6 +707,12 @@ export default function LandingPagesLeads() {
             Ivy Rouge ({leads.filter(l => l.table_name === IVY_ROUGE_LANDING_LEADS_TABLE).length})
           </button>
           <button
+            onClick={() => setFilter('abacothill')}
+            className={`px-4 py-2 rounded-lg ${filter === 'abacothill' ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          >
+            Abacot Hill ({leads.filter(l => l.table_name === ABACOT_HILL_LEADS_TABLE).length})
+          </button>
+          <button
             onClick={() => setFilter('new')}
             className={`px-4 py-2 rounded-lg ${filter === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
           >
@@ -919,25 +930,28 @@ export default function LandingPagesLeads() {
                 )}
                 {(selectedLead.table_name === MEADOWVALE_BROOKS_TABLE ||
                   selectedLead.table_name === THE_LEGACY_TABLE ||
-                  selectedLead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE) && (
+                  selectedLead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE ||
+                  selectedLead.table_name === ABACOT_HILL_LEADS_TABLE) && (
                   <div className="flex flex-col gap-1 text-gray-700">
                     {selectedLead.realtor && (
                       <p><span className="font-medium">Broker:</span> {selectedLead.realtor}</p>
                     )}
                     {(selectedLead.table_name === MEADOWVALE_BROOKS_TABLE ||
-                      selectedLead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE) &&
+                      selectedLead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE ||
+                      selectedLead.table_name === ABACOT_HILL_LEADS_TABLE) &&
                       selectedLead.buyer_type && (
                       <p><span className="font-medium">Buyer Type:</span> {selectedLead.buyer_type}</p>
                     )}
                     {(selectedLead.table_name === MEADOWVALE_BROOKS_TABLE ||
-                      selectedLead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE) &&
+                      selectedLead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE ||
+                      selectedLead.table_name === ABACOT_HILL_LEADS_TABLE) &&
                       selectedLead.timeline && (
                       <p><span className="font-medium">Timeline:</span> {selectedLead.timeline}</p>
                     )}
-                    {selectedLead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE && selectedLead.interest && (
+                    {(selectedLead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE || selectedLead.table_name === ABACOT_HILL_LEADS_TABLE) && selectedLead.interest && (
                       <p><span className="font-medium">Interest:</span> {selectedLead.interest}</p>
                     )}
-                    {selectedLead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE && selectedLead.home_interest && (
+                    {(selectedLead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE || selectedLead.table_name === ABACOT_HILL_LEADS_TABLE) && selectedLead.home_interest && (
                       <p><span className="font-medium">Home Interest:</span> {selectedLead.home_interest}</p>
                     )}
                     {selectedLead.project && (
