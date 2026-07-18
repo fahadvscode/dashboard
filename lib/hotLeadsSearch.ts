@@ -26,6 +26,7 @@ const LANDING_PAGE_TABLES = new Set<ContactSourceTable>([
   'ivy_rouge_landing_leads',
   'abacot_hill_leads',
   'og_urban_towns_leads',
+  'rosemont_grove_leads',
 ])
 
 const TABLES_WITH_FULL_NAME = new Set<ContactSourceTable>(['rental_leads'])
@@ -278,7 +279,7 @@ function buildOrFilter(table: ContactSourceTable, query: string): string {
       `form_name.ilike.${fullPattern}`,
       `source.ilike.${fullPattern}`
     )
-  } else if (table === 'hawthorne_east_village' || table === 'bronte_trails' || table === 'spruce_trails' || table === 'og_urban_towns_leads') {
+  } else if (table === 'hawthorne_east_village' || table === 'bronte_trails' || table === 'spruce_trails' || table === 'og_urban_towns_leads' || table === 'rosemont_grove_leads') {
     parts.push(
       `is_broker.ilike.${fullPattern}`,
       `form_type.ilike.${fullPattern}`,
@@ -287,6 +288,13 @@ function buildOrFilter(table: ContactSourceTable, query: string): string {
     )
     if (table === 'og_urban_towns_leads') {
       parts.push(`buyer_type.ilike.${fullPattern}`, `timeline.ilike.${fullPattern}`)
+    }
+    if (table === 'rosemont_grove_leads') {
+      parts.push(
+        `lot_width.ilike.${fullPattern}`,
+        `budget_range.ilike.${fullPattern}`,
+        `timeline.ilike.${fullPattern}`
+      )
     }
     if (table === 'bronte_trails' || table === 'spruce_trails') {
       parts.push(`project_tag.ilike.${fullPattern}`)

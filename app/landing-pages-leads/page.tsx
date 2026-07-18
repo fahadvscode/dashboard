@@ -20,6 +20,7 @@ import {
   IVY_ROUGE_LANDING_LEADS_TABLE,
   ABACOT_HILL_LEADS_TABLE,
   OG_URBAN_TOWNS_LEADS_TABLE,
+  ROSEMONT_GROVE_LEADS_TABLE,
   WEBSITE_FORM_TABLES,
   getLandingPageBrandLabel,
   hasLandingPageCrmColumns
@@ -64,6 +65,8 @@ interface LandingPageLead {
   source_page?: string
   utm_source?: string
   utm_campaign?: string
+  budget_range?: string
+  lot_width?: string
 }
 
 const CALL_OUTCOMES = [
@@ -133,7 +136,9 @@ function normalizeLead(raw: Record<string, unknown>, tableName: string): Landing
     timeline: raw.timeline as string | undefined,
     source_page: raw.source_page as string | undefined,
     utm_source: raw.utm_source as string | undefined,
-    utm_campaign: raw.utm_campaign as string | undefined
+    utm_campaign: raw.utm_campaign as string | undefined,
+    budget_range: raw.budget_range as string | undefined,
+    lot_width: raw.lot_width as string | undefined
   }
 }
 
@@ -170,16 +175,19 @@ function leadDetailLabel(lead: LandingPageLead): string {
     lead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE ||
     lead.table_name === BRONTE_TRAILS_TABLE ||
     lead.table_name === SPRUCE_TRAILS_TABLE ||
-    lead.table_name === OG_URBAN_TOWNS_LEADS_TABLE
+    lead.table_name === OG_URBAN_TOWNS_LEADS_TABLE ||
+    lead.table_name === ROSEMONT_GROVE_LEADS_TABLE
   ) {
     const broker =
       lead.is_broker !== undefined && lead.is_broker !== null && String(lead.is_broker).trim() !== ''
         ? `Broker: ${lead.is_broker}`
         : ''
     const details =
-      lead.table_name === OG_URBAN_TOWNS_LEADS_TABLE
-        ? [lead.buyer_type, lead.timeline, broker]
-        : [lead.interest, lead.project_tag, lead.form_type, broker]
+      lead.table_name === ROSEMONT_GROVE_LEADS_TABLE
+        ? [lead.lot_width, lead.budget_range, lead.timeline, broker]
+        : lead.table_name === OG_URBAN_TOWNS_LEADS_TABLE
+          ? [lead.buyer_type, lead.timeline, broker]
+          : [lead.interest, lead.project_tag, lead.form_type, broker]
     return details.filter(Boolean).join(' · ') || '—'
   }
   return lead.buyer_type || lead.interest || lead.home_interest || '—'
@@ -215,7 +223,7 @@ export default function LandingPagesLeads() {
 
   async function fetchLeads() {
     try {
-      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes, spruceRes, meadowvaleRes, legacyRes, ivyRougeRes, abacotHillRes, ogUrbanTownsRes] = await Promise.all([
+      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes, spruceRes, meadowvaleRes, legacyRes, ivyRougeRes, abacotHillRes, ogUrbanTownsRes, rosemontGroveRes] = await Promise.all([
         supabase.from('cornerstone_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('novella_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('lakeview_village_leads').select('*').order('created_at', { ascending: false }),
@@ -228,7 +236,8 @@ export default function LandingPagesLeads() {
         supabase.from(THE_LEGACY_TABLE).select('*').order('created_at', { ascending: false }),
         supabase.from(IVY_ROUGE_LANDING_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
         supabase.from(ABACOT_HILL_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(OG_URBAN_TOWNS_LEADS_TABLE).select('*').order('created_at', { ascending: false })
+        supabase.from(OG_URBAN_TOWNS_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
+        supabase.from(ROSEMONT_GROVE_LEADS_TABLE).select('*').order('created_at', { ascending: false })
       ])
 
       const cornerstone = (cornerstoneRes.data || []).map(r => normalizeLead(r, 'cornerstone_leads'))
@@ -244,7 +253,8 @@ export default function LandingPagesLeads() {
       const ivyRouge = (ivyRougeRes.data || []).map(r => normalizeLead(r, IVY_ROUGE_LANDING_LEADS_TABLE))
       const abacotHill = (abacotHillRes.data || []).map(r => normalizeLead(r, ABACOT_HILL_LEADS_TABLE))
       const ogUrbanTowns = (ogUrbanTownsRes.data || []).map(r => normalizeLead(r, OG_URBAN_TOWNS_LEADS_TABLE))
-      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte, ...spruce, ...meadowvale, ...legacy, ...ivyRouge, ...abacotHill, ...ogUrbanTowns].sort(
+      const rosemontGrove = (rosemontGroveRes.data || []).map(r => normalizeLead(r, ROSEMONT_GROVE_LEADS_TABLE))
+      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte, ...spruce, ...meadowvale, ...legacy, ...ivyRouge, ...abacotHill, ...ogUrbanTowns, ...rosemontGrove].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
 
@@ -261,6 +271,7 @@ export default function LandingPagesLeads() {
       if (ivyRougeRes.error) console.error('ivy_rouge_landing_leads fetch:', ivyRougeRes.error)
       if (abacotHillRes.error) console.error('abacot_hill_leads fetch:', abacotHillRes.error)
       if (ogUrbanTownsRes.error) console.error('og_urban_towns_leads fetch:', ogUrbanTownsRes.error)
+      if (rosemontGroveRes.error) console.error('rosemont_grove_leads fetch:', rosemontGroveRes.error)
 
       setLeads(combined)
       setInitialLoadDone(true)
@@ -310,6 +321,7 @@ export default function LandingPagesLeads() {
       if (filter === 'ivyrouge') return lead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE
       if (filter === 'abacothill') return lead.table_name === ABACOT_HILL_LEADS_TABLE
       if (filter === 'ogurbantowns') return lead.table_name === OG_URBAN_TOWNS_LEADS_TABLE
+      if (filter === 'rosemontgrove') return lead.table_name === ROSEMONT_GROVE_LEADS_TABLE
       if (filter === 'new') return lead.status === 'new'
       if (filter === 'hot') return lead.lead_temperature === 'hot'
       if (filter === 'warm') return lead.lead_temperature === 'warm'
@@ -729,6 +741,12 @@ export default function LandingPagesLeads() {
             OG Urban Towns ({leads.filter(l => l.table_name === OG_URBAN_TOWNS_LEADS_TABLE).length})
           </button>
           <button
+            onClick={() => setFilter('rosemontgrove')}
+            className={`px-4 py-2 rounded-lg ${filter === 'rosemontgrove' ? 'bg-lime-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          >
+            Rosemont Grove ({leads.filter(l => l.table_name === ROSEMONT_GROVE_LEADS_TABLE).length})
+          </button>
+          <button
             onClick={() => setFilter('new')}
             className={`px-4 py-2 rounded-lg ${filter === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
           >
@@ -1000,7 +1018,8 @@ export default function LandingPagesLeads() {
                 {(selectedLead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE ||
                   selectedLead.table_name === BRONTE_TRAILS_TABLE ||
                   selectedLead.table_name === SPRUCE_TRAILS_TABLE ||
-                  selectedLead.table_name === OG_URBAN_TOWNS_LEADS_TABLE) && (
+                  selectedLead.table_name === OG_URBAN_TOWNS_LEADS_TABLE ||
+                  selectedLead.table_name === ROSEMONT_GROVE_LEADS_TABLE) && (
                   <div className="flex flex-col gap-1 text-gray-700">
                     {selectedLead.is_broker !== undefined &&
                       selectedLead.is_broker !== null &&
@@ -1013,16 +1032,25 @@ export default function LandingPagesLeads() {
                     {selectedLead.table_name === OG_URBAN_TOWNS_LEADS_TABLE && selectedLead.timeline && (
                       <p><span className="font-medium">Timeline:</span> {selectedLead.timeline}</p>
                     )}
-                    {selectedLead.table_name !== OG_URBAN_TOWNS_LEADS_TABLE && selectedLead.interest && (
+                    {selectedLead.table_name === ROSEMONT_GROVE_LEADS_TABLE && selectedLead.lot_width && (
+                      <p><span className="font-medium">Lot Width:</span> {selectedLead.lot_width}</p>
+                    )}
+                    {selectedLead.table_name === ROSEMONT_GROVE_LEADS_TABLE && selectedLead.budget_range && (
+                      <p><span className="font-medium">Budget:</span> {selectedLead.budget_range}</p>
+                    )}
+                    {selectedLead.table_name === ROSEMONT_GROVE_LEADS_TABLE && selectedLead.timeline && (
+                      <p><span className="font-medium">Timeline:</span> {selectedLead.timeline}</p>
+                    )}
+                    {selectedLead.table_name !== OG_URBAN_TOWNS_LEADS_TABLE && selectedLead.table_name !== ROSEMONT_GROVE_LEADS_TABLE && selectedLead.interest && (
                       <p><span className="font-medium">Interest:</span> {selectedLead.interest}</p>
                     )}
-                    {selectedLead.table_name !== OG_URBAN_TOWNS_LEADS_TABLE && selectedLead.project_tag && (
+                    {selectedLead.table_name !== OG_URBAN_TOWNS_LEADS_TABLE && selectedLead.table_name !== ROSEMONT_GROVE_LEADS_TABLE && selectedLead.project_tag && (
                       <p><span className="font-medium">Project:</span> {selectedLead.project_tag}</p>
                     )}
-                    {selectedLead.table_name !== OG_URBAN_TOWNS_LEADS_TABLE && selectedLead.form_type && (
+                    {selectedLead.table_name !== OG_URBAN_TOWNS_LEADS_TABLE && selectedLead.table_name !== ROSEMONT_GROVE_LEADS_TABLE && selectedLead.form_type && (
                       <p><span className="font-medium">Form:</span> {selectedLead.form_type}</p>
                     )}
-                    {selectedLead.table_name !== OG_URBAN_TOWNS_LEADS_TABLE && selectedLead.page_path && (
+                    {selectedLead.table_name !== OG_URBAN_TOWNS_LEADS_TABLE && selectedLead.table_name !== ROSEMONT_GROVE_LEADS_TABLE && selectedLead.page_path && (
                       <p><span className="font-medium">Page:</span> {selectedLead.page_path}</p>
                     )}
                     {selectedLead.page_source && (

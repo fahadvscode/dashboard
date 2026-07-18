@@ -8,6 +8,7 @@ export const THE_LEGACY_TABLE = 'the_legacy' as const
 export const IVY_ROUGE_LANDING_LEADS_TABLE = 'ivy_rouge_landing_leads' as const
 export const ABACOT_HILL_LEADS_TABLE = 'abacot_hill_leads' as const
 export const OG_URBAN_TOWNS_LEADS_TABLE = 'og_urban_towns_leads' as const
+export const ROSEMONT_GROVE_LEADS_TABLE = 'rosemont_grove_leads' as const
 
 export const LANDING_PAGE_BRAND_LABELS: Record<string, string> = {
   cornerstone_leads: 'Cornerstone',
@@ -23,6 +24,7 @@ export const LANDING_PAGE_BRAND_LABELS: Record<string, string> = {
   [IVY_ROUGE_LANDING_LEADS_TABLE]: 'Ivy Rouge',
   [ABACOT_HILL_LEADS_TABLE]: 'Abacot Hill',
   [OG_URBAN_TOWNS_LEADS_TABLE]: 'OG Urban Towns',
+  [ROSEMONT_GROVE_LEADS_TABLE]: 'Rosemont Grove',
 }
 
 const TABLES_WITHOUT_CRM = new Set<string>([
@@ -35,6 +37,7 @@ const TABLES_WITHOUT_CRM = new Set<string>([
   IVY_ROUGE_LANDING_LEADS_TABLE,
   ABACOT_HILL_LEADS_TABLE,
   OG_URBAN_TOWNS_LEADS_TABLE,
+  ROSEMONT_GROVE_LEADS_TABLE,
 ])
 
 export const WEBSITE_FORM_TABLES = new Set<string>([
@@ -47,6 +50,7 @@ export const WEBSITE_FORM_TABLES = new Set<string>([
   IVY_ROUGE_LANDING_LEADS_TABLE,
   ABACOT_HILL_LEADS_TABLE,
   OG_URBAN_TOWNS_LEADS_TABLE,
+  ROSEMONT_GROVE_LEADS_TABLE,
 ])
 
 export function getLandingPageBrandLabel(tableName: string): string {
@@ -72,4 +76,5 @@ export const LANDING_PAGE_LEAD_TABLES = [
   IVY_ROUGE_LANDING_LEADS_TABLE,
   ABACOT_HILL_LEADS_TABLE,
   OG_URBAN_TOWNS_LEADS_TABLE,
+  ROSEMONT_GROVE_LEADS_TABLE,
 ] as const
