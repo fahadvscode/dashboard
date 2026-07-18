@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     const duplicateHistory: any[] = []
-    const tablesToCheck = ['fj_leads', 'precon_factory_leads', 'precon_factory_website_leads', 'gta_lowrise_leads', 'rental_leads', 'cornerstone_leads', 'novella_leads', 'lakeview_village_leads', 'rollingwood_leads', 'enclave', 'hawthorne_east_village', 'bronte_trails', 'spruce_trails', 'meadowvale_brooks', 'the_legacy', 'ivy_rouge_landing_leads', 'abacot_hill_leads']
+    const tablesToCheck = ['fj_leads', 'precon_factory_leads', 'precon_factory_website_leads', 'gta_lowrise_leads', 'rental_leads', 'cornerstone_leads', 'novella_leads', 'lakeview_village_leads', 'rollingwood_leads', 'enclave', 'hawthorne_east_village', 'bronte_trails', 'spruce_trails', 'meadowvale_brooks', 'the_legacy', 'ivy_rouge_landing_leads', 'abacot_hill_leads', 'og_urban_towns_leads']
 
     // Check both tables
     for (const tableName of tablesToCheck) {
@@ -197,6 +197,7 @@ export async function POST(request: NextRequest) {
             tableName === 'the_legacy' ? 'The Legacy' :
             tableName === 'ivy_rouge_landing_leads' ? 'Ivy Rouge' :
             tableName === 'abacot_hill_leads' ? 'Abacot Hill' :
+            tableName === 'og_urban_towns_leads' ? 'OG Urban Towns' :
             tableName
           
           duplicateHistory.push({

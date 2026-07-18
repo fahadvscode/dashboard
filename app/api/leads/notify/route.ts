@@ -94,10 +94,16 @@ const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: s
     pageName: 'Abacot Hill',
     siteUrl: 'https://abacothill.com',
   },
+  og_urban_towns_leads: {
+    websiteName: 'OG Urban Towns',
+    pageName: 'OG Urban Towns',
+    siteUrl: 'https://brightstone.ca/communities/og-urban-towns',
+  },
 }
 
 const LEAD_TABLE_ALIASES: Record<string, keyof typeof LANDING_PAGE_SHEET_META> = {
   abacot_hill: 'abacot_hill_leads',
+  og_urban_towns: 'og_urban_towns_leads',
 }
 
 function normalizeLeadTableName(tableName: unknown): string | undefined {
@@ -118,6 +124,9 @@ function resolveLeadTableName(lead: Record<string, unknown>): string | undefined
     .map((value) => (typeof value === 'string' ? value.toLowerCase() : ''))
     .join(' ')
   if (hint.includes('abacot')) return 'abacot_hill_leads'
+  if (hint.includes('og urban') || hint.includes('og-urban') || hint.includes('og_urban')) {
+    return 'og_urban_towns_leads'
+  }
 
   return undefined
 }
@@ -203,7 +212,8 @@ function getBrokerFieldForLead(lead: Record<string, unknown>): unknown {
   if (
     table === 'hawthorne_east_village' ||
     table === 'bronte_trails' ||
-    table === 'spruce_trails'
+    table === 'spruce_trails' ||
+    table === 'og_urban_towns_leads'
   ) {
     return lead.is_broker
   }
@@ -276,6 +286,11 @@ function resolveInterestedSheetValue(lead: Record<string, unknown>): string {
     }
     case 'abacot_hill_leads': {
       const parts = [lead.buyer_type, lead.timeline, lead.interest, lead.home_interest, lead.project]
+        .filter(Boolean) as string[]
+      return parts.length ? parts.join(' · ') : 'N/A'
+    }
+    case 'og_urban_towns_leads': {
+      const parts = [lead.buyer_type, lead.timeline]
         .filter(Boolean) as string[]
       return parts.length ? parts.join(' · ') : 'N/A'
     }
@@ -354,7 +369,8 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       } else if (
         lead.table_name === 'hawthorne_east_village' ||
         lead.table_name === 'bronte_trails' ||
-        lead.table_name === 'spruce_trails'
+        lead.table_name === 'spruce_trails' ||
+        lead.table_name === 'og_urban_towns_leads'
       ) {
         const formLabel = (lead.form_type as string) || ''
         const projectTag = (lead.project_tag as string) || ''
@@ -576,7 +592,8 @@ export async function POST(request: NextRequest) {
       if (
         lead.table_name === 'hawthorne_east_village' ||
         lead.table_name === 'bronte_trails' ||
-        lead.table_name === 'spruce_trails'
+        lead.table_name === 'spruce_trails' ||
+        lead.table_name === 'og_urban_towns_leads'
       ) {
         if (lead.is_broker !== undefined && lead.is_broker !== null && String(lead.is_broker).trim() !== '') {
           message += `\n🏢 Broker: ${lead.is_broker}`
@@ -587,6 +604,10 @@ export async function POST(request: NextRequest) {
         if (lead.page_path) message += `\n🌐 Page: ${lead.page_path}`
         if (lead.source) message += `\n📌 Source: ${lead.source}`
         if (lead.utm_source) message += `\n🔗 UTM: ${lead.utm_source}${lead.utm_campaign ? ` / ${lead.utm_campaign}` : ''}`
+        if (lead.table_name === 'og_urban_towns_leads') {
+          if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
+          if (lead.timeline) message += `\n📅 Timeline: ${lead.timeline}`
+        }
       }
     } else {
       // Regular lead format

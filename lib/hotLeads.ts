@@ -98,6 +98,11 @@ export const CONTACT_SOURCE_TABLES = {
     route: '/landing-pages-leads',
     kind: 'lead' as const,
   },
+  og_urban_towns_leads: {
+    label: 'OG Urban Towns Leads',
+    route: '/landing-pages-leads',
+    kind: 'lead' as const,
+  },
   fj_bookings: { label: 'FJ Booking', route: '/fj-bookings', kind: 'booking' as const },
   precon_factory_bookings: {
     label: 'Precon Factory Booking',
@@ -137,6 +142,7 @@ export const SEARCHABLE_LEAD_TABLES: ContactSourceTable[] = [
   'the_legacy',
   'ivy_rouge_landing_leads',
   'abacot_hill_leads',
+  'og_urban_towns_leads',
 ]
 
 export const SEARCHABLE_BOOKING_TABLES: ContactSourceTable[] = [
