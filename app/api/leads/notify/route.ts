@@ -1,26 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import twilio from 'twilio'
 import nodemailer from 'nodemailer'
 import { resolveCustomerNotes } from '@/lib/customerNotes'
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID
-const authToken = process.env.TWILIO_AUTH_TOKEN
-const twilioPhone = process.env.TWILIO_PHONE_NUMBER
-const notificationPhones = ['6478981739', '4168296121', '4163994289'] // SMS recipients for all leads
-const rentalOnlyPhones = ['4168395020'] // SMS recipients for rental leads only
 const notificationEmails = ['fahad@fahadsold.com', 'info@preconfactory.com'] // Email recipients for all leads
 const rentalOnlyEmails = ['harjit@hminhas.ca'] // Email recipients for rental leads only
-
-/** Twilio expects E.164 (e.g. +16478981739). */
-function toE164NorthAmerica(phone: string): string {
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length === 10) return `+1${digits}`
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
-  return phone.startsWith('+') ? phone : `+${digits}`
-}
-
-const client = twilio(accountSid, authToken)
-
 // Gmail SMTP configuration for info@qikfill.com
 const emailTransporter = nodemailer.createTransport({
   service: 'gmail',
@@ -659,16 +642,12 @@ export async function POST(request: NextRequest) {
 
 👉 View in Dashboard: ${dashboardUrl}`
 
-    // Determine which phones/emails to notify based on lead type
-    const phonesToNotify = isRentalLead 
-      ? [...notificationPhones, ...rentalOnlyPhones]
-      : notificationPhones
-
+    // Determine which emails to notify based on lead type
     const emailsToNotify = isRentalLead
       ? [...notificationEmails, ...rentalOnlyEmails]
       : notificationEmails
 
-    // Send email notifications FIRST — Twilio failures must not block email
+    // Send email notifications
     const emailResponses: { email: string; messageId?: string; error?: string }[] = []
     try {
       // Build email data rows based on lead type
@@ -895,52 +874,6 @@ export async function POST(request: NextRequest) {
       console.error('Error sending email notifications:', emailError)
     }
 
-    // Admin SMS — isolated so Twilio issues don't block emails
-    const twilioResponses: { phone: string; sid?: string; error?: string }[] = []
-    try {
-      if (!accountSid || !authToken || !twilioPhone) {
-        console.error(
-          'Admin SMS skipped: missing Twilio env (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)'
-        )
-        for (const phone of phonesToNotify) {
-          twilioResponses.push({ phone, error: 'Twilio not configured' })
-        }
-      } else {
-        const results = await Promise.allSettled(
-          phonesToNotify.map(async rawPhone => {
-            const to = toE164NorthAmerica(rawPhone)
-            const msg = await client.messages.create({
-              body: message,
-              from: twilioPhone,
-              to
-            })
-            return { rawPhone, sid: msg.sid }
-          })
-        )
-        for (let i = 0; i < results.length; i++) {
-          const phone = phonesToNotify[i]
-          const r = results[i]
-          if (r.status === 'fulfilled') {
-            twilioResponses.push({ phone, sid: r.value.sid })
-          } else {
-            const err = r.reason instanceof Error ? r.reason.message : String(r.reason)
-            console.error('Twilio SMS failed for admin', phone, r.reason)
-            twilioResponses.push({ phone, error: err })
-          }
-        }
-      }
-    } catch (smsError) {
-      console.error('Error sending admin SMS batch:', smsError)
-      for (const phone of phonesToNotify) {
-        if (!twilioResponses.some(t => t.phone === phone)) {
-          twilioResponses.push({
-            phone,
-            error: smsError instanceof Error ? smsError.message : String(smsError)
-          })
-        }
-      }
-    }
-
     // Append lead to Google Sheet (non-blocking, won't break existing flow)
     try {
       await appendLeadToGoogleSheet(lead)
@@ -948,23 +881,17 @@ export async function POST(request: NextRequest) {
       console.error('Google Sheets error (non-critical):', sheetError)
     }
 
-    const smsErrors = twilioResponses.filter(t => t.error)
-    if (smsErrors.length > 0) {
-      console.warn('Some admin lead SMS failed:', smsErrors)
-    }
-
     console.log('Lead notifications sent:', {
       leadId: lead.id,
       source: source,
-      adminSms: twilioResponses,
+      adminSms: 'disabled',
       adminEmails: emailResponses,
     })
 
     return NextResponse.json({
       success: true,
-      adminSms: twilioResponses,
-      messageSids: twilioResponses.map(r => r.sid).filter(Boolean),
-      smsRecipients: phonesToNotify,
+      adminSms: [],
+      adminSmsDisabled: true,
       adminEmails: emailResponses,
       emailRecipients: emailsToNotify,
       emailsSent: emailResponses.filter(e => e.messageId).length,
