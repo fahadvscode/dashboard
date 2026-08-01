@@ -87,12 +87,18 @@ const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: s
     pageName: 'Rosemont Grove',
     siteUrl: 'https://rosemontgrove.ca',
   },
+  yt_on_fourth_leads: {
+    websiteName: 'YT on Fourth',
+    pageName: 'YT on Fourth',
+    siteUrl: 'https://ytonfourth.ca',
+  },
 }
 
 const LEAD_TABLE_ALIASES: Record<string, keyof typeof LANDING_PAGE_SHEET_META> = {
   abacot_hill: 'abacot_hill_leads',
   og_urban_towns: 'og_urban_towns_leads',
   rosemont_grove: 'rosemont_grove_leads',
+  yt_on_fourth: 'yt_on_fourth_leads',
 }
 
 function normalizeLeadTableName(tableName: unknown): string | undefined {
@@ -117,6 +123,9 @@ function resolveLeadTableName(lead: Record<string, unknown>): string | undefined
     return 'og_urban_towns_leads'
   }
   if (hint.includes('rosemont')) return 'rosemont_grove_leads'
+  if (hint.includes('yt-on-fourth') || hint.includes('yt_on_fourth') || hint.includes('yt on fourth')) {
+    return 'yt_on_fourth_leads'
+  }
 
   return undefined
 }
@@ -213,6 +222,7 @@ function getBrokerFieldForLead(lead: Record<string, unknown>): unknown {
     return lead.is_realtor
   }
   if (table === 'rollingwood_leads') return lead.is_realtor
+  if (table === 'yt_on_fourth_leads') return lead.is_realtor
   if (table === 'meadowvale_brooks' || table === 'the_legacy') return lead.realtor
   if (table === 'ivy_rouge_landing_leads') {
     if (lead.realtor !== undefined && lead.realtor !== null) return lead.realtor
@@ -290,6 +300,11 @@ function resolveInterestedSheetValue(lead: Record<string, unknown>): string {
         .filter(Boolean) as string[]
       return parts.length ? parts.join(' · ') : 'N/A'
     }
+    case 'yt_on_fourth_leads': {
+      const parts = [lead.interest, lead.project_name, lead.preferred_contact]
+        .filter(Boolean) as string[]
+      return parts.length ? parts.join(' · ') : 'N/A'
+    }
     case 'rollingwood_leads':
       return (lead.purchase_timeframe as string) || (lead.lead_type as string) || 'N/A'
     case 'hawthorne_east_village':
@@ -357,6 +372,8 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
         projectName = collection ? `${meta.websiteName} — ${collection}` : meta.websiteName
       } else if (lead.table_name === 'lakeview_village_leads' && lead.project) {
         projectName = `${meta.websiteName} — ${lead.project}`
+      } else if (lead.table_name === 'yt_on_fourth_leads' && lead.project_name) {
+        projectName = `${meta.websiteName} — ${lead.project_name}`
       } else if (
         (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy' || lead.table_name === 'ivy_rouge_landing_leads' || lead.table_name === 'abacot_hill_leads') &&
         lead.project
@@ -388,7 +405,9 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
 
     const sheetMessage = isEmailLeadTable(lead.table_name)
       ? resolveCustomerNotes(lead)
-      : ''
+      : lead.table_name === 'yt_on_fourth_leads'
+        ? resolveCustomerNotes(lead)
+        : ''
 
     const row = [
       firstName,
@@ -611,6 +630,16 @@ export async function POST(request: NextRequest) {
           if (lead.budget_range) message += `\n💰 Budget: ${lead.budget_range}`
           if (lead.timeline) message += `\n📅 Timeline: ${lead.timeline}`
         }
+      }
+
+      if (lead.table_name === 'yt_on_fourth_leads') {
+        const broker = formatBrokerSheetValue(lead)
+        if (broker !== 'N/A') message += `\n🏢 Realtor: ${broker}`
+        if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
+        if (lead.project_name) message += `\n🏢 Project: ${lead.project_name}`
+        if (lead.preferred_contact) message += `\n📞 Preferred contact: ${lead.preferred_contact}`
+        if (lead.notes) message += `\n📝 Notes: ${lead.notes}`
+        if (lead.page_source || lead.source) message += `\n📌 Source: ${lead.page_source || lead.source}`
       }
     } else {
       // Regular lead format

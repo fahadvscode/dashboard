@@ -21,6 +21,7 @@ import {
   ABACOT_HILL_LEADS_TABLE,
   OG_URBAN_TOWNS_LEADS_TABLE,
   ROSEMONT_GROVE_LEADS_TABLE,
+  YT_ON_FOURTH_LEADS_TABLE,
   WEBSITE_FORM_TABLES,
   getLandingPageBrandLabel,
   hasLandingPageCrmColumns
@@ -67,6 +68,8 @@ interface LandingPageLead {
   utm_campaign?: string
   budget_range?: string
   lot_width?: string
+  notes?: string
+  preferred_contact?: string
 }
 
 const CALL_OUTCOMES = [
@@ -121,7 +124,7 @@ function normalizeLead(raw: Record<string, unknown>, tableName: string): Landing
     home_interest: raw.home_interest as string | undefined,
     is_realtor: raw.is_realtor as boolean | undefined,
     interest: raw.interest as string | undefined,
-    project: raw.project as string | undefined,
+    project: (raw.project ?? raw.project_name) as string | undefined,
     page_source: WEBSITE_FORM_TABLES.has(tableName)
       ? ((raw.source_page ?? raw.source) as string | undefined)
       : undefined,
@@ -138,7 +141,9 @@ function normalizeLead(raw: Record<string, unknown>, tableName: string): Landing
     utm_source: raw.utm_source as string | undefined,
     utm_campaign: raw.utm_campaign as string | undefined,
     budget_range: raw.budget_range as string | undefined,
-    lot_width: raw.lot_width as string | undefined
+    lot_width: raw.lot_width as string | undefined,
+    notes: raw.notes as string | undefined,
+    preferred_contact: raw.preferred_contact as string | undefined
   }
 }
 
@@ -157,6 +162,17 @@ function leadDetailLabel(lead: LandingPageLead): string {
         ? [lead.project, lead.buyer_type, lead.timeline, lead.interest, lead.home_interest, broker]
         : [lead.project, broker]
     return details.filter(Boolean).join(' · ') || '—'
+  }
+  if (lead.table_name === YT_ON_FOURTH_LEADS_TABLE) {
+    const broker =
+      lead.is_realtor !== undefined
+        ? lead.is_realtor
+          ? 'Broker: Yes'
+          : 'Broker: No'
+        : ''
+    return [lead.interest, lead.project, lead.preferred_contact, broker, lead.notes]
+      .filter(Boolean)
+      .join(' · ') || '—'
   }
   if (lead.table_name === 'cornerstone_leads') {
     const broker =
@@ -223,7 +239,7 @@ export default function LandingPagesLeads() {
 
   async function fetchLeads() {
     try {
-      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes, spruceRes, meadowvaleRes, legacyRes, ivyRougeRes, abacotHillRes, ogUrbanTownsRes, rosemontGroveRes] = await Promise.all([
+      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes, spruceRes, meadowvaleRes, legacyRes, ivyRougeRes, abacotHillRes, ogUrbanTownsRes, rosemontGroveRes, ytOnFourthRes] = await Promise.all([
         supabase.from('cornerstone_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('novella_leads').select('*').order('created_at', { ascending: false }),
         supabase.from('lakeview_village_leads').select('*').order('created_at', { ascending: false }),
@@ -237,7 +253,8 @@ export default function LandingPagesLeads() {
         supabase.from(IVY_ROUGE_LANDING_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
         supabase.from(ABACOT_HILL_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
         supabase.from(OG_URBAN_TOWNS_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(ROSEMONT_GROVE_LEADS_TABLE).select('*').order('created_at', { ascending: false })
+        supabase.from(ROSEMONT_GROVE_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
+        supabase.from(YT_ON_FOURTH_LEADS_TABLE).select('*').order('created_at', { ascending: false })
       ])
 
       const cornerstone = (cornerstoneRes.data || []).map(r => normalizeLead(r, 'cornerstone_leads'))
@@ -254,7 +271,8 @@ export default function LandingPagesLeads() {
       const abacotHill = (abacotHillRes.data || []).map(r => normalizeLead(r, ABACOT_HILL_LEADS_TABLE))
       const ogUrbanTowns = (ogUrbanTownsRes.data || []).map(r => normalizeLead(r, OG_URBAN_TOWNS_LEADS_TABLE))
       const rosemontGrove = (rosemontGroveRes.data || []).map(r => normalizeLead(r, ROSEMONT_GROVE_LEADS_TABLE))
-      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte, ...spruce, ...meadowvale, ...legacy, ...ivyRouge, ...abacotHill, ...ogUrbanTowns, ...rosemontGrove].sort(
+      const ytOnFourth = (ytOnFourthRes.data || []).map(r => normalizeLead(r, YT_ON_FOURTH_LEADS_TABLE))
+      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte, ...spruce, ...meadowvale, ...legacy, ...ivyRouge, ...abacotHill, ...ogUrbanTowns, ...rosemontGrove, ...ytOnFourth].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
 
@@ -272,6 +290,7 @@ export default function LandingPagesLeads() {
       if (abacotHillRes.error) console.error('abacot_hill_leads fetch:', abacotHillRes.error)
       if (ogUrbanTownsRes.error) console.error('og_urban_towns_leads fetch:', ogUrbanTownsRes.error)
       if (rosemontGroveRes.error) console.error('rosemont_grove_leads fetch:', rosemontGroveRes.error)
+      if (ytOnFourthRes.error) console.error('yt_on_fourth_leads fetch:', ytOnFourthRes.error)
 
       setLeads(combined)
       setInitialLoadDone(true)
@@ -322,6 +341,7 @@ export default function LandingPagesLeads() {
       if (filter === 'abacothill') return lead.table_name === ABACOT_HILL_LEADS_TABLE
       if (filter === 'ogurbantowns') return lead.table_name === OG_URBAN_TOWNS_LEADS_TABLE
       if (filter === 'rosemontgrove') return lead.table_name === ROSEMONT_GROVE_LEADS_TABLE
+      if (filter === 'ytonfourth') return lead.table_name === YT_ON_FOURTH_LEADS_TABLE
       if (filter === 'new') return lead.status === 'new'
       if (filter === 'hot') return lead.lead_temperature === 'hot'
       if (filter === 'warm') return lead.lead_temperature === 'warm'
@@ -747,6 +767,12 @@ export default function LandingPagesLeads() {
             Rosemont Grove ({leads.filter(l => l.table_name === ROSEMONT_GROVE_LEADS_TABLE).length})
           </button>
           <button
+            onClick={() => setFilter('ytonfourth')}
+            className={`px-4 py-2 rounded-lg ${filter === 'ytonfourth' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+          >
+            YT on Fourth ({leads.filter(l => l.table_name === YT_ON_FOURTH_LEADS_TABLE).length})
+          </button>
+          <button
             onClick={() => setFilter('new')}
             className={`px-4 py-2 rounded-lg ${filter === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
           >
@@ -936,6 +962,28 @@ export default function LandingPagesLeads() {
                     {getLandingPageBrandLabel(selectedLead.table_name)}
                   </span>
                 </div>
+                {selectedLead.table_name === YT_ON_FOURTH_LEADS_TABLE && (
+                  <div className="flex flex-col gap-1 text-gray-700">
+                    {selectedLead.is_realtor !== undefined && (
+                      <p><span className="font-medium">Realtor:</span> {selectedLead.is_realtor ? 'Yes' : 'No'}</p>
+                    )}
+                    {selectedLead.interest && (
+                      <p><span className="font-medium">Interest:</span> {selectedLead.interest}</p>
+                    )}
+                    {selectedLead.project && (
+                      <p><span className="font-medium">Project:</span> {selectedLead.project}</p>
+                    )}
+                    {selectedLead.preferred_contact && (
+                      <p><span className="font-medium">Preferred contact:</span> {selectedLead.preferred_contact}</p>
+                    )}
+                    {selectedLead.notes && (
+                      <p><span className="font-medium">Notes:</span> {selectedLead.notes}</p>
+                    )}
+                    {selectedLead.page_source && (
+                      <p><span className="font-medium">Source:</span> {selectedLead.page_source}</p>
+                    )}
+                  </div>
+                )}
                 {selectedLead.table_name === 'cornerstone_leads' && (
                   <div className="flex flex-col gap-1 text-gray-700">
                     {(selectedLead.is_broker !== undefined && selectedLead.is_broker !== null) ||

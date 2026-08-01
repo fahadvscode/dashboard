@@ -108,6 +108,11 @@ export const CONTACT_SOURCE_TABLES = {
     route: '/landing-pages-leads',
     kind: 'lead' as const,
   },
+  yt_on_fourth_leads: {
+    label: 'YT on Fourth Leads',
+    route: '/landing-pages-leads',
+    kind: 'lead' as const,
+  },
   fj_bookings: { label: 'FJ Booking', route: '/fj-bookings', kind: 'booking' as const },
   precon_factory_bookings: {
     label: 'Precon Factory Booking',
@@ -149,6 +154,7 @@ export const SEARCHABLE_LEAD_TABLES: ContactSourceTable[] = [
   'abacot_hill_leads',
   'og_urban_towns_leads',
   'rosemont_grove_leads',
+  'yt_on_fourth_leads',
 ]
 
 export const SEARCHABLE_BOOKING_TABLES: ContactSourceTable[] = [

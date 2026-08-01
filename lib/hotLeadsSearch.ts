@@ -27,6 +27,7 @@ const LANDING_PAGE_TABLES = new Set<ContactSourceTable>([
   'abacot_hill_leads',
   'og_urban_towns_leads',
   'rosemont_grove_leads',
+  'yt_on_fourth_leads',
 ])
 
 const TABLES_WITH_FULL_NAME = new Set<ContactSourceTable>(['rental_leads'])
@@ -302,6 +303,15 @@ function buildOrFilter(table: ContactSourceTable, query: string): string {
     if (table === 'spruce_trails') {
       parts.push(`interest.ilike.${fullPattern}`)
     }
+  } else if (table === 'yt_on_fourth_leads') {
+    parts.push(
+      `interest.ilike.${fullPattern}`,
+      `project_name.ilike.${fullPattern}`,
+      `preferred_contact.ilike.${fullPattern}`,
+      `notes.ilike.${fullPattern}`,
+      `is_realtor.ilike.${fullPattern}`,
+      `source.ilike.${fullPattern}`
+    )
   } else if (table === 'meadowvale_brooks' || table === 'the_legacy' || table === 'ivy_rouge_landing_leads' || table === 'abacot_hill_leads') {
     parts.push(
       `realtor.ilike.${fullPattern}`,

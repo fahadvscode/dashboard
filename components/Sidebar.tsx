@@ -205,7 +205,7 @@ export default function Sidebar() {
 
             {/* Mass SMS Button */}
             <a
-              href="https://sms-campaign-platform-2sgit53bx-fahadjaveds-projects.vercel.app/"
+              href="https://sms-campaign-platform.vercel.app/"
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setIsOpen(false)}
