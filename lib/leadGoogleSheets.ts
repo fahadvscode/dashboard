@@ -1,4 +1,6 @@
-const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID
+function getSpreadsheetId(): string | undefined {
+  return process.env.GOOGLE_SHEETS_SPREADSHEET_ID
+}
 
 export function formatLeadSheetTimestamp(createdAt: unknown): string {
   const hasValue =
@@ -38,13 +40,14 @@ async function getGoogleSheetsClient() {
 }
 
 export async function readLeadGoogleSheetValues(range = 'Sheet1!A:M'): Promise<string[][]> {
-  if (!SPREADSHEET_ID) {
+  const spreadsheetId = getSpreadsheetId()
+  if (!spreadsheetId) {
     throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID is not set')
   }
 
   const sheets = await getGoogleSheetsClient()
   const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId,
     range,
   })
   return (res.data.values as string[][]) ?? []
@@ -52,7 +55,8 @@ export async function readLeadGoogleSheetValues(range = 'Sheet1!A:M'): Promise<s
 
 export async function appendRowsToLeadGoogleSheet(rows: string[][]): Promise<number> {
   if (!rows.length) return 0
-  if (!SPREADSHEET_ID) {
+  const spreadsheetId = getSpreadsheetId()
+  if (!spreadsheetId) {
     throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID is not set')
   }
 
@@ -63,7 +67,7 @@ export async function appendRowsToLeadGoogleSheet(rows: string[][]): Promise<num
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize)
     await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId,
       range: 'Sheet1!A:M',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: chunk },

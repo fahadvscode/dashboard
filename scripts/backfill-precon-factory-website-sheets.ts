@@ -12,15 +12,6 @@
 
 import { resolve } from 'path'
 import { config } from 'dotenv'
-import { createClient } from '@supabase/supabase-js'
-import {
-  appendRowsToLeadGoogleSheet,
-  readLeadGoogleSheetValues,
-} from '../lib/leadGoogleSheets'
-import {
-  buildPreconFactoryWebsiteLeadSheetRow,
-  preconFactoryWebsiteSheetDedupeKey,
-} from '../lib/preconFactoryWebsiteSheet'
 
 config({ path: resolve(process.cwd(), '.env.local') })
 config({ path: resolve(process.cwd(), '.env') })
@@ -28,6 +19,15 @@ config({ path: resolve(process.cwd(), '.env') })
 const DRY_RUN = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true'
 
 async function main() {
+  const { createClient } = await import('@supabase/supabase-js')
+  const {
+    appendRowsToLeadGoogleSheet,
+    readLeadGoogleSheetValues,
+  } = await import('../lib/leadGoogleSheets')
+  const {
+    buildPreconFactoryWebsiteLeadSheetRow,
+    preconFactoryWebsiteSheetDedupeKey,
+  } = await import('../lib/preconFactoryWebsiteSheet')
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_KEY
   if (!supabaseUrl || !serviceKey) {
