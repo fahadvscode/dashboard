@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "calendar:backfill-fahad": "tsx scripts/add-fahad-to-past-calendar-events.ts"
+    "calendar:backfill-fahad": "tsx scripts/add-fahad-to-past-calendar-events.ts",
+    "sheets:backfill-precon-website": "tsx scripts/backfill-precon-factory-website-sheets.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.78.0",

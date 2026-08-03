@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { resolveCustomerNotes } from '@/lib/customerNotes'
+import { formatLeadSheetTimestamp } from '@/lib/leadGoogleSheets'
+import {
+  resolvePreconFactoryWebsiteInterested,
+  resolvePreconFactoryWebsiteLandingPage,
+  resolvePreconFactoryWebsiteSheetTag,
+} from '@/lib/preconFactoryWebsiteSheet'
 
 const notificationEmails = ['fahad@fahadsold.com', 'info@preconfactory.com'] // Email recipients for all leads
 const rentalOnlyEmails = ['harjit@hminhas.ca'] // Email recipients for rental leads only
@@ -213,31 +219,6 @@ function resolveEmailLeadSheetTag(lead: Record<string, unknown>): string {
   return lead.isagent ? 'realtor' : ''
 }
 
-const PRECON_FACTORY_WEBSITE_BASE_URL = 'https://www.preconfactory.com'
-
-function resolvePreconFactoryWebsiteInterested(lead: Record<string, unknown>): string {
-  const parts = [lead.interested_in, lead.budget, lead.timeline]
-    .map((value) => (typeof value === 'string' ? value.trim() : value))
-    .filter((value) => value !== undefined && value !== null && String(value).trim() !== '')
-  return parts.length ? parts.map(String).join(' · ') : 'N/A'
-}
-
-function resolvePreconFactoryWebsiteLandingPage(lead: Record<string, unknown>): string {
-  const redirect = typeof lead.redirect_link === 'string' ? lead.redirect_link.trim() : ''
-  if (redirect) return redirect
-  const projectId = typeof lead.project_id === 'string' ? lead.project_id.trim() : ''
-  if (projectId) return `${PRECON_FACTORY_WEBSITE_BASE_URL}/projects/${projectId}`
-  return PRECON_FACTORY_WEBSITE_BASE_URL
-}
-
-function resolvePreconFactoryWebsiteSheetTag(lead: Record<string, unknown>): string {
-  const parts = ['Precon Factory Website']
-  const source = typeof lead.source === 'string' ? lead.source.trim() : ''
-  if (source) parts.push(source)
-  if (lead.isagent) parts.push('realtor')
-  return parts.join(', ')
-}
-
 function getBrokerFieldForLead(lead: Record<string, unknown>): unknown {
   const table = lead.table_name
   if (
@@ -371,11 +352,7 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
     const lastName = (lead.lastname as string) || (lead.last_name as string) ||
       ((lead.full_name as string) || '').split(' ').slice(1).join(' ') || 'N/A'
 
-    const timestamp = new Date().toLocaleString('en-US', { 
-      timeZone: 'America/Toronto', 
-      dateStyle: 'medium', 
-      timeStyle: 'short' 
-    })
+    const timestamp = formatLeadSheetTimestamp(lead.created_at)
 
     let projectName = (lead.project_name as string) || (lead.source as string) || 'N/A'
     let projectId = (lead.project_id as string) || 'N/A'
