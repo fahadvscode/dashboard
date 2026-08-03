@@ -126,6 +126,13 @@ function resolveLeadTableName(lead: Record<string, unknown>): string | undefined
   if (hint.includes('yt-on-fourth') || hint.includes('yt_on_fourth') || hint.includes('yt on fourth')) {
     return 'yt_on_fourth_leads'
   }
+  if (
+    hint.includes('precon factory website') ||
+    hint.includes('preconfactory') ||
+    hint.includes('project-unlock')
+  ) {
+    return 'precon_factory_website_leads'
+  }
 
   return undefined
 }
@@ -204,6 +211,31 @@ function formatIsAgentBrokerSheetValue(lead: Record<string, unknown>): 'Yes' | '
 
 function resolveEmailLeadSheetTag(lead: Record<string, unknown>): string {
   return lead.isagent ? 'realtor' : ''
+}
+
+const PRECON_FACTORY_WEBSITE_BASE_URL = 'https://www.preconfactory.com'
+
+function resolvePreconFactoryWebsiteInterested(lead: Record<string, unknown>): string {
+  const parts = [lead.interested_in, lead.budget, lead.timeline]
+    .map((value) => (typeof value === 'string' ? value.trim() : value))
+    .filter((value) => value !== undefined && value !== null && String(value).trim() !== '')
+  return parts.length ? parts.map(String).join(' · ') : 'N/A'
+}
+
+function resolvePreconFactoryWebsiteLandingPage(lead: Record<string, unknown>): string {
+  const redirect = typeof lead.redirect_link === 'string' ? lead.redirect_link.trim() : ''
+  if (redirect) return redirect
+  const projectId = typeof lead.project_id === 'string' ? lead.project_id.trim() : ''
+  if (projectId) return `${PRECON_FACTORY_WEBSITE_BASE_URL}/projects/${projectId}`
+  return PRECON_FACTORY_WEBSITE_BASE_URL
+}
+
+function resolvePreconFactoryWebsiteSheetTag(lead: Record<string, unknown>): string {
+  const parts = ['Precon Factory Website']
+  const source = typeof lead.source === 'string' ? lead.source.trim() : ''
+  if (source) parts.push(source)
+  if (lead.isagent) parts.push('realtor')
+  return parts.join(', ')
 }
 
 function getBrokerFieldForLead(lead: Record<string, unknown>): unknown {
@@ -400,7 +432,13 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       company = `Landing Page - ${meta.pageName}`
     } else if (isEmailLeadTable(lead.table_name)) {
       broker = formatIsAgentBrokerSheetValue(lead)
-      tag = resolveEmailLeadSheetTag(lead)
+      if (lead.table_name === 'precon_factory_website_leads') {
+        tag = resolvePreconFactoryWebsiteSheetTag(lead)
+        interested = resolvePreconFactoryWebsiteInterested(lead)
+        landingPage = resolvePreconFactoryWebsiteLandingPage(lead)
+      } else {
+        tag = resolveEmailLeadSheetTag(lead)
+      }
     }
 
     const sheetMessage = isEmailLeadTable(lead.table_name)
@@ -480,6 +518,7 @@ export async function POST(request: NextRequest) {
     const source = resolveLeadSourceName(lead.table_name)
     
     const isRentalLead = lead.table_name === 'rental_leads'
+    const isPreconFactoryWebsiteLead = lead.table_name === 'precon_factory_website_leads'
     const isLandingPageLead = isLandingPageLeadTable(lead.table_name)
     const landingPageName = isLandingPageLead ? LANDING_PAGE_SHEET_META[lead.table_name].websiteName : ''
     const leadType = isRentalLead ? 'Rental Inquiry' : (lead.isagent ? 'Agent' : 'Buyer')
@@ -658,6 +697,15 @@ export async function POST(request: NextRequest) {
     // Add landing page if available
     if (lead.redirect_link) {
       message += `\n🌐 Landing Page: ${lead.redirect_link}`
+    } else if (isPreconFactoryWebsiteLead) {
+      message += `\n🌐 Website: ${resolvePreconFactoryWebsiteLandingPage(lead)}`
+    }
+
+    if (isPreconFactoryWebsiteLead) {
+      if (lead.interested_in) message += `\n🎯 Interested in: ${lead.interested_in}`
+      if (lead.budget) message += `\n💰 Budget: ${lead.budget}`
+      if (lead.timeline) message += `\n📅 Timeline: ${lead.timeline}`
+      if (lead.source) message += `\n📌 Source: ${lead.source}`
     }
 
     if (customerNotes) {
@@ -775,6 +823,31 @@ export async function POST(request: NextRequest) {
           <div class="data-row">
             <div class="data-label">Source URL</div>
             <div class="data-value"><a href="${lead.redirect_link}" style="color: #2563eb; text-decoration: none; word-break: break-all;">${lead.redirect_link}</a></div>
+          </div>` : ''}
+          ${isPreconFactoryWebsiteLead && !lead.redirect_link ? `
+          <div class="data-row">
+            <div class="data-label">Website</div>
+            <div class="data-value"><a href="${resolvePreconFactoryWebsiteLandingPage(lead)}" style="color: #2563eb; text-decoration: none; word-break: break-all;">${resolvePreconFactoryWebsiteLandingPage(lead)}</a></div>
+          </div>` : ''}
+          ${isPreconFactoryWebsiteLead && lead.interested_in ? `
+          <div class="data-row">
+            <div class="data-label">Interested in</div>
+            <div class="data-value">${lead.interested_in}</div>
+          </div>` : ''}
+          ${isPreconFactoryWebsiteLead && lead.budget ? `
+          <div class="data-row">
+            <div class="data-label">Budget</div>
+            <div class="data-value">${lead.budget}</div>
+          </div>` : ''}
+          ${isPreconFactoryWebsiteLead && lead.timeline ? `
+          <div class="data-row">
+            <div class="data-label">Timeline</div>
+            <div class="data-value">${lead.timeline}</div>
+          </div>` : ''}
+          ${isPreconFactoryWebsiteLead && lead.source ? `
+          <div class="data-row">
+            <div class="data-label">Source</div>
+            <div class="data-value">${lead.source}</div>
           </div>` : ''}
           ${customerNotes ? `
           <div class="data-row">

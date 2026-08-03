@@ -60,7 +60,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS notify_new_fj_lead ON fj_leads;
 DROP TRIGGER IF EXISTS notify_new_precon_lead ON precon_factory_leads;
 DROP TRIGGER IF EXISTS notify_new_gta_lowrise_lead ON gta_lowrise_leads;
-DROP TRIGGER IF EXISTS notify_new_precon_website_lead ON precon_factory_website_leads;
+-- precon_factory_website_leads: use setup_precon_factory_website_lead_notifications.sql (full row JSON)
 
 CREATE TRIGGER notify_new_fj_lead
   AFTER INSERT ON fj_leads
@@ -77,11 +77,6 @@ CREATE TRIGGER notify_new_gta_lowrise_lead
   FOR EACH ROW
   EXECUTE FUNCTION notify_new_lead();
 
-CREATE TRIGGER notify_new_precon_website_lead
-  AFTER INSERT ON precon_factory_website_leads
-  FOR EACH ROW
-  EXECUTE FUNCTION notify_new_lead();
-
 -- Verify
 SELECT
   trigger_name,
@@ -92,13 +87,13 @@ FROM information_schema.triggers
 WHERE trigger_name IN (
   'notify_new_fj_lead',
   'notify_new_precon_lead',
-  'notify_new_gta_lowrise_lead',
-  'notify_new_precon_website_lead'
+  'notify_new_gta_lowrise_lead'
 )
 ORDER BY event_object_table;
 
 DO $$
 BEGIN
-  RAISE NOTICE 'Done. Triggers restored on fj_leads, precon_factory_leads, gta_lowrise_leads, precon_factory_website_leads.';
+  RAISE NOTICE 'Done. Triggers restored on fj_leads, precon_factory_leads, gta_lowrise_leads.';
+  RAISE NOTICE 'For precon_factory_website_leads run setup_precon_factory_website_lead_notifications.sql.';
   RAISE NOTICE 'Customer text is sent as both message and notes in the API payload.';
 END $$;
