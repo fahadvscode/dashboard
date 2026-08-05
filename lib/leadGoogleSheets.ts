@@ -39,6 +39,73 @@ async function getGoogleSheetsClient() {
   return google.sheets({ version: 'v4', auth })
 }
 
+export function quoteSheetTab(tabTitle: string): string {
+  return `'${tabTitle.replace(/'/g, "''")}'`
+}
+
+export async function ensureSpreadsheetTab(tabTitle: string): Promise<void> {
+  const spreadsheetId = getSpreadsheetId()
+  if (!spreadsheetId) {
+    throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID is not set')
+  }
+
+  const sheets = await getGoogleSheetsClient()
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties.title',
+  })
+  const titles =
+    meta.data.sheets?.map((sheet) => sheet.properties?.title).filter(Boolean) ?? []
+  if (titles.includes(tabTitle)) return
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [{ addSheet: { properties: { title: tabTitle } } }],
+    },
+  })
+}
+
+export async function updateSpreadsheetTabHeader(tabTitle: string, headers: string[]): Promise<void> {
+  const spreadsheetId = getSpreadsheetId()
+  if (!spreadsheetId) {
+    throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID is not set')
+  }
+
+  const sheets = await getGoogleSheetsClient()
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${quoteSheetTab(tabTitle)}!A1`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [headers] },
+  })
+}
+
+export async function appendSpreadsheetTabRows(tabTitle: string, rows: string[][]): Promise<number> {
+  if (!rows.length) return 0
+  const spreadsheetId = getSpreadsheetId()
+  if (!spreadsheetId) {
+    throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID is not set')
+  }
+
+  const sheets = await getGoogleSheetsClient()
+  const chunkSize = 200
+  let appended = 0
+
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize)
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${quoteSheetTab(tabTitle)}!A:ZZ`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: chunk },
+    })
+    appended += chunk.length
+  }
+
+  return appended
+}
+
 export async function readLeadGoogleSheetValues(range = 'Sheet1!A:M'): Promise<string[][]> {
   const spreadsheetId = getSpreadsheetId()
   if (!spreadsheetId) {
