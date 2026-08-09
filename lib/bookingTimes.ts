@@ -1,3 +1,5 @@
+import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
+
 export const BOOKING_TIMEZONE = 'America/Toronto'
 export const OFFICE_ADDRESS = '600 Matheson Blvd W, Mississauga, ON L5R 4C1'
 
@@ -5,6 +7,7 @@ export const VALID_BOOKING_TABLES = [
   'fj_bookings',
   'precon_factory_bookings',
   'gta_lowrise_bookings',
+  FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE,
 ] as const
 
 export type BookingTable = (typeof VALID_BOOKING_TABLES)[number]
@@ -14,6 +17,9 @@ export function isValidBookingTable(table: string): table is BookingTable {
 }
 
 export function getBrandFromTable(tableName: string): string {
+  if (tableName === FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE) {
+    return 'Fahad Javed Real Estate'
+  }
   if (tableName.includes('gta_lowrise') || tableName.includes('gtalowrise')) {
     return 'GTA Lowrise'
   }

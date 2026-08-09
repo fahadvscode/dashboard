@@ -163,8 +163,9 @@ export async function POST(request: NextRequest) {
         : booking.table_name === 'precon_factory_bookings'
           ? 'Precon Factory'
           : 'GTA Lowrise'
-    const bookingPath =
-      booking.table_name === 'fj_bookings' ? 'fj-bookings' :
+    const bookingPath = isInterview
+      ? 'interview-bookings'
+      : booking.table_name === 'fj_bookings' ? 'fj-bookings' :
       booking.table_name === 'precon_factory_bookings' ? 'precon-bookings' :
       'gta-lowrise-bookings'
     const dashboardUrl = `https://property-dashboard-three.vercel.app/${bookingPath}`
@@ -192,11 +193,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
     if (customerNotes) message += `\n💬 Message: ${customerNotes}`
     if (booking.project_url) message += `\n🌐 Project URL: ${booking.project_url}`
     if (booking.status) message += `\n📊 Status: ${booking.status}`
-    if (!isInterview) {
-      message += `\n⏰ Just now\n\n👉 View in Dashboard: ${dashboardUrl}`
-    } else {
-      message += `\n⏰ Just now`
-    }
+    message += `\n⏰ Just now\n\n👉 View in Dashboard: ${dashboardUrl}`
 
     const twilioResponses: { phone: string; sid?: string; error?: string }[] = []
     try {

@@ -17,6 +17,7 @@ const navigation = [
   { name: 'Media Upload', href: '/media-upload', icon: Upload },
   { name: 'SMS Conversations', href: '/conversations', icon: MessageSquare },
   { name: 'FJ Bookings', href: '/fj-bookings', icon: Calendar },
+  { name: 'Fahad Sells Interview Bookings', href: '/interview-bookings', icon: Calendar },
   { name: 'FJ Leads', href: '/fj-leads', icon: Mail },
   { name: 'Precon Factory Bookings', href: '/precon-bookings', icon: Calendar },
   { name: 'Precon Factory Leads', href: '/precon-leads', icon: Mail },

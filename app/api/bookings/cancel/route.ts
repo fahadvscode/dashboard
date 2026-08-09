@@ -11,6 +11,12 @@ import {
   getCalendarIdForTable,
   isValidBookingTable,
 } from '@/lib/bookingCalendar'
+import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
+import {
+  normalizeBookingPayload,
+  resolveBookingFirstName,
+  resolveBookingLastName,
+} from '@/lib/normalizeBookingPayload'
 
 function toE164NorthAmerica(phone: string): string {
   const digits = phone.replace(/\D/g, '')
@@ -29,6 +35,16 @@ function buildCancelSms(
 To book a new time, please contact us at ${brandContact.phoneFormatted}.
 
 - ${brandName} Team`
+}
+
+function buildInterviewCancelSms(booking: {
+  firstname: string
+  appointment_date: string
+  appointment_time: string
+}) {
+  return `Hi ${booking.firstname}, your interview on ${booking.appointment_date} at ${booking.appointment_time} has been cancelled.
+
+- Fahad Javed Real Estate`
 }
 
 export async function POST(request: NextRequest) {
@@ -55,6 +71,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Booking not found.' }, { status: 404 })
     }
 
+    const bookingRecord = booking as Record<string, unknown>
+    normalizeBookingPayload(bookingRecord)
+    const firstname = resolveBookingFirstName(bookingRecord)
+    const lastname = resolveBookingLastName(bookingRecord)
+    const appointmentDate = String(bookingRecord.appointment_date || '')
+    const appointmentTime = String(bookingRecord.appointment_time || '')
+
     if (String(booking.status || '').toLowerCase() === 'cancelled') {
       return NextResponse.json({ error: 'This appointment is already cancelled.' }, { status: 400 })
     }
@@ -71,10 +94,10 @@ export async function POST(request: NextRequest) {
       if (!calendarEventId) {
         calendarEventId = await findCalendarEventId(calendar, calendarId, {
           email: booking.email,
-          firstname: booking.firstname,
-          lastname: booking.lastname,
-          appointment_date: booking.appointment_date,
-          appointment_time: booking.appointment_time,
+          firstname,
+          lastname,
+          appointment_date: appointmentDate,
+          appointment_time: appointmentTime,
         })
       }
 
@@ -104,14 +127,21 @@ export async function POST(request: NextRequest) {
       if (accountSid && authToken && twilioPhone) {
         try {
           const client = twilio(accountSid, authToken)
-          const message = buildCancelSms(
-            {
-              firstname: updatedBooking.firstname,
-              appointment_date: booking.appointment_date,
-              appointment_time: booking.appointment_time,
-            },
-            brandName
-          )
+          const message =
+            table === FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
+              ? buildInterviewCancelSms({
+                  firstname,
+                  appointment_date: appointmentDate,
+                  appointment_time: appointmentTime,
+                })
+              : buildCancelSms(
+                  {
+                    firstname,
+                    appointment_date: appointmentDate,
+                    appointment_time: appointmentTime,
+                  },
+                  brandName
+                )
 
           const smsResponse = await client.messages.create({
             body: message,
@@ -129,7 +159,7 @@ export async function POST(request: NextRequest) {
               message_body: message,
               direction: 'outbound',
               status: smsResponse.status,
-              lead_name: `${updatedBooking.firstname} ${updatedBooking.lastname || ''}`.trim(),
+              lead_name: `${firstname} ${lastname}`.trim(),
               lead_id: updatedBooking.id,
               lead_table: table,
             })

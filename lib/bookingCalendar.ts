@@ -31,6 +31,9 @@ export const CALENDAR_IDS = {
 }
 
 export function getCalendarIdForTable(tableName: string): string {
+  if (tableName === 'fahad_sells_interview_bookings') {
+    return CALENDAR_IDS.fj
+  }
   if (tableName.includes('gta_lowrise') || tableName.includes('gtalowrise')) {
     return CALENDAR_IDS.gtalowrise
   }

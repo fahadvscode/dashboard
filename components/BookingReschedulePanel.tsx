@@ -3,8 +3,13 @@
 import { useEffect, useState } from 'react'
 import { CalendarClock, Ban } from 'lucide-react'
 import { APPOINTMENT_TIME_SLOTS, normalizeAppointmentTime } from '@/lib/bookingTimes'
+import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
 
-type BookingTable = 'fj_bookings' | 'precon_factory_bookings' | 'gta_lowrise_bookings'
+type BookingTable =
+  | 'fj_bookings'
+  | 'precon_factory_bookings'
+  | 'gta_lowrise_bookings'
+  | typeof FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
 
 interface ManageBooking {
   id: string
@@ -21,6 +26,8 @@ interface BookingReschedulePanelProps {
   table: BookingTable
   onRescheduled: (updated: { appointment_date: string; appointment_time: string }) => void
   onCancelled?: (updated: { status: string }) => void
+  /** Interview bookings: cancel only (no reschedule — uses slot_start in DB). */
+  cancelOnly?: boolean
 }
 
 export default function BookingReschedulePanel({
@@ -28,6 +35,7 @@ export default function BookingReschedulePanel({
   table,
   onRescheduled,
   onCancelled,
+  cancelOnly = false,
 }: BookingReschedulePanelProps) {
   const [appointmentDate, setAppointmentDate] = useState(booking.appointment_date)
   const [appointmentTime, setAppointmentTime] = useState(
@@ -160,7 +168,7 @@ export default function BookingReschedulePanel({
     <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-          Manage Appointment
+          {cancelOnly ? 'Manage Interview' : 'Manage Appointment'}
         </span>
         <CalendarClock className="h-4 w-4 text-amber-700" />
       </div>
@@ -169,6 +177,30 @@ export default function BookingReschedulePanel({
         <p className="mt-3 text-sm text-red-700 font-medium">
           This appointment is already cancelled.
         </p>
+      ) : cancelOnly ? (
+        <>
+          <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={sendSms}
+              onChange={(event) => setSendSms(event.target.checked)}
+              disabled={!booking.phone}
+              className="rounded border-gray-300"
+            />
+            Send cancellation SMS to candidate
+          </label>
+          {!booking.phone && (
+            <p className="mt-1 text-xs text-gray-500">No phone number available for SMS.</p>
+          )}
+          <button
+            onClick={handleCancel}
+            disabled={cancelling}
+            className="mt-4 w-full rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            <Ban className="h-4 w-4" />
+            {cancelling ? 'Cancelling…' : 'Cancel Interview'}
+          </button>
+        </>
       ) : (
         <>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
