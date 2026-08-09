@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import {
+  INTERVIEW_BRAND_NAME,
+  INTERVIEW_OFFICE_ADDRESS,
+  isFahadSellsInterviewBooking,
+} from '@/lib/interviewBookingConstants'
 
 // Unified Qikfill OAuth credentials for info@qikfill.com Google Workspace
 const QIKFILL_CLIENT_ID = process.env.QIKFILL_GOOGLE_CLIENT_ID!
@@ -77,23 +82,32 @@ export async function POST(request: NextRequest) {
   try {
     const booking = await request.json()
 
-    // Validate required fields
-    if (!booking.firstname || !booking.email || !booking.appointment_date || !booking.appointment_time) {
+    const firstname = (booking.firstname as string) || (booking.first_name as string) || ''
+    const lastname = (booking.lastname as string) || (booking.last_name as string) || ''
+
+    if (!firstname || !booking.email || !booking.appointment_date || !booking.appointment_time) {
       return NextResponse.json(
         { error: 'Missing required booking data' },
         { status: 400 }
       )
     }
 
+    booking.firstname = firstname
+    booking.lastname = lastname
+
     // Determine which calendar to use based on booking source
     const tableName = booking.table_name || booking.source || ''
+    const isInterview = isFahadSellsInterviewBooking(tableName)
     let calendarId: string
     let brandName: string
 
-    if (tableName.includes('gta_lowrise') || tableName.includes('gtalowrise')) {
+    if (isInterview) {
+      calendarId = CALENDAR_IDS.fj
+      brandName = INTERVIEW_BRAND_NAME
+    } else if (tableName.includes('gta_lowrise') || tableName.includes('gtalowrise')) {
       calendarId = CALENDAR_IDS.gtalowrise
       brandName = 'GTA Lowrise'
-    } else if (tableName.includes('precon')) {
+    } else if (tableName.includes('precon') && !isInterview) {
       calendarId = CALENDAR_IDS.precon
       brandName = 'Precon Factory'
     } else if (tableName.includes('fj')) {
@@ -132,7 +146,9 @@ export async function POST(request: NextRequest) {
     const adjustedEndMinutes = endMinutes >= 60 ? endMinutes - 60 : endMinutes
     const endDateTimeLocal = `${appointmentDate}T${String(adjustedEndHours).padStart(2, '0')}:${String(adjustedEndMinutes).padStart(2, '0')}:00`
 
-    const meetingFormat = (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
+    const meetingFormat = isInterview
+      ? 'visit_office'
+      : (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
     const brandPhone = brandName === 'Fahad Javed Real Estate' ? '(647) 898-1739' :
                        brandName === 'Precon Factory' ? '(647) 956-4063' :
                        '(416) 399-4289'
@@ -151,15 +167,19 @@ export async function POST(request: NextRequest) {
     let description: string
     let isGoogleMeet = false
 
-    const customerLine = `Name: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}\nAppointment Type: ${displayType}\n`
+    const personLabel = isInterview ? 'Candidate' : 'Customer'
+    const customerLine = `${personLabel}: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}\nAppointment Type: ${displayType}\n`
     const projectLines = [
       booking.project_name && `Project: ${booking.project_name}`,
       booking.project_id && `Project ID: ${booking.project_id}`,
       booking.project_url && `Project URL: ${booking.project_url}`,
     ].filter(Boolean).join('\n')
-    const messageLine = booking.message ? `\n💬 Customer Message:\n${booking.message}\n` : ''
+    const messageLine = booking.message ? `\n💬 Message:\n${booking.message}\n` : ''
 
-    switch (meetingFormat) {
+    if (isInterview) {
+      location = INTERVIEW_OFFICE_ADDRESS
+      description = `IN-PERSON INTERVIEW (Fahad Sells)\n\n${customerLine}\n📋 Details:\nThe candidate should arrive at:\n${INTERVIEW_OFFICE_ADDRESS}\n\n${projectLines}${messageLine}`
+    } else switch (meetingFormat) {
       case 'google_meet': {
         isGoogleMeet = true
         location = 'Google Meet (auto-generated)'
@@ -183,11 +203,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let eventTitle = `Booking: ${booking.firstname} ${booking.lastname || ''}`
+    let eventTitle = isInterview
+      ? `Interview: ${booking.firstname} ${booking.lastname || ''}`.trim()
+      : `Booking: ${booking.firstname} ${booking.lastname || ''}`
     if (booking.project_name) {
       eventTitle += ` - ${booking.project_name}`
     }
-    const enhancedTitle = `${brandName} - ${eventTitle} - ${displayType}`
+    const enhancedTitle = isInterview
+      ? `${brandName} - ${eventTitle}`
+      : `${brandName} - ${eventTitle} - ${displayType}`
 
     const calendar = await getCalendarClient()
 

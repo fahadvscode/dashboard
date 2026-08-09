@@ -3,6 +3,12 @@ import twilio from 'twilio'
 import nodemailer from 'nodemailer'
 import { appendBookingToGoogleSheet } from '@/lib/googleSheetsBookings'
 import { resolveCustomerNotes } from '@/lib/customerNotes'
+import {
+  INTERVIEW_BRAND_NAME,
+  INTERVIEW_OFFICE_ADDRESS,
+  isFahadSellsInterviewBooking,
+} from '@/lib/interviewBookingConstants'
+import { appendInterviewBookingToGoogleSheet } from '@/lib/interviewBookingsSheet'
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
@@ -107,21 +113,50 @@ function getCustomerTypeSms(mt: string, meetLink: string | null, brandContact: {
   }
 }
 
+function getInterviewAdminInstruction(): string {
+  return `🏢 ACTION: Candidate will interview in person at ${INTERVIEW_OFFICE_ADDRESS}.`
+}
+
+function getInterviewCandidateLocationHtml(): string {
+  return `<div style="background:#f0fdf4;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #22c55e;">
+          <strong>In-person interview</strong><br>
+          <p>Please arrive at the scheduled date and time at:</p>
+          <p style="font-weight:bold;font-size:15px;">${INTERVIEW_OFFICE_ADDRESS}</p>
+          <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(INTERVIEW_OFFICE_ADDRESS)}" target="_blank" style="color:#3b82f6;">View on Google Maps</a>
+        </div>`
+}
+
+function getInterviewCandidateLocationSms(): string {
+  return `\n🏢 Please arrive for your interview at:\n${INTERVIEW_OFFICE_ADDRESS}`
+}
+
 export async function POST(request: NextRequest) {
   try {
     const booking = await request.json()
 
-    if (!booking.firstname || !booking.email) {
+    const firstname = (booking.firstname as string) || (booking.first_name as string) || ''
+    const lastname = (booking.lastname as string) || (booking.last_name as string) || ''
+    booking.firstname = firstname
+    booking.lastname = lastname
+
+    if (!firstname || !booking.email) {
       return NextResponse.json({ error: 'Missing required booking data' }, { status: 400 })
     }
 
-    const meetingFormat = (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
-    const displayType = typeLabel(meetingFormat)
+    const isInterview = isFahadSellsInterviewBooking(booking.table_name)
 
-    const source =
-      booking.table_name === 'fj_bookings' ? 'Fahad Javed Real Estate' :
-      booking.table_name === 'precon_factory_bookings' ? 'Precon Factory' :
-      'GTA Lowrise'
+    const meetingFormat = isInterview
+      ? 'visit_office'
+      : (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
+    const displayType = isInterview ? 'In-Person Interview' : typeLabel(meetingFormat)
+
+    const source = isInterview
+      ? INTERVIEW_BRAND_NAME
+      : booking.table_name === 'fj_bookings'
+        ? 'Fahad Javed Real Estate'
+        : booking.table_name === 'precon_factory_bookings'
+          ? 'Precon Factory'
+          : 'GTA Lowrise'
     const bookingPath =
       booking.table_name === 'fj_bookings' ? 'fj-bookings' :
       booking.table_name === 'precon_factory_bookings' ? 'precon-bookings' :
@@ -129,11 +164,14 @@ export async function POST(request: NextRequest) {
     const dashboardUrl = `https://property-dashboard-three.vercel.app/${bookingPath}`
     const brandContact = getBrandContact(source)
     const customerNotes = resolveCustomerNotes(booking)
+    const personLabel = isInterview ? 'Candidate' : 'Customer'
+    const bookingKindLabel = isInterview ? 'Interview Booking' : 'Booking'
 
     // ── 1. Admin SMS ──────────────────────────────────────────────
-    let message = `🔔 New ${source} Booking!
-
-👤 ${booking.firstname} ${booking.lastname || ''}
+    let message = isInterview
+      ? `🔔 New ${source} Interview Booking!\n\n👤 Candidate: ${firstname} ${lastname || ''}`
+      : `🔔 New ${source} Booking!\n\n👤 ${firstname} ${lastname || ''}`
+    message += `
 📧 ${booking.email}
 📱 ${booking.phone || 'No phone'}`
 
@@ -143,12 +181,16 @@ export async function POST(request: NextRequest) {
     message += `\n📅 Date: ${booking.appointment_date || 'Not specified'}
 🕐 Time: ${booking.appointment_time || 'Not specified'}
 🎯 Type: ${displayType}
-${getAdminTypeInstruction(meetingFormat)}`
+${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meetingFormat)}`
 
     if (customerNotes) message += `\n💬 Message: ${customerNotes}`
     if (booking.project_url) message += `\n🌐 Project URL: ${booking.project_url}`
     if (booking.status) message += `\n📊 Status: ${booking.status}`
-    message += `\n⏰ Just now\n\n👉 View in Dashboard: ${dashboardUrl}`
+    if (!isInterview) {
+      message += `\n⏰ Just now\n\n👉 View in Dashboard: ${dashboardUrl}`
+    } else {
+      message += `\n⏰ Just now`
+    }
 
     const twilioResponses: { phone: string; sid?: string; error?: string }[] = []
     try {
@@ -186,7 +228,7 @@ ${getAdminTypeInstruction(meetingFormat)}`
     try {
       const adminActionHtml = `
         <div style="background:#fef3c7;padding:14px;border-radius:8px;margin:16px 0;border-left:4px solid #f59e0b;">
-          <strong>${getAdminTypeInstruction(meetingFormat)}</strong>
+          <strong>${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meetingFormat)}</strong>
         </div>`
 
       const adminEmailHtml = `<!DOCTYPE html><html><head><style>
@@ -202,14 +244,14 @@ ${getAdminTypeInstruction(meetingFormat)}`
         .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
       </style></head><body><div class="container">
         <div class="header">
-          <h1>🔔 New Booking Alert</h1>
-          <p style="margin: 10px 0 0 0; font-size: 18px;">${source}</p>
+          <h1>🔔 New ${isInterview ? 'Interview ' : ''}Booking Alert</h1>
+          <p style="margin: 10px 0 0 0; font-size: 18px;">${source}${isInterview ? ' — Fahad Sells' : ''}</p>
         </div>
         <div class="content">
-          <h2 style="color: #111827; margin-top: 0;">Booking Details</h2>
+          <h2 style="color: #111827; margin-top: 0;">${bookingKindLabel} Details</h2>
           ${adminActionHtml}
           <div class="booking-details">
-            <div class="detail-row"><div class="detail-label">👤 Customer:</div><div class="detail-value">${booking.firstname} ${booking.lastname || ''}</div></div>
+            <div class="detail-row"><div class="detail-label">👤 ${personLabel}:</div><div class="detail-value">${firstname} ${lastname || ''}</div></div>
             <div class="detail-row"><div class="detail-label">📧 Email:</div><div class="detail-value"><a href="mailto:${booking.email}">${booking.email}</a></div></div>
             <div class="detail-row"><div class="detail-label">📱 Phone:</div><div class="detail-value"><a href="tel:${booking.phone || ''}">${booking.phone || 'Not provided'}</a></div></div>
             <div class="detail-row"><div class="detail-label">📅 Date:</div><div class="detail-value">${booking.appointment_date || 'Not specified'}</div></div>
@@ -220,10 +262,10 @@ ${getAdminTypeInstruction(meetingFormat)}`
             ${booking.project_url ? `<div class="detail-row"><div class="detail-label">🌐 Project Link:</div><div class="detail-value"><a href="${booking.project_url}" target="_blank" style="color: #3b82f6;">View Project</a></div></div>` : ''}
             ${customerNotes ? `<div class="detail-row"><div class="detail-label">💬 Message:</div><div class="detail-value">${customerNotes}</div></div>` : ''}
           </div>
-          <div style="text-align: center; margin: 30px 0;">
+          ${isInterview ? '' : `<div style="text-align: center; margin: 30px 0;">
             <a href="${dashboardUrl}" class="button">👉 View in Dashboard</a>
             ${booking.project_url ? `<a href="${booking.project_url}" class="button" style="background: #8b5cf6;">🌐 View Project</a>` : ''}
-          </div>
+          </div>`}
         </div>
         <div class="footer"><p>Automated notification from Property Dashboard</p><p>&copy; ${new Date().getFullYear()} Property Dashboard</p></div>
       </div></body></html>`
@@ -233,7 +275,7 @@ ${getAdminTypeInstruction(meetingFormat)}`
           const result = await emailTransporter.sendMail({
             from: `"Property Dashboard" <${process.env.GMAIL_USER || 'info@qikfill.com'}>`,
             to: email,
-            subject: `🔔 New ${source} Booking (${displayType}) - ${booking.firstname} ${booking.lastname || ''}`,
+            subject: `🔔 New ${source} ${isInterview ? 'Interview ' : ''}Booking (${displayType}) - ${firstname} ${lastname || ''}`,
             html: adminEmailHtml
           })
           adminEmailResults.push({ email, messageId: result.messageId })
@@ -258,6 +300,7 @@ ${getAdminTypeInstruction(meetingFormat)}`
         body: JSON.stringify({
           ...booking,
           table_name: booking.table_name || (
+            isInterview ? 'fahad_sells_interview_bookings' :
             source === 'Fahad Javed Real Estate' ? 'fj_bookings' :
             source === 'Precon Factory' ? 'precon_factory_bookings' :
             'gta_lowrise_bookings'
@@ -277,12 +320,44 @@ ${getAdminTypeInstruction(meetingFormat)}`
 
     const meetLink = calendarEvent?.meetLink || null
 
-    // ── 4. Customer confirmation email (with type-specific block) ──
+    // ── 4. Candidate / customer confirmation email ──
     let customerEmailResult = null
     try {
-      const typeSpecificHtml = getCustomerTypeHtml(meetingFormat, meetLink, brandContact)
+      const typeSpecificHtml = isInterview
+        ? getInterviewCandidateLocationHtml()
+        : getCustomerTypeHtml(meetingFormat, meetLink, brandContact)
 
-      const customerEmailHtml = `<!DOCTYPE html><html><head><style>
+      const customerEmailHtml = isInterview
+        ? `<!DOCTYPE html><html><head><style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
+        .confirmation { background: white; padding: 25px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981; }
+        .detail-row { padding: 10px 0; }
+        .detail-label { font-weight: bold; color: #6b7280; display: inline-block; min-width: 100px; }
+        .detail-value { color: #111827; }
+        .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
+      </style></head><body><div class="container">
+        <div class="header">
+          <h1>Interview confirmed</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px;">${INTERVIEW_BRAND_NAME}</p>
+        </div>
+        <div class="content">
+          <p>Hi <strong>${firstname}</strong>,</p>
+          <p>Your interview has been scheduled. Here are the details:</p>
+          <div class="confirmation">
+            <div class="detail-row"><span class="detail-label">Date:</span><span class="detail-value">${booking.appointment_date || 'Not specified'}</span></div>
+            <div class="detail-row"><span class="detail-label">Time:</span><span class="detail-value">${booking.appointment_time || 'Not specified'}</span></div>
+            <div class="detail-row"><span class="detail-label">Type:</span><span class="detail-value">${displayType}</span></div>
+          </div>
+          ${typeSpecificHtml}
+          <p>We look forward to meeting you.</p>
+          <p><strong>Best regards,</strong><br>${INTERVIEW_BRAND_NAME}</p>
+        </div>
+        <div class="footer"><p>This is an automated confirmation email</p><p>&copy; ${new Date().getFullYear()} ${INTERVIEW_BRAND_NAME}</p></div>
+      </div></body></html>`
+        : `<!DOCTYPE html><html><head><style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
         .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
@@ -321,10 +396,14 @@ ${getAdminTypeInstruction(meetingFormat)}`
         <div class="footer"><p>This is an automated confirmation email</p><p>&copy; ${new Date().getFullYear()} ${source}</p></div>
       </div></body></html>`
 
+      const customerSubject = isInterview
+        ? `Interview confirmed — ${booking.appointment_date || 'Upcoming'} at ${booking.appointment_time || 'TBD'}`
+        : `✅ Appointment Confirmed (${displayType}) - ${booking.appointment_date || 'Upcoming'} at ${booking.appointment_time || 'TBD'}`
+
       customerEmailResult = await emailTransporter.sendMail({
         from: `"${source}" <${process.env.GMAIL_USER || 'info@qikfill.com'}>`,
         to: booking.email,
-        subject: `✅ Appointment Confirmed (${displayType}) - ${booking.appointment_date || 'Upcoming'} at ${booking.appointment_time || 'TBD'}`,
+        subject: customerSubject,
         html: customerEmailHtml
       })
       console.log('Customer confirmation email sent:', customerEmailResult.messageId)
@@ -332,16 +411,22 @@ ${getAdminTypeInstruction(meetingFormat)}`
       console.error('Error sending customer confirmation email:', emailError)
     }
 
-    // ── 5. Customer confirmation SMS (with type-specific line) ──
+    // ── 5. Candidate / customer confirmation SMS ──
     let customerSmsResult = null
     try {
       if (booking.phone && accountSid && authToken && twilioPhone) {
-        const typeLine = getCustomerTypeSms(meetingFormat, meetLink, brandContact)
-        const customerSmsMessage = `✅ Appointment Confirmed!
+        const customerSmsMessage = isInterview
+          ? `Interview confirmed — ${INTERVIEW_BRAND_NAME}
+
+📅 ${booking.appointment_date || 'TBD'}
+🕐 ${booking.appointment_time || 'TBD'}${getInterviewCandidateLocationSms()}
+
+- ${INTERVIEW_BRAND_NAME}`
+          : `✅ Appointment Confirmed!
 
 📅 ${booking.appointment_date || 'TBD'}
 🕐 ${booking.appointment_time || 'TBD'}
-${booking.project_name ? `🏢 ${booking.project_name}\n` : ''}${typeLine}
+${booking.project_name ? `🏢 ${booking.project_name}\n` : ''}${getCustomerTypeSms(meetingFormat, meetLink, brandContact)}
 
 Need to reschedule? Call ${brandContact.phoneFormatted}
 
@@ -360,7 +445,11 @@ Need to reschedule? Call ${brandContact.phoneFormatted}
 
     // Append booking to Google Sheet (non-blocking, won't break existing flow)
     try {
-      await appendBookingToGoogleSheet(booking)
+      if (isInterview) {
+        await appendInterviewBookingToGoogleSheet(booking)
+      } else {
+        await appendBookingToGoogleSheet(booking)
+      }
     } catch (sheetError) {
       console.error('Google Sheets error (non-critical):', sheetError)
     }
@@ -383,7 +472,7 @@ Need to reschedule? Call ${brandContact.phoneFormatted}
       adminEmails: adminEmailResults,
       customerEmail: customerEmailResult?.messageId || null,
       customerSms: customerSmsResult?.sid || null,
-      booking: `${booking.firstname} ${booking.lastname}`,
+      booking: `${firstname} ${lastname}`,
       source,
       calendarEvent: calendarEvent || null,
       meetLink,
