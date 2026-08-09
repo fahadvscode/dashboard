@@ -5,6 +5,11 @@ import {
   INTERVIEW_OFFICE_ADDRESS,
   isFahadSellsInterviewBooking,
 } from '@/lib/interviewBookingConstants'
+import {
+  normalizeBookingPayload,
+  resolveBookingFirstName,
+  resolveBookingLastName,
+} from '@/lib/normalizeBookingPayload'
 
 // Unified Qikfill OAuth credentials for info@qikfill.com Google Workspace
 const QIKFILL_CLIENT_ID = process.env.QIKFILL_GOOGLE_CLIENT_ID!
@@ -82,8 +87,11 @@ export async function POST(request: NextRequest) {
   try {
     const booking = await request.json()
 
-    const firstname = (booking.firstname as string) || (booking.first_name as string) || ''
-    const lastname = (booking.lastname as string) || (booking.last_name as string) || ''
+    normalizeBookingPayload(booking)
+    const firstname = resolveBookingFirstName(booking)
+    const lastname = resolveBookingLastName(booking)
+    booking.firstname = firstname
+    booking.lastname = lastname
 
     if (!firstname || !booking.email || !booking.appointment_date || !booking.appointment_time) {
       return NextResponse.json(
@@ -91,9 +99,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
-    booking.firstname = firstname
-    booking.lastname = lastname
 
     // Determine which calendar to use based on booking source
     const tableName = booking.table_name || booking.source || ''

@@ -1,5 +1,6 @@
 -- SAFE: public.fahad_sells_interview_bookings only
 -- AFTER INSERT → /api/bookings/notify (admin SMS/email, calendar, candidate confirmations, Interview Bookings sheet tab)
+-- Table may use full_name, slot_start, slot_end — the API maps these to firstname / appointment_date / appointment_time.
 
 BEGIN;
 

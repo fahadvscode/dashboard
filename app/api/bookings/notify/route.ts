@@ -4,6 +4,11 @@ import nodemailer from 'nodemailer'
 import { appendBookingToGoogleSheet } from '@/lib/googleSheetsBookings'
 import { resolveCustomerNotes } from '@/lib/customerNotes'
 import {
+  normalizeBookingPayload,
+  resolveBookingFirstName,
+  resolveBookingLastName,
+} from '@/lib/normalizeBookingPayload'
+import {
   INTERVIEW_BRAND_NAME,
   INTERVIEW_OFFICE_ADDRESS,
   isFahadSellsInterviewBooking,
@@ -134,8 +139,9 @@ export async function POST(request: NextRequest) {
   try {
     const booking = await request.json()
 
-    const firstname = (booking.firstname as string) || (booking.first_name as string) || ''
-    const lastname = (booking.lastname as string) || (booking.last_name as string) || ''
+    normalizeBookingPayload(booking)
+    const firstname = resolveBookingFirstName(booking)
+    const lastname = resolveBookingLastName(booking)
     booking.firstname = firstname
     booking.lastname = lastname
 
