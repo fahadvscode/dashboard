@@ -20,6 +20,7 @@ export {
   formatAppointmentTime,
   APPOINTMENT_TIME_SLOTS,
   normalizeAppointmentTime,
+  isBookingStatusCanceled,
 } from '@/lib/bookingTimes'
 
 export const CALENDAR_IDS = {
@@ -240,7 +241,7 @@ export async function cancelBookingStatus(
 ) {
   const { data, error } = await supabase
     .from(table)
-    .update({ status: 'cancelled' })
+    .update({ status: 'canceled' })
     .eq('id', bookingId)
     .select('*')
     .single()

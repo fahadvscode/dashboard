@@ -10,6 +10,7 @@ import {
   getCalendarClient,
   getCalendarIdForTable,
   isValidBookingTable,
+  isBookingStatusCanceled,
 } from '@/lib/bookingCalendar'
 import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
 import {
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
     const appointmentDate = String(bookingRecord.appointment_date || '')
     const appointmentTime = String(bookingRecord.appointment_time || '')
 
-    if (String(booking.status || '').toLowerCase() === 'cancelled') {
+    if (isBookingStatusCanceled(booking.status)) {
       return NextResponse.json({ error: 'This appointment is already cancelled.' }, { status: 400 })
     }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { CalendarClock, Ban } from 'lucide-react'
-import { APPOINTMENT_TIME_SLOTS, normalizeAppointmentTime } from '@/lib/bookingTimes'
+import { APPOINTMENT_TIME_SLOTS, normalizeAppointmentTime, isBookingStatusCanceled } from '@/lib/bookingTimes'
 import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
 
 type BookingTable =
@@ -48,7 +48,7 @@ export default function BookingReschedulePanel({
   const [success, setSuccess] = useState('')
   const [warning, setWarning] = useState('')
 
-  const isCancelled = String(booking.status || '').toLowerCase() === 'cancelled'
+  const isCancelled = isBookingStatusCanceled(booking.status)
 
   useEffect(() => {
     setAppointmentDate(booking.appointment_date)
@@ -141,7 +141,7 @@ export default function BookingReschedulePanel({
         throw new Error(data?.error || 'Unable to cancel appointment.')
       }
 
-      onCancelled?.({ status: data.booking.status || 'cancelled' })
+      onCancelled?.({ status: data.booking.status || 'canceled' })
 
       const messages: string[] = ['Appointment cancelled.']
       if (data.smsSent) messages.push('Cancellation SMS sent.')

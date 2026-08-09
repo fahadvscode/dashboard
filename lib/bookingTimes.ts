@@ -110,3 +110,8 @@ export function getReminderResetFields() {
     reminder_admin_15m_sent_at: null,
   }
 }
+
+export function isBookingStatusCanceled(status: unknown): boolean {
+  const normalized = String(status || '').trim().toLowerCase()
+  return normalized === 'canceled' || normalized === 'cancelled'
+}
