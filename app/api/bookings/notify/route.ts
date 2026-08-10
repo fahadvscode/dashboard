@@ -14,6 +14,10 @@ import {
   isFahadSellsInterviewBooking,
 } from '@/lib/interviewBookingConstants'
 import { appendInterviewBookingToGoogleSheet } from '@/lib/interviewBookingsSheet'
+import {
+  buildInterviewAdminEmailDetailRows,
+  buildInterviewAdminSmsDetails,
+} from '@/lib/interviewBookingAdminDetails'
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
@@ -190,6 +194,10 @@ export async function POST(request: NextRequest) {
 🎯 Type: ${displayType}
 ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meetingFormat)}`
 
+    if (isInterview) {
+      message += buildInterviewAdminSmsDetails(booking as Record<string, unknown>)
+    }
+
     if (customerNotes) message += `\n💬 Message: ${customerNotes}`
     if (booking.project_url) message += `\n🌐 Project URL: ${booking.project_url}`
     if (booking.status) message += `\n📊 Status: ${booking.status}`
@@ -263,9 +271,12 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
             ${booking.project_name ? `<div class="detail-row"><div class="detail-label">🏢 Project:</div><div class="detail-value">${booking.project_name}</div></div>` : ''}
             ${booking.project_id ? `<div class="detail-row"><div class="detail-label">🆔 Project ID:</div><div class="detail-value">${booking.project_id}</div></div>` : ''}
             ${booking.project_url ? `<div class="detail-row"><div class="detail-label">🌐 Project Link:</div><div class="detail-value"><a href="${booking.project_url}" target="_blank" style="color: #3b82f6;">View Project</a></div></div>` : ''}
+            ${isInterview ? buildInterviewAdminEmailDetailRows(booking as Record<string, unknown>) : ''}
             ${customerNotes ? `<div class="detail-row"><div class="detail-label">💬 Message:</div><div class="detail-value">${customerNotes}</div></div>` : ''}
           </div>
-          ${isInterview ? '' : `<div style="text-align: center; margin: 30px 0;">
+          ${isInterview ? `<div style="text-align: center; margin: 30px 0;">
+            <a href="${dashboardUrl}" class="button">👉 View in Dashboard</a>
+          </div>` : `<div style="text-align: center; margin: 30px 0;">
             <a href="${dashboardUrl}" class="button">👉 View in Dashboard</a>
             ${booking.project_url ? `<a href="${booking.project_url}" class="button" style="background: #8b5cf6;">🌐 View Project</a>` : ''}
           </div>`}
