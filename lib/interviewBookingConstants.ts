@@ -9,6 +9,6 @@ export function isFahadSellsInterviewBooking(tableName: unknown): boolean {
   return tableName === FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
 }
 
-/** Must match fix_fahad_sells_interview_bookings_status_constraint.sql */
+/** Must match fahadsells careers DB — only scheduled | cancelled (British spelling). */
 export const INTERVIEW_BOOKING_STATUS_SCHEDULED = 'scheduled'
-export const INTERVIEW_BOOKING_STATUS_CANCELED = 'canceled'
+export const INTERVIEW_BOOKING_STATUS_CANCELLED = 'cancelled'

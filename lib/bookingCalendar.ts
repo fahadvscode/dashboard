@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { calendar_v3 } from 'googleapis'
 import {
   FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE,
-  INTERVIEW_BOOKING_STATUS_CANCELED,
+  INTERVIEW_BOOKING_STATUS_CANCELLED,
 } from '@/lib/interviewBookingConstants'
 import {
   BOOKING_TIMEZONE,
@@ -244,7 +244,9 @@ export async function cancelBookingStatus(
   bookingId: string
 ) {
   const canceledStatus =
-    table === FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE ? INTERVIEW_BOOKING_STATUS_CANCELED : 'canceled'
+    table === FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
+      ? INTERVIEW_BOOKING_STATUS_CANCELLED
+      : 'canceled'
 
   const { data, error } = await supabase
     .from(table)

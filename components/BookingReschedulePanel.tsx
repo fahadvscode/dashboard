@@ -141,7 +141,7 @@ export default function BookingReschedulePanel({
         throw new Error(data?.error || 'Unable to cancel appointment.')
       }
 
-      onCancelled?.({ status: data.booking.status || 'canceled' })
+      onCancelled?.({ status: data.booking.status || 'cancelled' })
 
       const messages: string[] = ['Appointment cancelled.']
       if (data.smsSent) messages.push('Cancellation SMS sent.')
