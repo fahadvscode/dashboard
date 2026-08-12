@@ -7,10 +7,22 @@ import {
   resolvePreconFactoryWebsiteLandingPage,
   resolvePreconFactoryWebsiteSheetTag,
 } from '@/lib/preconFactoryWebsiteSheet'
+import {
+  appendLandingLeadDetailLines,
+  formatBrokerYesNo,
+  getBrokerFieldForLead,
+  getLandingPageSourceMap,
+  normalizeLandingPageTableName,
+  resolveInterestedFromLead,
+  resolveLandingPageLink,
+  resolveLandingProjectName,
+  sourceToSheetMeta,
+  type LandingPageSheetMeta,
+  type LandingPageSource,
+} from '@/lib/landingPageSources'
 
-const notificationEmails = ['fahad@fahadsold.com', 'info@preconfactory.com'] // Email recipients for all leads
-const rentalOnlyEmails = ['harjit@hminhas.ca'] // Email recipients for rental leads only
-// Gmail SMTP configuration for info@qikfill.com
+const notificationEmails = ['fahad@fahadsold.com', 'info@preconfactory.com']
+const rentalOnlyEmails = ['harjit@hminhas.ca']
 const emailTransporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -19,133 +31,32 @@ const emailTransporter = nodemailer.createTransport({
   }
 })
 
-// Google Sheets configuration
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID
 
-const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: string; siteUrl: string }> = {
-  cornerstone_leads: {
-    websiteName: 'Cornerstone',
-    pageName: 'Cornerstone',
-    siteUrl: 'https://www.newcornerstonehomes.ca',
-  },
-  novella_leads: {
-    websiteName: 'Novella',
-    pageName: 'Novella',
-    siteUrl: 'https://www.newnovellahomes.ca',
-  },
-  lakeview_village_leads: {
-    websiteName: 'Lakeview Village',
-    pageName: 'Lakeview Village',
-    siteUrl: 'https://lakeviewvillagetownhome.ca',
-  },
-  rollingwood_leads: {
-    websiteName: 'Rollingwood',
-    pageName: 'Rollingwood',
-    siteUrl: 'https://www.rollingwoodtowns.ca',
-  },
-  enclave: {
-    websiteName: 'Enclave',
-    pageName: 'Enclave',
-    siteUrl: 'https://enclave1.vercel.app',
-  },
-  hawthorne_east_village: {
-    websiteName: 'Hawthorne East Village',
-    pageName: 'Hawthorne East Village',
-    siteUrl: 'https://hawthorneeast-village.com',
-  },
-  bronte_trails: {
-    websiteName: 'Bronte Trails',
-    pageName: 'Bronte Trails',
-    siteUrl: 'https://www.brontetrails.ca',
-  },
-  spruce_trails: {
-    websiteName: 'Spruce Trails',
-    pageName: 'Spruce Trails',
-    siteUrl: 'https://sprucetrails.ca',
-  },
-  meadowvale_brooks: {
-    websiteName: 'Meadowvale Brooks',
-    pageName: 'Meadowvale Brooks',
-    siteUrl: 'https://meadowvalebrooks.ca',
-  },
-  the_legacy: {
-    websiteName: 'The Legacy',
-    pageName: 'The Legacy',
-    siteUrl: 'https://thelegacyburlington.ca',
-  },
-  ivy_rouge_landing_leads: {
-    websiteName: 'Ivy Rouge',
-    pageName: 'Ivy Rouge',
-    siteUrl: 'https://ivyrouge.ca',
-  },
-  abacot_hill_leads: {
-    websiteName: 'Abacot Hill',
-    pageName: 'Abacot Hill',
-    siteUrl: 'https://abacothill.com',
-  },
-  og_urban_towns_leads: {
-    websiteName: 'OG Urban Towns',
-    pageName: 'OG Urban Towns',
-    siteUrl: 'https://brightstone.ca/communities/og-urban-towns',
-  },
-  rosemont_grove_leads: {
-    websiteName: 'Rosemont Grove',
-    pageName: 'Rosemont Grove',
-    siteUrl: 'https://rosemontgrove.ca',
-  },
-  yt_on_fourth_leads: {
-    websiteName: 'YT on Fourth',
-    pageName: 'YT on Fourth',
-    siteUrl: 'https://ytonfourth.ca',
-  },
-  hawthorne_trafalgar_leads: {
-    websiteName: 'Hawthorne on Trafalgar',
-    pageName: 'Hawthorne on Trafalgar',
-    siteUrl: 'https://hawthornetrafalgar.com',
-  },
-}
-
-const LEAD_TABLE_ALIASES: Record<string, keyof typeof LANDING_PAGE_SHEET_META> = {
-  abacot_hill: 'abacot_hill_leads',
-  og_urban_towns: 'og_urban_towns_leads',
-  rosemont_grove: 'rosemont_grove_leads',
-  yt_on_fourth: 'yt_on_fourth_leads',
-  hawthorne_trafalgar: 'hawthorne_trafalgar_leads',
-}
-
-function normalizeLeadTableName(tableName: unknown): string | undefined {
-  if (typeof tableName !== 'string') return undefined
-  const normalized = tableName.trim().toLowerCase()
-  if (!normalized) return undefined
-  return LEAD_TABLE_ALIASES[normalized] ?? normalized
-}
-
-/** Resolve table from payload fields (trigger may send table_name, table, or tableName). */
-function resolveLeadTableName(lead: Record<string, unknown>): string | undefined {
+function resolveLeadTableName(
+  lead: Record<string, unknown>,
+  sourceMap: Map<string, LandingPageSource>
+): string | undefined {
   for (const key of ['table_name', 'tableName', 'table'] as const) {
-    const resolved = normalizeLeadTableName(lead[key])
+    const resolved = normalizeLandingPageTableName(lead[key])
     if (resolved) return resolved
   }
 
   const hint = [lead.source, lead.project_name, lead.website_name, lead.website, lead.source_page]
     .map((value) => (typeof value === 'string' ? value.toLowerCase() : ''))
     .join(' ')
-  if (hint.includes('abacot')) return 'abacot_hill_leads'
-  if (hint.includes('og urban') || hint.includes('og-urban') || hint.includes('og_urban')) {
-    return 'og_urban_towns_leads'
+
+  for (const source of sourceMap.values()) {
+    const name = source.display_name.toLowerCase()
+    const table = source.table_name.toLowerCase()
+    if (hint.includes(table.replace(/_/g, ' ')) || hint.includes(table.replace(/_/g, '-'))) {
+      return source.table_name
+    }
+    if (name.length > 3 && hint.includes(name)) {
+      return source.table_name
+    }
   }
-  if (hint.includes('rosemont')) return 'rosemont_grove_leads'
-  if (hint.includes('yt-on-fourth') || hint.includes('yt_on_fourth') || hint.includes('yt on fourth')) {
-    return 'yt_on_fourth_leads'
-  }
-  if (
-    hint.includes('hawthorne trafalgar') ||
-    hint.includes('hawthorne-trafalgar') ||
-    hint.includes('hawthorne_trafalgar') ||
-    hint.includes('hawthorne on trafalgar')
-  ) {
-    return 'hawthorne_trafalgar_leads'
-  }
+
   if (
     hint.includes('precon factory website') ||
     hint.includes('preconfactory') ||
@@ -155,65 +66,6 @@ function resolveLeadTableName(lead: Record<string, unknown>): string | undefined
   }
 
   return undefined
-}
-
-function isLandingPageLeadTable(tableName: unknown): tableName is keyof typeof LANDING_PAGE_SHEET_META {
-  const normalized = normalizeLeadTableName(tableName)
-  return typeof normalized === 'string' && normalized in LANDING_PAGE_SHEET_META
-}
-
-function resolveLeadSourceName(tableName: unknown): string {
-  const normalized = normalizeLeadTableName(tableName)
-  if (isLandingPageLeadTable(normalized)) {
-    return LANDING_PAGE_SHEET_META[normalized].websiteName
-  }
-
-  switch (normalized) {
-    case 'fj_leads':
-      return 'FJ'
-    case 'precon_factory_leads':
-      return 'Precon Factory'
-    case 'precon_factory_website_leads':
-      return 'Precon Factory Website'
-    case 'gta_lowrise_leads':
-      return 'GTA Lowrise'
-    case 'rental_leads':
-      return 'Rental'
-    default:
-      return 'Unknown'
-  }
-}
-
-/** Build a full https URL for the Google Sheet "Landing Page" column. */
-function resolveLandingPageLink(
-  lead: Record<string, unknown>,
-  meta: { siteUrl: string }
-): string {
-  const redirect = String(lead.redirect_link ?? '').trim()
-  if (redirect) {
-    if (/^https?:\/\//i.test(redirect)) return redirect
-    if (redirect.includes('.')) return `https://${redirect.replace(/^\/\//, '')}`
-  }
-
-  const source = String(lead.source ?? '').trim()
-  const pagePathRaw = String(lead.page_path ?? lead.source_page ?? '/').trim() || '/'
-  const pagePath = pagePathRaw.startsWith('/') ? pagePathRaw : `/${pagePathRaw}`
-
-  // Domain in source (e.g. www.brontetrails.ca) + optional path
-  if (source.includes('.')) {
-    const host = source.replace(/^https?:\/\//i, '').replace(/\/$/, '')
-    return `https://${host}${pagePath === '/' ? '/' : pagePath}`
-  }
-
-  if (/^https?:\/\//i.test(meta.siteUrl)) {
-    try {
-      return new URL(pagePath, meta.siteUrl).href
-    } catch {
-      return meta.siteUrl
-    }
-  }
-
-  return meta.siteUrl
 }
 
 function isEmailLeadTable(tableName: unknown): boolean {
@@ -233,53 +85,8 @@ function resolveEmailLeadSheetTag(lead: Record<string, unknown>): string {
   return lead.isagent ? 'realtor' : ''
 }
 
-function getBrokerFieldForLead(lead: Record<string, unknown>): unknown {
-  const table = lead.table_name
-  if (
-    table === 'hawthorne_east_village' ||
-    table === 'hawthorne_trafalgar_leads' ||
-    table === 'bronte_trails' ||
-    table === 'spruce_trails' ||
-    table === 'og_urban_towns_leads' ||
-    table === 'rosemont_grove_leads'
-  ) {
-    return lead.is_broker
-  }
-  if (table === 'cornerstone_leads') {
-    if (lead.is_broker !== undefined && lead.is_broker !== null) return lead.is_broker
-    return lead.is_realtor
-  }
-  if (table === 'rollingwood_leads') return lead.is_realtor
-  if (table === 'yt_on_fourth_leads') return lead.is_realtor
-  if (table === 'meadowvale_brooks' || table === 'the_legacy') return lead.realtor
-  if (table === 'ivy_rouge_landing_leads') {
-    if (lead.realtor !== undefined && lead.realtor !== null) return lead.realtor
-    if (lead.is_broker !== undefined && lead.is_broker !== null) return lead.is_broker
-    if (lead.is_realtor !== undefined && lead.is_realtor !== null) return lead.is_realtor
-  }
-  if (table === 'abacot_hill_leads') {
-    if (lead.is_broker !== undefined && lead.is_broker !== null) return lead.is_broker
-    if (lead.is_realtor !== undefined && lead.is_realtor !== null) return lead.is_realtor
-    if (lead.realtor !== undefined && lead.realtor !== null) return lead.realtor
-  }
-  return null
-}
-
 function formatBrokerSheetValue(lead: Record<string, unknown>): string {
-  if (!isLandingPageLeadTable(lead.table_name)) return 'N/A'
-
-  const raw = getBrokerFieldForLead(lead)
-
-  if (raw === null || raw === undefined) return 'N/A'
-
-  if (typeof raw === 'boolean') return raw ? 'Yes' : 'No'
-
-  const value = String(raw).trim()
-  if (!value) return 'N/A'
-  const lower = value.toLowerCase()
-  if (lower === 'true' || lower === 'yes' || lower === 'y' || lower === '1') return 'Yes'
-  if (lower === 'false' || lower === 'no' || lower === 'n' || lower === '0') return 'No'
-  return value
+  return formatBrokerYesNo(getBrokerFieldForLead(lead))
 }
 
 function resolveLandingPageSheetTag(lead: Record<string, unknown>): string {
@@ -288,68 +95,37 @@ function resolveLandingPageSheetTag(lead: Record<string, unknown>): string {
   return 'Landing Page'
 }
 
-function resolveInterestedSheetValue(lead: Record<string, unknown>): string {
-  if (!isLandingPageLeadTable(lead.table_name)) return 'N/A'
+function resolveLeadSourceName(
+  tableName: unknown,
+  sourceMap: Map<string, LandingPageSource>
+): string {
+  const normalized = normalizeLandingPageTableName(tableName)
+  if (normalized && sourceMap.has(normalized)) {
+    return sourceMap.get(normalized)!.display_name
+  }
 
-  switch (lead.table_name) {
-    case 'enclave':
-      return (lead.model as string) || 'N/A'
-    case 'bronte_trails':
-      return (lead.project_tag as string) || 'N/A'
-    case 'spruce_trails':
-      return (lead.interest as string) || (lead.project_tag as string) || 'N/A'
-    case 'cornerstone_leads':
-      return (lead.interest as string) || (lead.buyer_type as string) || 'N/A'
-    case 'novella_leads':
-      return (lead.home_interest as string) || (lead.buyer_type as string) || 'N/A'
-    case 'lakeview_village_leads':
-      return (lead.project as string) || (lead.buyer_type as string) || 'N/A'
-    case 'meadowvale_brooks': {
-      const parts = [lead.buyer_type, lead.timeline].filter(Boolean) as string[]
-      return parts.length ? parts.join(' · ') : 'N/A'
-    }
-    case 'ivy_rouge_landing_leads': {
-      const parts = [lead.buyer_type, lead.timeline, lead.interest, lead.home_interest, lead.project]
-        .filter(Boolean) as string[]
-      return parts.length ? parts.join(' · ') : 'N/A'
-    }
-    case 'abacot_hill_leads': {
-      const parts = [lead.buyer_type, lead.timeline, lead.interest, lead.home_interest, lead.project]
-        .filter(Boolean) as string[]
-      return parts.length ? parts.join(' · ') : 'N/A'
-    }
-    case 'og_urban_towns_leads': {
-      const parts = [lead.buyer_type, lead.timeline]
-        .filter(Boolean) as string[]
-      return parts.length ? parts.join(' · ') : 'N/A'
-    }
-    case 'rosemont_grove_leads': {
-      const parts = [lead.lot_width, lead.budget_range, lead.timeline]
-        .filter(Boolean) as string[]
-      return parts.length ? parts.join(' · ') : 'N/A'
-    }
-    case 'yt_on_fourth_leads': {
-      const parts = [lead.interest, lead.project_name, lead.preferred_contact]
-        .filter(Boolean) as string[]
-      return parts.length ? parts.join(' · ') : 'N/A'
-    }
-    case 'rollingwood_leads':
-      return (lead.purchase_timeframe as string) || (lead.lead_type as string) || 'N/A'
-    case 'hawthorne_east_village':
-      return 'N/A'
-    case 'hawthorne_trafalgar_leads': {
-      const parts = [lead.form_location, lead.project_name].filter(Boolean) as string[]
-      return parts.length ? parts.join(' · ') : 'N/A'
-    }
+  switch (normalized) {
+    case 'fj_leads':
+      return 'FJ'
+    case 'precon_factory_leads':
+      return 'Precon Factory'
+    case 'precon_factory_website_leads':
+      return 'Precon Factory Website'
+    case 'gta_lowrise_leads':
+      return 'GTA Lowrise'
+    case 'rental_leads':
+      return 'Rental'
     default:
-      return 'N/A'
+      return 'Unknown'
   }
 }
 
-async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
+async function appendLeadToGoogleSheet(
+  lead: Record<string, unknown>,
+  landingMeta: LandingPageSheetMeta | null
+) {
   try {
     const { google } = await import('googleapis')
-    // Handle private key format - add BEGIN/END markers if missing, and convert literal \n to real newlines
     let privateKey = (process.env.GOOGLE_SHEETS_PRIVATE_KEY || '').replace(/\\n/g, '\n')
     if (!privateKey.startsWith('-----BEGIN')) {
       privateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----\n`
@@ -365,7 +141,6 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
 
     const sheets = google.sheets({ version: 'v4', auth })
 
-    // Extract first name and last name (handle firstname/lastname, first_name/last_name, full_name)
     const firstName = (lead.firstname as string) || (lead.first_name as string) ||
       ((lead.full_name as string) || '').split(' ')[0] || 'N/A'
     const lastName = (lead.lastname as string) || (lead.last_name as string) ||
@@ -387,51 +162,14 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
     let broker = 'N/A'
     let interested = 'N/A'
 
-    // Landing pages: Project Name = website, Company = "Landing Page - {name}", Tag = "Landing Page"
-    if (isLandingPageLeadTable(lead.table_name)) {
-      const meta = LANDING_PAGE_SHEET_META[lead.table_name]
+    if (landingMeta) {
       tag = resolveLandingPageSheetTag(lead)
       broker = formatBrokerSheetValue(lead)
-      interested = resolveInterestedSheetValue(lead)
+      interested = resolveInterestedFromLead(lead)
       projectId = 'N/A'
-      const websiteFromPayload = (lead.website_name as string) || (lead.website as string)
-      if (lead.table_name === 'enclave') {
-        const collection = (lead.collection as string) || ''
-        projectName = collection ? `${meta.websiteName} — ${collection}` : meta.websiteName
-      } else if (lead.table_name === 'lakeview_village_leads' && lead.project) {
-        projectName = `${meta.websiteName} — ${lead.project}`
-      } else if (lead.table_name === 'yt_on_fourth_leads' && lead.project_name) {
-        projectName = `${meta.websiteName} — ${lead.project_name}`
-      } else if (
-        (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy' || lead.table_name === 'ivy_rouge_landing_leads' || lead.table_name === 'abacot_hill_leads') &&
-        lead.project
-      ) {
-        projectName = `${meta.websiteName} — ${lead.project}`
-      } else if (
-        lead.table_name === 'hawthorne_east_village' ||
-        lead.table_name === 'bronte_trails' ||
-        lead.table_name === 'spruce_trails' ||
-        lead.table_name === 'og_urban_towns_leads' ||
-        lead.table_name === 'rosemont_grove_leads'
-      ) {
-        const formLabel = (lead.form_type as string) || ''
-        const projectTag = (lead.project_tag as string) || ''
-        projectName = projectTag
-          ? `${meta.websiteName} — ${projectTag}`
-          : formLabel
-            ? `${meta.websiteName} — ${formLabel}`
-            : meta.websiteName
-      } else if (lead.table_name === 'hawthorne_trafalgar_leads') {
-        const formLoc = (lead.form_location as string) || ''
-        const projectFromRow = (lead.project_name as string) || ''
-        projectName = formLoc
-          ? `${meta.websiteName} — ${formLoc}`
-          : projectFromRow || meta.websiteName
-      } else {
-        projectName = websiteFromPayload || meta.websiteName
-      }
-      landingPage = resolveLandingPageLink(lead, meta)
-      company = `Landing Page - ${meta.pageName}`
+      projectName = resolveLandingProjectName(lead, landingMeta)
+      landingPage = resolveLandingPageLink(lead, landingMeta)
+      company = `Landing Page - ${landingMeta.pageName}`
     } else if (isEmailLeadTable(lead.table_name)) {
       broker = formatIsAgentBrokerSheetValue(lead)
       if (lead.table_name === 'precon_factory_website_leads') {
@@ -443,9 +181,8 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
       }
     }
 
-    const sheetMessage = isEmailLeadTable(lead.table_name)
-      ? resolveCustomerNotes(lead)
-      : lead.table_name === 'yt_on_fourth_leads' || lead.table_name === 'hawthorne_trafalgar_leads'
+    const sheetMessage =
+      isEmailLeadTable(lead.table_name) || landingMeta
         ? resolveCustomerNotes(lead)
         : ''
 
@@ -485,15 +222,15 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
     })
   } catch (error) {
     console.error('Error appending lead to Google Sheet:', error)
-    // Don't throw - Google Sheets failure should not break the lead notification flow
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const lead = await request.json()
+    const sourceMap = await getLandingPageSourceMap({ enabledOnly: true })
 
-    const resolvedTableName = resolveLeadTableName(lead)
+    const resolvedTableName = resolveLeadTableName(lead, sourceMap)
     if (resolvedTableName) {
       lead.table_name = resolvedTableName
     }
@@ -516,13 +253,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const tableKey = normalizeLandingPageTableName(lead.table_name) || String(lead.table_name || '')
+    const landingSource = tableKey ? sourceMap.get(tableKey) : undefined
+    const landingMeta = landingSource ? sourceToSheetMeta(landingSource) : null
+
     // Determine source
-    const source = resolveLeadSourceName(lead.table_name)
+    const source = resolveLeadSourceName(lead.table_name, sourceMap)
     
     const isRentalLead = lead.table_name === 'rental_leads'
     const isPreconFactoryWebsiteLead = lead.table_name === 'precon_factory_website_leads'
-    const isLandingPageLead = isLandingPageLeadTable(lead.table_name)
-    const landingPageName = isLandingPageLead ? LANDING_PAGE_SHEET_META[lead.table_name].websiteName : ''
+    const isLandingPageLead = Boolean(landingMeta)
+    const landingPageName = landingMeta?.websiteName || ''
     const leadType = isRentalLead ? 'Rental Inquiry' : (lead.isagent ? 'Agent' : 'Buyer')
     const customerNotes = isEmailLeadTable(lead.table_name) ? resolveCustomerNotes(lead) : ''
     
@@ -532,7 +273,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'precon_factory_website_leads' ? 'precon-factory-website-leads' :
       lead.table_name === 'gta_lowrise_leads' ? 'gta-lowrise-leads' :
       lead.table_name === 'rental_leads' ? 'rental-leads' :
-      (isLandingPageLeadTable(lead.table_name)) ? 'landing-pages-leads' :
+      isLandingPageLead ? 'landing-pages-leads' :
       'rental-leads'
     
     const dashboardUrl = `https://property-dashboard-three.vercel.app/${leadPath}?leadId=${lead.id}`
@@ -583,113 +324,16 @@ export async function POST(request: NextRequest) {
         message += `\n📝 Notes: ${lead.notes}`
       }
     } else if (isLandingPageLead) {
-      // Landing page lead format - show it's a landing page, name, and all form fields
+      const detailLines: string[] = []
+      appendLandingLeadDetailLines(lead, detailLines)
       message = `📄 New Landing Page Lead! (${landingPageName})
 
 👤 ${displayName}
 📧 ${lead.email}
 📱 ${lead.phone || 'No phone'}
 📋 Landing Page: ${landingPageName}`
-
-      // Novella fields: buyer_type, home_interest, consent
-      if (lead.table_name === 'novella_leads') {
-        if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
-        if (lead.home_interest) message += `\n🏠 Home Interest: ${lead.home_interest}`
-        if (lead.consent !== undefined) message += `\n✅ Consent: ${lead.consent ? 'Yes' : 'No'}`
-      }
-
-      // Cornerstone fields: is_broker, interest, buyer_type, source
-      if (lead.table_name === 'cornerstone_leads') {
-        const broker = formatBrokerSheetValue(lead)
-        if (broker !== 'N/A') message += `\n🏢 Broker: ${broker}`
-        if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
-        if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
-        if (lead.source) message += `\n📌 Source: ${lead.source}`
-      }
-
-      // Lakeview Village fields (schema uses project, not home_interest)
-      if (lead.table_name === 'lakeview_village_leads') {
-        if (lead.project) message += `\n🏠 Project: ${lead.project}`
-        if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
-        if (lead.consent !== undefined) message += `\n✅ Consent: ${lead.consent ? 'Yes' : 'No'}`
-        if (lead.status) message += `\n📋 Status: ${lead.status}`
-      }
-
-      // Rollingwood fields (same shape as other landing page tables)
-      if (lead.table_name === 'rollingwood_leads') {
-        if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
-        if (lead.home_interest) message += `\n🏠 Home Interest: ${lead.home_interest}`
-        if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
-        if (lead.is_realtor !== undefined) message += `\n🏢 Realtor: ${lead.is_realtor ? 'Yes' : 'No'}`
-        if (lead.consent !== undefined) message += `\n✅ Consent: ${lead.consent ? 'Yes' : 'No'}`
-      }
-
-      // Enclave (public.enclave — model / collection / form)
-      if (lead.table_name === 'enclave') {
-        if (lead.collection) message += `\n🏘️ Collection: ${lead.collection}`
-        if (lead.model) message += `\n🏠 Model: ${lead.model}`
-        if (lead.form_name) message += `\n📋 Form: ${lead.form_name}`
-        if (lead.source) message += `\n📌 Source: ${lead.source}`
-      }
-
-      // Meadowvale Brooks / The Legacy / Ivy Rouge (VIP registration — realtor, project)
-      if (lead.table_name === 'meadowvale_brooks' || lead.table_name === 'the_legacy' || lead.table_name === 'ivy_rouge_landing_leads' || lead.table_name === 'abacot_hill_leads') {
-        const broker = formatBrokerSheetValue(lead)
-        if (broker !== 'N/A') message += `\n🏢 Broker: ${broker}`
-        if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
-        if (lead.timeline) message += `\n📅 Timeline: ${lead.timeline}`
-        if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
-        if (lead.home_interest) message += `\n🏠 Home Interest: ${lead.home_interest}`
-        if (lead.project) message += `\n🏠 Project: ${lead.project}`
-        if (lead.source_page) message += `\n🌐 Page: ${lead.source_page}`
-        if (lead.utm_source) message += `\n🔗 UTM: ${lead.utm_source}${lead.utm_campaign ? ` / ${lead.utm_campaign}` : ''}`
-      }
-
-      // Hawthorne East Village / Bronte Trails / Spruce Trails (same form shape)
-      if (
-        lead.table_name === 'hawthorne_east_village' ||
-        lead.table_name === 'bronte_trails' ||
-        lead.table_name === 'spruce_trails' ||
-        lead.table_name === 'og_urban_towns_leads' ||
-        lead.table_name === 'rosemont_grove_leads'
-      ) {
-        if (lead.is_broker !== undefined && lead.is_broker !== null && String(lead.is_broker).trim() !== '') {
-          message += `\n🏢 Broker: ${lead.is_broker}`
-        }
-        if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
-        if (lead.project_tag) message += `\n🏷️ Project: ${lead.project_tag}`
-        if (lead.form_type) message += `\n📋 Form: ${lead.form_type}`
-        if (lead.page_path) message += `\n🌐 Page: ${lead.page_path}`
-        if (lead.source) message += `\n📌 Source: ${lead.source}`
-        if (lead.utm_source) message += `\n🔗 UTM: ${lead.utm_source}${lead.utm_campaign ? ` / ${lead.utm_campaign}` : ''}`
-        if (lead.table_name === 'og_urban_towns_leads') {
-          if (lead.buyer_type) message += `\n🏷️ Buyer Type: ${lead.buyer_type}`
-          if (lead.timeline) message += `\n📅 Timeline: ${lead.timeline}`
-        }
-        if (lead.table_name === 'rosemont_grove_leads') {
-          if (lead.lot_width) message += `\n📐 Lot Width: ${lead.lot_width}`
-          if (lead.budget_range) message += `\n💰 Budget: ${lead.budget_range}`
-          if (lead.timeline) message += `\n📅 Timeline: ${lead.timeline}`
-        }
-      }
-
-      if (lead.table_name === 'yt_on_fourth_leads') {
-        const broker = formatBrokerSheetValue(lead)
-        if (broker !== 'N/A') message += `\n🏢 Realtor: ${broker}`
-        if (lead.interest) message += `\n🏠 Interest: ${lead.interest}`
-        if (lead.project_name) message += `\n🏢 Project: ${lead.project_name}`
-        if (lead.preferred_contact) message += `\n📞 Preferred contact: ${lead.preferred_contact}`
-        if (lead.notes) message += `\n📝 Notes: ${lead.notes}`
-        if (lead.page_source || lead.source) message += `\n📌 Source: ${lead.page_source || lead.source}`
-      }
-
-      if (lead.table_name === 'hawthorne_trafalgar_leads') {
-        const broker = formatBrokerSheetValue(lead)
-        if (broker !== 'N/A') message += `\n🏢 Broker: ${broker}`
-        if (lead.project_name) message += `\n🏢 Project: ${lead.project_name}`
-        if (lead.form_location) message += `\n📋 Form: ${lead.form_location}`
-        if (lead.source) message += `\n📌 Source: ${lead.source}`
-        if (lead.notes) message += `\n📝 Notes: ${lead.notes}`
+      if (detailLines.length) {
+        message += '\n' + detailLines.join('\n')
       }
     } else {
       // Regular lead format
@@ -989,7 +633,7 @@ export async function POST(request: NextRequest) {
 
     // Append lead to Google Sheet (non-blocking, won't break existing flow)
     try {
-      await appendLeadToGoogleSheet(lead)
+      await appendLeadToGoogleSheet(lead, landingMeta)
     } catch (sheetError) {
       console.error('Google Sheets error (non-critical):', sheetError)
     }

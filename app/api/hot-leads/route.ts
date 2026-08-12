@@ -45,7 +45,16 @@ export async function POST(request: NextRequest) {
       }
 
       if (!isValidLeadSourceTable(source_table)) {
-        return NextResponse.json({ error: 'Invalid source_table' }, { status: 400 })
+        const { fetchLandingPageSources, isValidLandingPageTableName } = await import(
+          '@/lib/landingPageSources'
+        )
+        const sources = await fetchLandingPageSources({ enabledOnly: false })
+        const allowed =
+          isValidLandingPageTableName(source_table) &&
+          sources.some((s) => s.table_name === source_table)
+        if (!allowed) {
+          return NextResponse.json({ error: 'Invalid source_table' }, { status: 400 })
+        }
       }
 
       const resolvedPriority: HotLeadPriority =

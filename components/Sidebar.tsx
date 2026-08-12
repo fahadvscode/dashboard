@@ -26,6 +26,7 @@ const navigation = [
   { name: 'GTA Lowrise Leads', href: '/gta-lowrise-leads', icon: Mail },
   { name: 'Rental Leads', href: '/rental-leads', icon: Mail },
   { name: 'Landing Pages Leads', href: '/landing-pages-leads', icon: Mail },
+  { name: 'Landing Page Sources', href: '/landing-page-sources', icon: PlusCircle },
 ]
 
 const BOOKING_PAGES = {

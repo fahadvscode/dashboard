@@ -499,9 +499,24 @@ export async function searchContacts(
   const q = query.trim()
   if (!q) return []
 
-  const searches = SEARCHABLE_CONTACT_TABLES.map((table) =>
-    queryTable(supabase, table, { query: q, limit: RESULTS_PER_TABLE_SEARCH })
-  )
+  const { fetchLandingPageSources } = await import('@/lib/landingPageSources')
+  const landingSources = await fetchLandingPageSources({ enabledOnly: true })
+  const known = new Set<string>(SEARCHABLE_CONTACT_TABLES)
+  const extraLanding = landingSources
+    .map((s) => s.table_name)
+    .filter((t) => !known.has(t))
+
+  const searches = [
+    ...SEARCHABLE_CONTACT_TABLES.map((table) =>
+      queryTable(supabase, table, { query: q, limit: RESULTS_PER_TABLE_SEARCH })
+    ),
+    ...extraLanding.map((table) =>
+      queryRegistryLandingTable(supabase, table, {
+        query: q,
+        limit: RESULTS_PER_TABLE_SEARCH,
+      })
+    ),
+  ]
 
   const nested = await Promise.all(searches)
   return mergeAndRankResults(nested.flat())
@@ -510,6 +525,13 @@ export async function searchContacts(
 export async function fetchContactSuggestions(
   supabase: SupabaseClient
 ): Promise<ContactSearchResult[]> {
+  const { fetchLandingPageSources } = await import('@/lib/landingPageSources')
+  const landingSources = await fetchLandingPageSources({ enabledOnly: true })
+  const known = new Set<string>(SEARCHABLE_LEAD_TABLES)
+  const extraLanding = landingSources
+    .map((s) => s.table_name)
+    .filter((t) => !known.has(t))
+
   const pastBookingFetches = SEARCHABLE_BOOKING_TABLES.map((table) =>
     fetchPastBookings(supabase, table, SUGGESTIONS_PAST_BOOKINGS_PER_TABLE)
   )
@@ -522,11 +544,95 @@ export async function fetchContactSuggestions(
       forSuggestions: true,
     })
   )
+  const extraFetches = extraLanding.map((table) =>
+    queryRegistryLandingTable(supabase, table, {
+      limit: SUGGESTIONS_PER_LEAD_TABLE,
+      forSuggestions: true,
+    })
+  )
 
   const nested = await Promise.all([
     ...pastBookingFetches,
     ...upcomingBookingFetches,
     ...leadFetches,
+    ...extraFetches,
   ])
   return mergeAndRankResults(nested.flat())
+}
+
+/** Registry-only tables (not in CONTACT_SOURCE_TABLES) — try both name column styles. */
+async function queryRegistryLandingTable(
+  supabase: SupabaseClient,
+  table: string,
+  options: { query?: string; limit: number; forSuggestions?: boolean }
+): Promise<ContactSearchResult[]> {
+  const trySelect = async (cols: string) => {
+    let req = supabase.from(table).select(cols).order('created_at', { ascending: false }).limit(
+      options.query ? MEMORY_SCAN_LIMIT : options.limit
+    )
+    if (options.query?.trim()) {
+      const pattern = ilikeQuoted(options.query.trim())
+      // Prefer firstname style in or(); if columns missing PostgREST errors and we fall back
+      if (cols.includes('firstname')) {
+        req = req.or(
+          `firstname.ilike.${pattern},lastname.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern},project_name.ilike.${pattern}`
+        )
+      } else {
+        req = req.or(
+          `first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern}`
+        )
+      }
+    }
+    return req
+  }
+
+  let data: unknown[] | null = null
+  {
+    const res = await trySelect('id, firstname, lastname, email, phone, project_name, created_at')
+    if (!res.error) {
+      data = res.data as unknown[]
+    } else {
+      const res2 = await trySelect('id, first_name, last_name, email, phone, created_at')
+      if (res2.error) {
+        console.warn(`hot-leads registry search: ${table} — ${res2.error.message}`)
+        return []
+      }
+      data = res2.data as unknown[]
+    }
+  }
+
+  const rows = (data ?? []) as RawRow[]
+  const filtered = options.query?.trim()
+    ? rows.filter((row) => {
+        const blob = [
+          row.firstname,
+          row.lastname,
+          row.first_name,
+          row.last_name,
+          row.email,
+          row.phone,
+          row.project_name,
+        ]
+          .map((v) => String(v ?? '').toLowerCase())
+          .join(' ')
+        return blob.includes(options.query!.trim().toLowerCase())
+      })
+    : rows
+
+  return filtered.slice(0, options.limit).map((row) => {
+    const { first, last } = resolvePersonName(row)
+    const activityAt = String(row.created_at ?? new Date().toISOString())
+    return {
+      source_table: table as ContactSourceTable,
+      source_id: String(row.id),
+      display_name: buildDisplayName(first, last),
+      phone: row.phone ? String(row.phone) : null,
+      email: row.email ? String(row.email) : null,
+      project_name: row.project_name ? String(row.project_name) : null,
+      source_kind: 'lead' as const,
+      activity_at: activityAt,
+      activity_summary: `Lead · recently`,
+      suggestion_tag: options.forSuggestions ? ('recent_lead' as const) : null,
+    }
+  })
 }

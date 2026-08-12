@@ -23,10 +23,11 @@ import {
   OG_URBAN_TOWNS_LEADS_TABLE,
   ROSEMONT_GROVE_LEADS_TABLE,
   YT_ON_FOURTH_LEADS_TABLE,
-  WEBSITE_FORM_TABLES,
+  filterKeyForTable,
   getLandingPageBrandLabel,
   hasLandingPageCrmColumns
 } from '@/lib/landingPageLeads'
+import type { LandingPageSource } from '@/lib/landingPageSources'
 
 type CallHistoryEntry = {
   outcome: string
@@ -127,9 +128,7 @@ function normalizeLead(raw: Record<string, unknown>, tableName: string): Landing
     is_realtor: raw.is_realtor as boolean | undefined,
     interest: raw.interest as string | undefined,
     project: (raw.project ?? raw.project_name) as string | undefined,
-    page_source: WEBSITE_FORM_TABLES.has(tableName)
-      ? ((raw.source_page ?? raw.source) as string | undefined)
-      : undefined,
+    page_source: (raw.source_page ?? raw.source) as string | undefined,
     model: raw.model as string | undefined,
     collection: raw.collection as string | undefined,
     form_name: raw.form_name as string | undefined,
@@ -184,19 +183,6 @@ function leadDetailLabel(lead: LandingPageLead): string {
         : ''
     return [lead.project, lead.form_location, broker].filter(Boolean).join(' · ') || '—'
   }
-  if (lead.table_name === 'cornerstone_leads') {
-    const broker =
-      lead.is_broker !== undefined && lead.is_broker !== null
-        ? lead.is_broker
-          ? 'Broker: Yes'
-          : 'Broker: No'
-        : lead.is_realtor !== undefined
-          ? lead.is_realtor
-            ? 'Broker: Yes'
-            : 'Broker: No'
-          : ''
-    return [lead.interest, lead.buyer_type, broker].filter(Boolean).join(' · ') || '—'
-  }
   if (
     lead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE ||
     lead.table_name === BRONTE_TRAILS_TABLE ||
@@ -216,11 +202,25 @@ function leadDetailLabel(lead: LandingPageLead): string {
           : [lead.interest, lead.project_tag, lead.form_type, broker]
     return details.filter(Boolean).join(' · ') || '—'
   }
-  return lead.buyer_type || lead.interest || lead.home_interest || '—'
+  // Generic registry / unknown landing tables
+  {
+    const broker =
+      lead.is_broker !== undefined && lead.is_broker !== null && String(lead.is_broker).trim() !== ''
+        ? `Broker: ${lead.is_broker}`
+        : lead.is_realtor !== undefined
+          ? lead.is_realtor
+            ? 'Broker: Yes'
+            : 'Broker: No'
+          : ''
+    return [lead.project, lead.form_location, lead.form_type, lead.interest, lead.buyer_type, broker, lead.notes]
+      .filter(Boolean)
+      .join(' · ') || '—'
+  }
 }
 
 export default function LandingPagesLeads() {
   const [leads, setLeads] = useState<LandingPageLead[]>([])
+  const [sources, setSources] = useState<LandingPageSource[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
@@ -249,62 +249,32 @@ export default function LandingPagesLeads() {
 
   async function fetchLeads() {
     try {
-      const [cornerstoneRes, novellaRes, lakeviewRes, rollingwoodRes, enclaveRes, hawthorneRes, bronteRes, spruceRes, meadowvaleRes, legacyRes, ivyRougeRes, abacotHillRes, ogUrbanTownsRes, rosemontGroveRes, ytOnFourthRes, hawthorneTrafalgarRes] = await Promise.all([
-        supabase.from('cornerstone_leads').select('*').order('created_at', { ascending: false }),
-        supabase.from('novella_leads').select('*').order('created_at', { ascending: false }),
-        supabase.from('lakeview_village_leads').select('*').order('created_at', { ascending: false }),
-        supabase.from('rollingwood_leads').select('*').order('created_at', { ascending: false }),
-        supabase.from(ENCLAVE_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(HAWTHORNE_EAST_VILLAGE_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(BRONTE_TRAILS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(SPRUCE_TRAILS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(MEADOWVALE_BROOKS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(THE_LEGACY_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(IVY_ROUGE_LANDING_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(ABACOT_HILL_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(OG_URBAN_TOWNS_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(ROSEMONT_GROVE_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(YT_ON_FOURTH_LEADS_TABLE).select('*').order('created_at', { ascending: false }),
-        supabase.from(HAWTHORNE_TRAFALGAR_LEADS_TABLE).select('*').order('created_at', { ascending: false })
-      ])
+      const sourcesRes = await fetch('/api/landing-page-sources?enabled=1')
+      const sourcesJson = await sourcesRes.json()
+      const enabledSources: LandingPageSource[] = sourcesJson.sources || []
+      setSources(enabledSources)
 
-      const cornerstone = (cornerstoneRes.data || []).map(r => normalizeLead(r, 'cornerstone_leads'))
-      const novella = (novellaRes.data || []).map(r => normalizeLead(r, 'novella_leads'))
-      const lakeview = (lakeviewRes.data || []).map(r => normalizeLead(r, 'lakeview_village_leads'))
-      const rollingwood = (rollingwoodRes.data || []).map(r => normalizeLead(r, 'rollingwood_leads'))
-      const enclave = (enclaveRes.data || []).map(r => normalizeLead(r, ENCLAVE_LEADS_TABLE))
-      const hawthorne = (hawthorneRes.data || []).map(r => normalizeLead(r, HAWTHORNE_EAST_VILLAGE_TABLE))
-      const bronte = (bronteRes.data || []).map(r => normalizeLead(r, BRONTE_TRAILS_TABLE))
-      const spruce = (spruceRes.data || []).map(r => normalizeLead(r, SPRUCE_TRAILS_TABLE))
-      const meadowvale = (meadowvaleRes.data || []).map(r => normalizeLead(r, MEADOWVALE_BROOKS_TABLE))
-      const legacy = (legacyRes.data || []).map(r => normalizeLead(r, THE_LEGACY_TABLE))
-      const ivyRouge = (ivyRougeRes.data || []).map(r => normalizeLead(r, IVY_ROUGE_LANDING_LEADS_TABLE))
-      const abacotHill = (abacotHillRes.data || []).map(r => normalizeLead(r, ABACOT_HILL_LEADS_TABLE))
-      const ogUrbanTowns = (ogUrbanTownsRes.data || []).map(r => normalizeLead(r, OG_URBAN_TOWNS_LEADS_TABLE))
-      const rosemontGrove = (rosemontGroveRes.data || []).map(r => normalizeLead(r, ROSEMONT_GROVE_LEADS_TABLE))
-      const ytOnFourth = (ytOnFourthRes.data || []).map(r => normalizeLead(r, YT_ON_FOURTH_LEADS_TABLE))
-      const hawthorneTrafalgar = (hawthorneTrafalgarRes.data || []).map(r => normalizeLead(r, HAWTHORNE_TRAFALGAR_LEADS_TABLE))
-      const combined = [...cornerstone, ...novella, ...lakeview, ...rollingwood, ...enclave, ...hawthorne, ...bronte, ...spruce, ...meadowvale, ...legacy, ...ivyRouge, ...abacotHill, ...ogUrbanTowns, ...rosemontGrove, ...ytOnFourth, ...hawthorneTrafalgar].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      const results = await Promise.all(
+        enabledSources.map((source) =>
+          supabase.from(source.table_name).select('*').order('created_at', { ascending: false })
+        )
       )
 
-      if (cornerstoneRes.error) console.error('cornerstone_leads fetch:', cornerstoneRes.error)
-      if (novellaRes.error) console.error('novella_leads fetch:', novellaRes.error)
-      if (lakeviewRes.error) console.error('lakeview_village_leads fetch:', lakeviewRes.error)
-      if (rollingwoodRes.error) console.error('rollingwood_leads fetch:', rollingwoodRes.error)
-      if (enclaveRes.error) console.error('enclave fetch:', enclaveRes.error)
-      if (hawthorneRes.error) console.error('hawthorne_east_village fetch:', hawthorneRes.error)
-      if (bronteRes.error) console.error('bronte_trails fetch:', bronteRes.error)
-      if (spruceRes.error) console.error('spruce_trails fetch:', spruceRes.error)
-      if (meadowvaleRes.error) console.error('meadowvale_brooks fetch:', meadowvaleRes.error)
-      if (legacyRes.error) console.error('the_legacy fetch:', legacyRes.error)
-      if (ivyRougeRes.error) console.error('ivy_rouge_landing_leads fetch:', ivyRougeRes.error)
-      if (abacotHillRes.error) console.error('abacot_hill_leads fetch:', abacotHillRes.error)
-      if (ogUrbanTownsRes.error) console.error('og_urban_towns_leads fetch:', ogUrbanTownsRes.error)
-      if (rosemontGroveRes.error) console.error('rosemont_grove_leads fetch:', rosemontGroveRes.error)
-      if (ytOnFourthRes.error) console.error('yt_on_fourth_leads fetch:', ytOnFourthRes.error)
-      if (hawthorneTrafalgarRes.error) console.error('hawthorne_trafalgar_leads fetch:', hawthorneTrafalgarRes.error)
+      const combined: LandingPageLead[] = []
+      results.forEach((res, index) => {
+        const tableName = enabledSources[index].table_name
+        if (res.error) {
+          console.error(`${tableName} fetch:`, res.error)
+          return
+        }
+        for (const row of res.data || []) {
+          combined.push(normalizeLead(row as Record<string, unknown>, tableName))
+        }
+      })
 
+      combined.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
       setLeads(combined)
       setInitialLoadDone(true)
     } catch (error) {
@@ -340,26 +310,12 @@ export default function LandingPagesLeads() {
   const filteredLeads = leads
     .filter(lead => {
       if (filter === 'all') return true
-      if (filter === 'cornerstone') return lead.table_name === 'cornerstone_leads'
-      if (filter === 'novella') return lead.table_name === 'novella_leads'
-      if (filter === 'lakeview') return lead.table_name === 'lakeview_village_leads'
-      if (filter === 'rollingwood') return lead.table_name === 'rollingwood_leads'
-      if (filter === 'enclave') return lead.table_name === ENCLAVE_LEADS_TABLE
-      if (filter === 'hawthorne') return lead.table_name === HAWTHORNE_EAST_VILLAGE_TABLE
-      if (filter === 'bronte') return lead.table_name === BRONTE_TRAILS_TABLE
-      if (filter === 'spruce') return lead.table_name === SPRUCE_TRAILS_TABLE
-      if (filter === 'meadowvale') return lead.table_name === MEADOWVALE_BROOKS_TABLE
-      if (filter === 'legacy') return lead.table_name === THE_LEGACY_TABLE
-      if (filter === 'ivyrouge') return lead.table_name === IVY_ROUGE_LANDING_LEADS_TABLE
-      if (filter === 'abacothill') return lead.table_name === ABACOT_HILL_LEADS_TABLE
-      if (filter === 'ogurbantowns') return lead.table_name === OG_URBAN_TOWNS_LEADS_TABLE
-      if (filter === 'rosemontgrove') return lead.table_name === ROSEMONT_GROVE_LEADS_TABLE
-      if (filter === 'ytonfourth') return lead.table_name === YT_ON_FOURTH_LEADS_TABLE
-      if (filter === 'hawthornetrafalgar') return lead.table_name === HAWTHORNE_TRAFALGAR_LEADS_TABLE
       if (filter === 'new') return lead.status === 'new'
       if (filter === 'hot') return lead.lead_temperature === 'hot'
       if (filter === 'warm') return lead.lead_temperature === 'warm'
       if (filter === 'cold') return lead.lead_temperature === 'cold'
+      const matchedSource = sources.find((s) => filterKeyForTable(s.table_name) === filter)
+      if (matchedSource) return lead.table_name === matchedSource.table_name
       return true
     })
     .filter(lead => leadCreatedAtMatchesRange(lead.created_at, dateInterval))
@@ -385,7 +341,7 @@ export default function LandingPagesLeads() {
         lead.realtor,
         lead.timeline,
         lead.source_page,
-        getLandingPageBrandLabel(lead.table_name)
+        getLandingPageBrandLabel(lead.table_name, sources)
       ]
         .filter(Boolean)
         .some(v => (v as string).toLowerCase().includes(q))
@@ -696,102 +652,19 @@ export default function LandingPagesLeads() {
           >
             All ({leads.length})
           </button>
-          <button
-            onClick={() => setFilter('cornerstone')}
-            className={`px-4 py-2 rounded-lg ${filter === 'cornerstone' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Cornerstone ({leads.filter(l => l.table_name === 'cornerstone_leads').length})
-          </button>
-          <button
-            onClick={() => setFilter('novella')}
-            className={`px-4 py-2 rounded-lg ${filter === 'novella' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Novella ({leads.filter(l => l.table_name === 'novella_leads').length})
-          </button>
-          <button
-            onClick={() => setFilter('lakeview')}
-            className={`px-4 py-2 rounded-lg ${filter === 'lakeview' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Lakeview Village ({leads.filter(l => l.table_name === 'lakeview_village_leads').length})
-          </button>
-          <button
-            onClick={() => setFilter('rollingwood')}
-            className={`px-4 py-2 rounded-lg ${filter === 'rollingwood' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Rollingwood ({leads.filter(l => l.table_name === 'rollingwood_leads').length})
-          </button>
-          <button
-            onClick={() => setFilter('enclave')}
-            className={`px-4 py-2 rounded-lg ${filter === 'enclave' ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Enclave ({leads.filter(l => l.table_name === ENCLAVE_LEADS_TABLE).length})
-          </button>
-          <button
-            onClick={() => setFilter('hawthorne')}
-            className={`px-4 py-2 rounded-lg ${filter === 'hawthorne' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Hawthorne ({leads.filter(l => l.table_name === HAWTHORNE_EAST_VILLAGE_TABLE).length})
-          </button>
-          <button
-            onClick={() => setFilter('bronte')}
-            className={`px-4 py-2 rounded-lg ${filter === 'bronte' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Bronte Trails ({leads.filter(l => l.table_name === BRONTE_TRAILS_TABLE).length})
-          </button>
-          <button
-            onClick={() => setFilter('spruce')}
-            className={`px-4 py-2 rounded-lg ${filter === 'spruce' ? 'bg-teal-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Spruce Trails ({leads.filter(l => l.table_name === SPRUCE_TRAILS_TABLE).length})
-          </button>
-          <button
-            onClick={() => setFilter('meadowvale')}
-            className={`px-4 py-2 rounded-lg ${filter === 'meadowvale' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Meadowvale Brooks ({leads.filter(l => l.table_name === MEADOWVALE_BROOKS_TABLE).length})
-          </button>
-          <button
-            onClick={() => setFilter('legacy')}
-            className={`px-4 py-2 rounded-lg ${filter === 'legacy' ? 'bg-rose-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            The Legacy ({leads.filter(l => l.table_name === THE_LEGACY_TABLE).length})
-          </button>
-          <button
-            onClick={() => setFilter('ivyrouge')}
-            className={`px-4 py-2 rounded-lg ${filter === 'ivyrouge' ? 'bg-fuchsia-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Ivy Rouge ({leads.filter(l => l.table_name === IVY_ROUGE_LANDING_LEADS_TABLE).length})
-          </button>
-          <button
-            onClick={() => setFilter('abacothill')}
-            className={`px-4 py-2 rounded-lg ${filter === 'abacothill' ? 'bg-sky-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Abacot Hill ({leads.filter(l => l.table_name === ABACOT_HILL_LEADS_TABLE).length})
-          </button>
-          <button
-            onClick={() => setFilter('ogurbantowns')}
-            className={`px-4 py-2 rounded-lg ${filter === 'ogurbantowns' ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            OG Urban Towns ({leads.filter(l => l.table_name === OG_URBAN_TOWNS_LEADS_TABLE).length})
-          </button>
-          <button
-            onClick={() => setFilter('rosemontgrove')}
-            className={`px-4 py-2 rounded-lg ${filter === 'rosemontgrove' ? 'bg-lime-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Rosemont Grove ({leads.filter(l => l.table_name === ROSEMONT_GROVE_LEADS_TABLE).length})
-          </button>
-          <button
-            onClick={() => setFilter('ytonfourth')}
-            className={`px-4 py-2 rounded-lg ${filter === 'ytonfourth' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            YT on Fourth ({leads.filter(l => l.table_name === YT_ON_FOURTH_LEADS_TABLE).length})
-          </button>
-          <button
-            onClick={() => setFilter('hawthornetrafalgar')}
-            className={`px-4 py-2 rounded-lg ${filter === 'hawthornetrafalgar' ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-700'}`}
-          >
-            Hawthorne Trafalgar ({leads.filter(l => l.table_name === HAWTHORNE_TRAFALGAR_LEADS_TABLE).length})
-          </button>
+          {sources.map((source) => {
+            const key = filterKeyForTable(source.table_name)
+            const count = leads.filter((l) => l.table_name === source.table_name).length
+            return (
+              <button
+                key={source.table_name}
+                onClick={() => setFilter(key)}
+                className={`px-4 py-2 rounded-lg ${filter === key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              >
+                {source.display_name} ({count})
+              </button>
+            )
+          })}
           <button
             onClick={() => setFilter('new')}
             className={`px-4 py-2 rounded-lg ${filter === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
@@ -868,14 +741,14 @@ export default function LandingPagesLeads() {
                 <td className="px-6 py-4 text-sm text-gray-700">{lead.phone || '—'}</td>
                 <td className="px-6 py-4 text-sm">
                   <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-800">
-                    {getLandingPageBrandLabel(lead.table_name)}
+                    {getLandingPageBrandLabel(lead.table_name, sources)}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-700">
                   {leadDetailLabel(lead)}
                 </td>
                 <td className="px-6 py-4 text-sm">
-                  {hasLandingPageCrmColumns(lead.table_name) ? (
+                  {hasLandingPageCrmColumns(lead.table_name, sources) ? (
                     <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
                       {lead.call_count ?? 0} Calls
                     </span>
@@ -884,7 +757,7 @@ export default function LandingPagesLeads() {
                   )}
                 </td>
                 <td className="px-6 py-4 text-sm" onClick={e => e.stopPropagation()}>
-                  {hasLandingPageCrmColumns(lead.table_name) ? (
+                  {hasLandingPageCrmColumns(lead.table_name, sources) ? (
                     <select
                       value={lead.lead_temperature || 'warm'}
                       onChange={e => handleUpdateTemperature(lead.id, e.target.value)}
@@ -953,7 +826,7 @@ export default function LandingPagesLeads() {
                   {selectedLead.firstname} {selectedLead.lastname}
                 </h2>
                 <p className="mt-1 text-sm text-gray-500">
-                  {getLandingPageBrandLabel(selectedLead.table_name)} · {formatDistanceToNow(new Date(selectedLead.created_at), { addSuffix: true })}
+                  {getLandingPageBrandLabel(selectedLead.table_name, sources)} · {formatDistanceToNow(new Date(selectedLead.created_at), { addSuffix: true })}
                 </p>
               </div>
             </div>
@@ -979,7 +852,7 @@ export default function LandingPagesLeads() {
                   <MapPin className="mr-3 h-4 w-4 text-gray-400" />
                   <span className="font-medium">Landing Page:</span>
                   <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
-                    {getLandingPageBrandLabel(selectedLead.table_name)}
+                    {getLandingPageBrandLabel(selectedLead.table_name, sources)}
                   </span>
                 </div>
                 {selectedLead.table_name === YT_ON_FOURTH_LEADS_TABLE && (
@@ -1160,7 +1033,7 @@ export default function LandingPagesLeads() {
                 )}
               </div>
               <div className="space-y-3 text-sm">
-                {hasLandingPageCrmColumns(selectedLead.table_name) ? (
+                {hasLandingPageCrmColumns(selectedLead.table_name, sources) ? (
                   <>
                     <div>
                       <span className="text-xs font-semibold uppercase text-gray-500">Calls</span>
@@ -1232,7 +1105,7 @@ export default function LandingPagesLeads() {
                     <p className="text-xs text-gray-500 mt-2">No phone number available</p>
                   )}
                 </div>
-                {hasLandingPageCrmColumns(selectedLead.table_name) && (
+                {hasLandingPageCrmColumns(selectedLead.table_name, sources) && (
                   <div>
                     <span className="text-xs font-semibold uppercase text-gray-500">Lead Temperature</span>
                     <select

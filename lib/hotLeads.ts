@@ -205,13 +205,19 @@ export function buildDisplayName(firstname?: string | null, lastname?: string | 
 export function getSourceLabel(sourceTable: string | null, sourceType: HotLeadSourceType): string {
   if (sourceType === 'manual' || !sourceTable) return 'Manual'
   const config = CONTACT_SOURCE_TABLES[sourceTable as ContactSourceTable]
-  return config?.label ?? sourceTable
+  if (config?.label) return config.label
+  return sourceTable
 }
 
 export function getSourceRoute(sourceTable: string | null): string | null {
   if (!sourceTable) return null
   const config = CONTACT_SOURCE_TABLES[sourceTable as ContactSourceTable]
-  return config?.route ?? null
+  if (config?.route) return config.route
+  // Registry / unknown landing tables land on the shared page
+  if (sourceTable.endsWith('_leads') || !sourceTable.includes('booking')) {
+    return '/landing-pages-leads'
+  }
+  return null
 }
 
 export function isValidPriority(value: string): value is HotLeadPriority {

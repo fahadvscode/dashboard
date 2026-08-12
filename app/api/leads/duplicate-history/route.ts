@@ -92,7 +92,19 @@ export async function POST(request: NextRequest) {
     }
 
     const duplicateHistory: any[] = []
-    const tablesToCheck = ['fj_leads', 'precon_factory_leads', 'precon_factory_website_leads', 'gta_lowrise_leads', 'rental_leads', 'cornerstone_leads', 'novella_leads', 'lakeview_village_leads', 'rollingwood_leads', 'enclave', 'hawthorne_east_village', 'bronte_trails', 'spruce_trails', 'meadowvale_brooks', 'the_legacy', 'ivy_rouge_landing_leads', 'abacot_hill_leads', 'og_urban_towns_leads', 'rosemont_grove_leads', 'yt_on_fourth_leads', 'hawthorne_trafalgar_leads']
+    const { fetchLandingPageSources } = await import('@/lib/landingPageSources')
+    const landingSources = await fetchLandingPageSources({ enabledOnly: false })
+    const tablesToCheck = [
+      'fj_leads',
+      'precon_factory_leads',
+      'precon_factory_website_leads',
+      'gta_lowrise_leads',
+      'rental_leads',
+      ...landingSources.map((s) => s.table_name),
+    ]
+    const landingLabelByTable = new Map(
+      landingSources.map((s) => [s.table_name, s.display_name])
+    )
 
     // Check both tables
     for (const tableName of tablesToCheck) {
@@ -185,23 +197,7 @@ export async function POST(request: NextRequest) {
             tableName === 'precon_factory_website_leads' ? 'Precon Factory Website Leads' :
             tableName === 'gta_lowrise_leads' ? 'GTA Lowrise Leads' :
             tableName === 'rental_leads' ? 'Rental Leads' :
-            tableName === 'cornerstone_leads' ? 'Cornerstone' :
-            tableName === 'novella_leads' ? 'Novella' :
-            tableName === 'lakeview_village_leads' ? 'Lakeview Village' :
-            tableName === 'rollingwood_leads' ? 'Rollingwood' :
-            tableName === 'enclave' ? 'Enclave' :
-            tableName === 'hawthorne_east_village' ? 'Hawthorne East Village' :
-            tableName === 'bronte_trails' ? 'Bronte Trails' :
-            tableName === 'spruce_trails' ? 'Spruce Trails' :
-            tableName === 'meadowvale_brooks' ? 'Meadowvale Brooks' :
-            tableName === 'the_legacy' ? 'The Legacy' :
-            tableName === 'ivy_rouge_landing_leads' ? 'Ivy Rouge' :
-            tableName === 'abacot_hill_leads' ? 'Abacot Hill' :
-            tableName === 'og_urban_towns_leads' ? 'OG Urban Towns' :
-            tableName === 'rosemont_grove_leads' ? 'Rosemont Grove' :
-            tableName === 'yt_on_fourth_leads' ? 'YT on Fourth' :
-            tableName === 'hawthorne_trafalgar_leads' ? 'Hawthorne on Trafalgar' :
-            tableName
+            landingLabelByTable.get(tableName) || tableName
           
           duplicateHistory.push({
             id: lead.id,

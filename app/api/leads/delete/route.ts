@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { fetchLandingPageSources, isValidLandingPageTableName } from '@/lib/landingPageSources'
 
-// Use service role key for admin operations (bypasses RLS)
+const CORE_TABLES = new Set([
+  'fj_leads',
+  'precon_factory_leads',
+  'precon_factory_website_leads',
+  'gta_lowrise_leads',
+  'rental_leads',
+])
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -17,7 +25,6 @@ export async function POST(request: NextRequest) {
   try {
     const { table, leadIds } = await request.json()
 
-    // Validate inputs
     if (!table || !leadIds) {
       return NextResponse.json(
         { error: 'Table and lead IDs are required' },
@@ -25,16 +32,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate table name
-    const validTables = ['fj_leads', 'precon_factory_leads', 'precon_factory_website_leads', 'gta_lowrise_leads', 'rental_leads', 'cornerstone_leads', 'novella_leads', 'lakeview_village_leads', 'rollingwood_leads', 'enclave', 'hawthorne_east_village', 'bronte_trails', 'spruce_trails', 'meadowvale_brooks', 'the_legacy', 'ivy_rouge_landing_leads', 'abacot_hill_leads', 'og_urban_towns_leads', 'rosemont_grove_leads', 'yt_on_fourth_leads', 'hawthorne_trafalgar_leads']
-    if (!validTables.includes(table)) {
-      return NextResponse.json(
-        { error: 'Invalid table name' },
-        { status: 400 }
-      )
+    if (!isValidLandingPageTableName(table) && !CORE_TABLES.has(table)) {
+      return NextResponse.json({ error: 'Invalid table name' }, { status: 400 })
     }
 
-    // Validate leadIds is an array
+    const landingSources = await fetchLandingPageSources({ enabledOnly: false })
+    const landingTables = new Set(landingSources.map((s) => s.table_name))
+    if (!CORE_TABLES.has(table) && !landingTables.has(table)) {
+      return NextResponse.json({ error: 'Invalid table name' }, { status: 400 })
+    }
+
     if (!Array.isArray(leadIds) || leadIds.length === 0) {
       return NextResponse.json(
         { error: 'Lead IDs must be a non-empty array' },
@@ -42,7 +49,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Delete leads
     const { error } = await supabase
       .from(table)
       .delete()
@@ -57,7 +63,6 @@ export async function POST(request: NextRequest) {
       success: true,
       deletedCount: leadIds.length
     })
-
   } catch (error) {
     console.error('Error deleting leads:', error)
     return NextResponse.json(
@@ -66,4 +71,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
