@@ -98,6 +98,11 @@ const LANDING_PAGE_SHEET_META: Record<string, { websiteName: string; pageName: s
     pageName: 'YT on Fourth',
     siteUrl: 'https://ytonfourth.ca',
   },
+  hawthorne_trafalgar_leads: {
+    websiteName: 'Hawthorne on Trafalgar',
+    pageName: 'Hawthorne on Trafalgar',
+    siteUrl: 'https://hawthornetrafalgar.com',
+  },
 }
 
 const LEAD_TABLE_ALIASES: Record<string, keyof typeof LANDING_PAGE_SHEET_META> = {
@@ -105,6 +110,7 @@ const LEAD_TABLE_ALIASES: Record<string, keyof typeof LANDING_PAGE_SHEET_META> =
   og_urban_towns: 'og_urban_towns_leads',
   rosemont_grove: 'rosemont_grove_leads',
   yt_on_fourth: 'yt_on_fourth_leads',
+  hawthorne_trafalgar: 'hawthorne_trafalgar_leads',
 }
 
 function normalizeLeadTableName(tableName: unknown): string | undefined {
@@ -131,6 +137,14 @@ function resolveLeadTableName(lead: Record<string, unknown>): string | undefined
   if (hint.includes('rosemont')) return 'rosemont_grove_leads'
   if (hint.includes('yt-on-fourth') || hint.includes('yt_on_fourth') || hint.includes('yt on fourth')) {
     return 'yt_on_fourth_leads'
+  }
+  if (
+    hint.includes('hawthorne trafalgar') ||
+    hint.includes('hawthorne-trafalgar') ||
+    hint.includes('hawthorne_trafalgar') ||
+    hint.includes('hawthorne on trafalgar')
+  ) {
+    return 'hawthorne_trafalgar_leads'
   }
   if (
     hint.includes('precon factory website') ||
@@ -223,6 +237,7 @@ function getBrokerFieldForLead(lead: Record<string, unknown>): unknown {
   const table = lead.table_name
   if (
     table === 'hawthorne_east_village' ||
+    table === 'hawthorne_trafalgar_leads' ||
     table === 'bronte_trails' ||
     table === 'spruce_trails' ||
     table === 'og_urban_towns_leads' ||
@@ -322,6 +337,10 @@ function resolveInterestedSheetValue(lead: Record<string, unknown>): string {
       return (lead.purchase_timeframe as string) || (lead.lead_type as string) || 'N/A'
     case 'hawthorne_east_village':
       return 'N/A'
+    case 'hawthorne_trafalgar_leads': {
+      const parts = [lead.form_location, lead.project_name].filter(Boolean) as string[]
+      return parts.length ? parts.join(' · ') : 'N/A'
+    }
     default:
       return 'N/A'
   }
@@ -402,6 +421,12 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
           : formLabel
             ? `${meta.websiteName} — ${formLabel}`
             : meta.websiteName
+      } else if (lead.table_name === 'hawthorne_trafalgar_leads') {
+        const formLoc = (lead.form_location as string) || ''
+        const projectFromRow = (lead.project_name as string) || ''
+        projectName = formLoc
+          ? `${meta.websiteName} — ${formLoc}`
+          : projectFromRow || meta.websiteName
       } else {
         projectName = websiteFromPayload || meta.websiteName
       }
@@ -420,7 +445,7 @@ async function appendLeadToGoogleSheet(lead: Record<string, unknown>) {
 
     const sheetMessage = isEmailLeadTable(lead.table_name)
       ? resolveCustomerNotes(lead)
-      : lead.table_name === 'yt_on_fourth_leads'
+      : lead.table_name === 'yt_on_fourth_leads' || lead.table_name === 'hawthorne_trafalgar_leads'
         ? resolveCustomerNotes(lead)
         : ''
 
@@ -656,6 +681,15 @@ export async function POST(request: NextRequest) {
         if (lead.preferred_contact) message += `\n📞 Preferred contact: ${lead.preferred_contact}`
         if (lead.notes) message += `\n📝 Notes: ${lead.notes}`
         if (lead.page_source || lead.source) message += `\n📌 Source: ${lead.page_source || lead.source}`
+      }
+
+      if (lead.table_name === 'hawthorne_trafalgar_leads') {
+        const broker = formatBrokerSheetValue(lead)
+        if (broker !== 'N/A') message += `\n🏢 Broker: ${broker}`
+        if (lead.project_name) message += `\n🏢 Project: ${lead.project_name}`
+        if (lead.form_location) message += `\n📋 Form: ${lead.form_location}`
+        if (lead.source) message += `\n📌 Source: ${lead.source}`
+        if (lead.notes) message += `\n📝 Notes: ${lead.notes}`
       }
     } else {
       // Regular lead format
