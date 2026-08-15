@@ -13,7 +13,7 @@ import {
   isBookingStatusCanceled,
 } from '@/lib/bookingCalendar'
 import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
-import { getInterviewManageLinkSms, resolveInterviewManageUrl } from '@/lib/interviewManageUrl'
+import { prepareInterviewBooking, syncInterviewCancellation } from '@/lib/interviewBookingSync'
 import {
   normalizeBookingPayload,
   resolveBookingFirstName,
@@ -37,19 +37,6 @@ function buildCancelSms(
 To book a new time, please contact us at ${brandContact.phoneFormatted}.
 
 - ${brandName} Team`
-}
-
-function buildInterviewCancelSms(
-  booking: {
-    firstname: string
-    appointment_date: string
-    appointment_time: string
-  },
-  manageUrl: string | null
-) {
-  return `Hi ${booking.firstname}, your interview on ${booking.appointment_date} at ${booking.appointment_time} has been cancelled.${getInterviewManageLinkSms(manageUrl)}
-
-- Fahad Javed Real Estate`
 }
 
 export async function POST(request: NextRequest) {
@@ -88,6 +75,40 @@ export async function POST(request: NextRequest) {
     }
 
     const brandName = getBrandFromTable(table)
+    const isInterview = table === FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
+    const oldBooking = isInterview ? prepareInterviewBooking(bookingRecord) : null
+
+    if (isInterview && oldBooking) {
+      await supabase
+        .from(table)
+        .update({ last_sync_source: 'dashboard_cancel' })
+        .eq('id', bookingId)
+
+      const sync = await syncInterviewCancellation(
+        oldBooking,
+        oldBooking,
+        'from Property Dashboard',
+        supabase,
+        { sendCandidateSms: sendSms }
+      )
+
+      const updatedBooking = await cancelBookingStatus(supabase, table, bookingId)
+      await supabase.from(table).update({ last_sync_source: null }).eq('id', bookingId)
+
+      return NextResponse.json({
+        success: true,
+        booking: updatedBooking,
+        calendarUpdated: sync.calendarUpdated,
+        calendarEventId: sync.calendarEventId,
+        calendarWarning: sync.calendarWarning,
+        smsSent: sync.candidateSms?.sent || false,
+        smsError: sync.candidateSms?.error || null,
+        message: sync.calendarWarning
+          ? 'Interview cancelled in dashboard with warnings.'
+          : 'Interview cancelled successfully.',
+      })
+    }
+
     const calendarId = getCalendarIdForTable(table)
     let calendarUpdated = false
     let calendarEventId: string | null = booking.calendar_event_id || null
@@ -132,28 +153,14 @@ export async function POST(request: NextRequest) {
       if (accountSid && authToken && twilioPhone) {
         try {
           const client = twilio(accountSid, authToken)
-          const interviewManageUrl =
-            table === FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
-              ? resolveInterviewManageUrl(bookingRecord)
-              : null
-          const message =
-            table === FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
-              ? buildInterviewCancelSms(
-                  {
-                    firstname,
-                    appointment_date: appointmentDate,
-                    appointment_time: appointmentTime,
-                  },
-                  interviewManageUrl
-                )
-              : buildCancelSms(
-                  {
-                    firstname,
-                    appointment_date: appointmentDate,
-                    appointment_time: appointmentTime,
-                  },
-                  brandName
-                )
+          const message = buildCancelSms(
+            {
+              firstname,
+              appointment_date: appointmentDate,
+              appointment_time: appointmentTime,
+            },
+            brandName
+          )
 
           const smsResponse = await client.messages.create({
             body: message,

@@ -7,6 +7,9 @@ BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
+ALTER TABLE fahad_sells_interview_bookings
+  ADD COLUMN IF NOT EXISTS last_sync_source TEXT;
+
 DROP TRIGGER IF EXISTS notify_fahad_sells_interview_booking_update ON fahad_sells_interview_bookings;
 DROP FUNCTION IF EXISTS notify_fahad_sells_interview_booking_update();
 

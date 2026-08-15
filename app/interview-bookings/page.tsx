@@ -476,7 +476,6 @@ export default function InterviewBookings() {
               <BookingReschedulePanel
                 booking={selectedBooking}
                 table={BOOKING_TABLE}
-                cancelOnly
                 candidateManageUrl={resolveInterviewManageUrl(selectedBooking as Record<string, unknown>)}
                 onRescheduled={handleRescheduled}
                 onCancelled={handleCancelled}

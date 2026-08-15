@@ -14,6 +14,10 @@ import {
   updateBookingAppointment,
   updateCalendarEventTime,
 } from '@/lib/bookingCalendar'
+import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
+import { prepareInterviewBooking, syncInterviewReschedule } from '@/lib/interviewBookingSync'
+import { appointmentToSlotIso } from '@/lib/interviewSlotTimes'
+import { normalizeBookingPayload } from '@/lib/normalizeBookingPayload'
 
 function toE164NorthAmerica(phone: string): string {
   const digits = phone.replace(/\D/g, '')
@@ -83,6 +87,64 @@ export async function POST(request: NextRequest) {
     if (fetchError || !booking) {
       return NextResponse.json({ error: 'Booking not found.' }, { status: 404 })
     }
+
+    if (table === FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE) {
+      const bookingRecord = booking as Record<string, unknown>
+      const oldBooking = prepareInterviewBooking(bookingRecord)
+
+      if (
+        String(oldBooking.appointment_date || '') === appointment_date &&
+        normalizeAppointmentTime(String(oldBooking.appointment_time || '')) === normalizedTime
+      ) {
+        return NextResponse.json(
+          { error: 'The selected date and time are the same as the current appointment.' },
+          { status: 400 }
+        )
+      }
+
+      const slots = appointmentToSlotIso(appointment_date, normalizedTime)
+      const { data: updatedRow, error: updateError } = await supabase
+        .from(table)
+        .update({
+          slot_start: slots.slot_start,
+          slot_end: slots.slot_end,
+          last_sync_source: 'dashboard_reschedule',
+        })
+        .eq('id', bookingId)
+        .select('*')
+        .single()
+
+      if (updateError || !updatedRow) {
+        throw updateError || new Error('Unable to update interview booking.')
+      }
+
+      const newBooking = prepareInterviewBooking(updatedRow as Record<string, unknown>)
+      const sync = await syncInterviewReschedule(
+        oldBooking,
+        newBooking,
+        'from Property Dashboard',
+        supabase,
+        { sendCandidateSms: sendSms }
+      )
+
+      await supabase.from(table).update({ last_sync_source: null }).eq('id', bookingId)
+
+      return NextResponse.json({
+        success: true,
+        booking: updatedRow,
+        calendarUpdated: sync.calendarUpdated,
+        calendarEventId: sync.calendarEventId,
+        calendarWarning: sync.calendarWarning,
+        smsSent: sync.candidateSms?.sent || false,
+        smsError: sync.candidateSms?.error || null,
+        candidateEmail: sync.candidateEmail,
+        message: sync.calendarWarning
+          ? 'Interview rescheduled in dashboard with warnings.'
+          : 'Interview rescheduled successfully.',
+      })
+    }
+
+    normalizeBookingPayload(booking as Record<string, unknown>)
 
     if (
       booking.appointment_date === appointment_date &&
