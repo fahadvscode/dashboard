@@ -7,7 +7,7 @@ Both the **Fahad Sells careers site** (`fahadsells`) and this **Property Dashboa
 `fahad_sells_interview_bookings`
 
 - The **website** creates rows when a candidate books (`POST /api/careers/book`) with `status: scheduled` and `slot_start` / `slot_end`.
-- The **dashboard** lists bookings, sends notifications (trigger → `/api/bookings/notify`), syncs Google Sheets, and can **cancel** only (no rescheduling — that would conflict with site slot logic).
+- The **dashboard** lists bookings, sends notifications (trigger → `/api/bookings/notify`), syncs Google Sheets, and can **cancel** from the admin UI. When a candidate **reschedules or cancels** on fahadsells.com, an **UPDATE** trigger calls `/api/bookings/interview-updated` to move/cancel the Google Calendar event and text/email the candidate (admins get email only).
 
 ## Status values (must match)
 
@@ -26,8 +26,9 @@ Use **`cancelled`** (British spelling), not `canceled`. The DB check constraint 
 
 ## SQL to run in Supabase (if needed)
 
-1. `setup_fahad_sells_interview_booking_notifications.sql`
-2. `fix_fahad_sells_interview_bookings_rls.sql`
-3. `fix_fahad_sells_interview_bookings_status_constraint.sql` (aligns with site migration 005)
+1. `setup_fahad_sells_interview_booking_notifications.sql` (new booking → notify)
+2. `setup_fahad_sells_interview_booking_update_notifications.sql` (reschedule/cancel on site → calendar + candidate SMS/email)
+3. `fix_fahad_sells_interview_bookings_rls.sql`
+4. `fix_fahad_sells_interview_bookings_status_constraint.sql` (aligns with site migration 005)
 
 If you previously ran an older dashboard constraint that allowed `canceled`, run step 3 again to migrate `canceled` → `cancelled` and restore partial indexes.
