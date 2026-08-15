@@ -28,6 +28,8 @@ interface BookingReschedulePanelProps {
   onCancelled?: (updated: { status: string }) => void
   /** Interview bookings: cancel only (no reschedule — uses slot_start in DB). */
   cancelOnly?: boolean
+  /** Candidate self-service link (fahadsells.com/careers/manage/...). */
+  candidateManageUrl?: string | null
 }
 
 export default function BookingReschedulePanel({
@@ -36,6 +38,7 @@ export default function BookingReschedulePanel({
   onRescheduled,
   onCancelled,
   cancelOnly = false,
+  candidateManageUrl = null,
 }: BookingReschedulePanelProps) {
   const [appointmentDate, setAppointmentDate] = useState(booking.appointment_date)
   const [appointmentTime, setAppointmentTime] = useState(
@@ -179,6 +182,24 @@ export default function BookingReschedulePanel({
         </p>
       ) : cancelOnly ? (
         <>
+          {candidateManageUrl && (
+            <div className="mt-3 rounded-lg border border-blue-200 bg-white p-3 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">
+                Candidate manage link
+              </p>
+              <p className="mt-1 text-xs text-gray-600">
+                Share this link so the candidate can reschedule or cancel on fahadsells.com.
+              </p>
+              <a
+                href={candidateManageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 block break-all text-blue-600 underline-offset-2 hover:underline"
+              >
+                {candidateManageUrl}
+              </a>
+            </div>
+          )}
           <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
             <input
               type="checkbox"

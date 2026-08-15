@@ -11,6 +11,7 @@ import {
   resolveBookingFirstName,
   resolveBookingLastName,
 } from '@/lib/normalizeBookingPayload'
+import { resolveInterviewManageUrl } from '@/lib/interviewManageUrl'
 
 const BOOKING_TABLE = FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
 
@@ -30,6 +31,8 @@ interface Booking {
   message: string
   status: string
   created_at: string
+  manage_token?: string | null
+  manage_url?: string | null
 }
 
 function mapRowToBooking(row: Record<string, unknown>): Booking {
@@ -51,6 +54,8 @@ function mapRowToBooking(row: Record<string, unknown>): Booking {
     message: String(row.message || ''),
     status: String(row.status || 'scheduled'),
     created_at: String(row.created_at || ''),
+    manage_token: (row.manage_token as string) || null,
+    manage_url: (row.manage_url as string) || null,
   }
 }
 
@@ -472,6 +477,7 @@ export default function InterviewBookings() {
                 booking={selectedBooking}
                 table={BOOKING_TABLE}
                 cancelOnly
+                candidateManageUrl={resolveInterviewManageUrl(selectedBooking as Record<string, unknown>)}
                 onRescheduled={handleRescheduled}
                 onCancelled={handleCancelled}
               />

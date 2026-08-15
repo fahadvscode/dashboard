@@ -18,6 +18,11 @@ import {
   buildInterviewAdminEmailDetailRows,
   buildInterviewAdminSmsDetails,
 } from '@/lib/interviewBookingAdminDetails'
+import {
+  getInterviewManageLinkHtml,
+  getInterviewManageLinkSms,
+  resolveInterviewManageUrl,
+} from '@/lib/interviewManageUrl'
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
@@ -177,6 +182,9 @@ export async function POST(request: NextRequest) {
     const customerNotes = resolveCustomerNotes(booking)
     const personLabel = isInterview ? 'Candidate' : 'Customer'
     const bookingKindLabel = isInterview ? 'Interview Booking' : 'Booking'
+    const interviewManageUrl = isInterview
+      ? resolveInterviewManageUrl(booking as Record<string, unknown>)
+      : null
 
     // ── 1. Admin SMS ──────────────────────────────────────────────
     let message = isInterview
@@ -366,6 +374,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
             <div class="detail-row"><span class="detail-label">Type:</span><span class="detail-value">${displayType}</span></div>
           </div>
           ${typeSpecificHtml}
+          ${getInterviewManageLinkHtml(interviewManageUrl)}
           <p>We look forward to meeting you.</p>
           <p><strong>Best regards,</strong><br>${INTERVIEW_BRAND_NAME}</p>
         </div>
@@ -433,7 +442,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
           ? `Interview confirmed — ${INTERVIEW_BRAND_NAME}
 
 📅 ${booking.appointment_date || 'TBD'}
-🕐 ${booking.appointment_time || 'TBD'}${getInterviewCandidateLocationSms()}
+🕐 ${booking.appointment_time || 'TBD'}${getInterviewCandidateLocationSms()}${getInterviewManageLinkSms(interviewManageUrl)}
 
 - ${INTERVIEW_BRAND_NAME}`
           : `✅ Appointment Confirmed!

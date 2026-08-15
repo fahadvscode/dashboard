@@ -13,6 +13,7 @@ import {
   isBookingStatusCanceled,
 } from '@/lib/bookingCalendar'
 import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
+import { getInterviewManageLinkSms, resolveInterviewManageUrl } from '@/lib/interviewManageUrl'
 import {
   normalizeBookingPayload,
   resolveBookingFirstName,
@@ -38,12 +39,15 @@ To book a new time, please contact us at ${brandContact.phoneFormatted}.
 - ${brandName} Team`
 }
 
-function buildInterviewCancelSms(booking: {
-  firstname: string
-  appointment_date: string
-  appointment_time: string
-}) {
-  return `Hi ${booking.firstname}, your interview on ${booking.appointment_date} at ${booking.appointment_time} has been cancelled.
+function buildInterviewCancelSms(
+  booking: {
+    firstname: string
+    appointment_date: string
+    appointment_time: string
+  },
+  manageUrl: string | null
+) {
+  return `Hi ${booking.firstname}, your interview on ${booking.appointment_date} at ${booking.appointment_time} has been cancelled.${getInterviewManageLinkSms(manageUrl)}
 
 - Fahad Javed Real Estate`
 }
@@ -128,13 +132,20 @@ export async function POST(request: NextRequest) {
       if (accountSid && authToken && twilioPhone) {
         try {
           const client = twilio(accountSid, authToken)
+          const interviewManageUrl =
+            table === FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
+              ? resolveInterviewManageUrl(bookingRecord)
+              : null
           const message =
             table === FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
-              ? buildInterviewCancelSms({
-                  firstname,
-                  appointment_date: appointmentDate,
-                  appointment_time: appointmentTime,
-                })
+              ? buildInterviewCancelSms(
+                  {
+                    firstname,
+                    appointment_date: appointmentDate,
+                    appointment_time: appointmentTime,
+                  },
+                  interviewManageUrl
+                )
               : buildCancelSms(
                   {
                     firstname,
