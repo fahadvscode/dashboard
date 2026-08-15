@@ -212,32 +212,34 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
     message += `\n⏰ Just now\n\n👉 View in Dashboard: ${dashboardUrl}`
 
     const twilioResponses: { phone: string; sid?: string; error?: string }[] = []
-    try {
-      if (!accountSid || !authToken || !twilioPhone) {
-        for (const phone of notificationPhones) twilioResponses.push({ phone, error: 'Twilio not configured' })
-      } else {
-        const results = await Promise.allSettled(
-          notificationPhones.map(async rawPhone => {
-            const to = toE164NorthAmerica(rawPhone)
-            const msg = await client.messages.create({ body: message, from: twilioPhone, to })
-            return { rawPhone, sid: msg.sid }
-          })
-        )
-        for (let i = 0; i < results.length; i++) {
-          const phone = notificationPhones[i]
-          const r = results[i]
-          if (r.status === 'fulfilled') {
-            twilioResponses.push({ phone, sid: r.value.sid })
-          } else {
-            twilioResponses.push({ phone, error: r.reason instanceof Error ? r.reason.message : String(r.reason) })
+    if (!isInterview) {
+      try {
+        if (!accountSid || !authToken || !twilioPhone) {
+          for (const phone of notificationPhones) twilioResponses.push({ phone, error: 'Twilio not configured' })
+        } else {
+          const results = await Promise.allSettled(
+            notificationPhones.map(async rawPhone => {
+              const to = toE164NorthAmerica(rawPhone)
+              const msg = await client.messages.create({ body: message, from: twilioPhone, to })
+              return { rawPhone, sid: msg.sid }
+            })
+          )
+          for (let i = 0; i < results.length; i++) {
+            const phone = notificationPhones[i]
+            const r = results[i]
+            if (r.status === 'fulfilled') {
+              twilioResponses.push({ phone, sid: r.value.sid })
+            } else {
+              twilioResponses.push({ phone, error: r.reason instanceof Error ? r.reason.message : String(r.reason) })
+            }
           }
         }
-      }
-    } catch (smsError) {
-      console.error('Error sending admin SMS batch:', smsError)
-      for (const phone of notificationPhones) {
-        if (!twilioResponses.some(t => t.phone === phone)) {
-          twilioResponses.push({ phone, error: smsError instanceof Error ? smsError.message : String(smsError) })
+      } catch (smsError) {
+        console.error('Error sending admin SMS batch:', smsError)
+        for (const phone of notificationPhones) {
+          if (!twilioResponses.some(t => t.phone === phone)) {
+            twilioResponses.push({ phone, error: smsError instanceof Error ? smsError.message : String(smsError) })
+          }
         }
       }
     }
