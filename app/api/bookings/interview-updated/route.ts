@@ -34,8 +34,30 @@ export async function POST(request: NextRequest) {
     const wasCancelled = isBookingStatusCanceled(oldBooking.status)
     const isCancelled = isBookingStatusCanceled(newBooking.status)
     const becameCancelled = !wasCancelled && isCancelled
+    const becameScheduled = wasCancelled && !isCancelled
     const rescheduled =
-      !isCancelled && interviewSlotOrTimeChanged(oldBooking, newBooking) && !becameCancelled
+      !isCancelled && interviewSlotOrTimeChanged(oldBooking, newBooking) && !becameCancelled && !becameScheduled
+
+    if (becameScheduled) {
+      const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : process.env.NEXT_PUBLIC_BASE_URL || 'https://property-dashboard-three.vercel.app'
+      const notifyResponse = await fetch(`${baseUrl}/api/bookings/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newRecord,
+          table_name: 'fahad_sells_interview_bookings',
+          force_notify: true,
+        }),
+      })
+      const notifyJson = await notifyResponse.json().catch(() => ({}))
+      return NextResponse.json({
+        success: notifyResponse.ok,
+        change: 'new_booking',
+        notify: notifyJson,
+      }, { status: notifyResponse.ok ? 200 : 500 })
+    }
 
     if (!becameCancelled && !rescheduled) {
       return NextResponse.json({

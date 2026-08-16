@@ -23,6 +23,9 @@ import {
   getInterviewManageLinkSms,
   resolveInterviewManageUrl,
 } from '@/lib/interviewManageUrl'
+import { interviewAlreadyNotified, markInterviewNotified } from '@/lib/markInterviewNotified'
+
+export const maxDuration = 60
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID
 const authToken = process.env.TWILIO_AUTH_TOKEN
@@ -162,6 +165,15 @@ export async function POST(request: NextRequest) {
     }
 
     const isInterview = isFahadSellsInterviewBooking(booking.table_name)
+    const forceNotify = booking.force_notify === true
+
+    if (isInterview && !forceNotify && interviewAlreadyNotified(booking.last_sync_source)) {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        message: 'Interview notifications already sent.',
+      })
+    }
 
     const meetingFormat = isInterview
       ? 'visit_office'
@@ -317,18 +329,22 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
         <div class="footer"><p>Automated notification from Property Dashboard</p><p>&copy; ${new Date().getFullYear()} Property Dashboard</p></div>
       </div></body></html>`
 
-      for (const email of notificationEmails) {
-        try {
+      const adminMailResults = await Promise.allSettled(
+        notificationEmails.map(async email => {
           const result = await emailTransporter.sendMail({
             from: `"Property Dashboard" <${process.env.GMAIL_USER || 'info@qikfill.com'}>`,
             to: email,
             subject: `🔔 New ${source} ${isInterview ? 'Interview ' : ''}Booking (${displayType}) - ${firstname} ${lastname || ''}`,
             html: adminEmailHtml
           })
-          adminEmailResults.push({ email, messageId: result.messageId })
-        } catch (perEmailErr) {
-          adminEmailResults.push({ email, error: perEmailErr instanceof Error ? perEmailErr.message : String(perEmailErr) })
-        }
+          return { email, messageId: result.messageId }
+        })
+      )
+      for (let i = 0; i < adminMailResults.length; i++) {
+        const email = notificationEmails[i]
+        const r = adminMailResults[i]
+        if (r.status === 'fulfilled') adminEmailResults.push(r.value)
+        else adminEmailResults.push({ email, error: r.reason instanceof Error ? r.reason.message : String(r.reason) })
       }
     } catch (emailError) {
       console.error('Error sending admin emails:', emailError)
@@ -502,6 +518,16 @@ Need to reschedule? Call ${brandContact.phoneFormatted}
     }
 
     // ── Response ──────────────────────────────────────────────────
+    if (isInterview) {
+      const notified =
+        !!customerSmsResult?.sid ||
+        !!customerEmailResult?.messageId ||
+        adminEmailResults.some(r => r.messageId)
+      if (notified) {
+        await markInterviewNotified(booking.id, 'notify')
+      }
+    }
+
     console.log('Booking notifications sent:', {
       bookingId: booking.id, source, meetingFormat, displayType,
       adminSms: twilioResponses, adminEmails: adminEmailResults,

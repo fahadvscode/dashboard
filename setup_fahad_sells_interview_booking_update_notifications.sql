@@ -17,7 +17,7 @@ CREATE OR REPLACE FUNCTION notify_fahad_sells_interview_booking_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, net
 AS $$
 DECLARE
   payload JSONB;
@@ -33,7 +33,8 @@ BEGIN
   SELECT net.http_post(
     url := dashboard_url || '/api/bookings/interview-updated',
     headers := '{"Content-Type": "application/json"}'::jsonb,
-    body := payload
+    body := payload,
+    timeout_milliseconds := 60000
   ) INTO request_id;
 
   RAISE NOTICE 'Fahad Sells interview booking update sync sent (request_id: %)', request_id;

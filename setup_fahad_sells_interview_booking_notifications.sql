@@ -1,6 +1,7 @@
 -- SAFE: public.fahad_sells_interview_bookings only
 -- AFTER INSERT → /api/bookings/notify (admin SMS/email, calendar, candidate confirmations, Interview Bookings sheet tab)
 -- Table may use full_name, slot_start, slot_end — the API maps these to firstname / appointment_date / appointment_time.
+-- Re-run this file whenever the notify function changes. Current version uses a 60s pg_net timeout.
 
 BEGIN;
 
@@ -13,7 +14,7 @@ CREATE OR REPLACE FUNCTION notify_new_fahad_sells_interview_booking()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, net
 AS $$
 DECLARE
   payload JSONB;
@@ -22,10 +23,12 @@ DECLARE
 BEGIN
   payload := to_jsonb(NEW) || jsonb_build_object('table_name', 'fahad_sells_interview_bookings');
 
+  -- Default pg_net timeout is 5s; notify sends SMS + Gmail and needs longer.
   SELECT net.http_post(
     url := dashboard_url || '/api/bookings/notify',
     headers := '{"Content-Type": "application/json"}'::jsonb,
-    body := payload
+    body := payload,
+    timeout_milliseconds := 60000
   ) INTO request_id;
 
   RAISE NOTICE 'Fahad Sells interview booking notification sent (request_id: %)', request_id;

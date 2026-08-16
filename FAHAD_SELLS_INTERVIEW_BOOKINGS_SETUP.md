@@ -7,7 +7,7 @@ Both the **Fahad Sells careers site** (`fahadsells`) and this **Property Dashboa
 `fahad_sells_interview_bookings`
 
 - The **website** creates rows when a candidate books (`POST /api/careers/book`) with `status: scheduled` and `slot_start` / `slot_end`.
-- The **dashboard** lists bookings, sends notifications (trigger → `/api/bookings/notify`), syncs Google Sheets, and can **cancel** from the admin UI. When a candidate **reschedules or cancels** on fahadsells.com, an **UPDATE** trigger calls `/api/bookings/interview-updated` to move/cancel the Google Calendar event and text/email the candidate (admins get email only).
+- The **dashboard** lists bookings, sends notifications (INSERT trigger → `/api/bookings/notify`), syncs Google Sheets, and can **cancel** from the admin UI. A Vercel cron (`/api/cron/interview-notify` every 2 minutes) also catches any scheduled interview that was not notified. When a candidate **reschedules or cancels** on fahadsells.com, an **UPDATE** trigger calls `/api/bookings/interview-updated` to move/cancel the Google Calendar event and text/email the candidate (admins get email only).
 
 ## Status values (must match)
 

@@ -3,6 +3,10 @@
     {
       "path": "/api/bookings/send-reminders",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/interview-notify",
+      "schedule": "*/2 * * * *"
     }
   ],
   "headers": [
