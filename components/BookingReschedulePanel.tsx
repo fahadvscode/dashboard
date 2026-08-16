@@ -188,7 +188,7 @@ export default function BookingReschedulePanel({
                 Candidate manage link
               </p>
               <p className="mt-1 text-xs text-gray-600">
-                Share this link so the candidate can reschedule or cancel on fahadsells.com.
+                Share this link so the candidate can cancel on fahadsells.com.
               </p>
               <a
                 href={candidateManageUrl}
