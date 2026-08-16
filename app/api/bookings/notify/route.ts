@@ -46,7 +46,10 @@ const emailTransporter = nodemailer.createTransport({
   auth: {
     user: process.env.GMAIL_USER || 'info@qikfill.com',
     pass: process.env.GMAIL_APP_PASSWORD
-  }
+  },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 20000,
 })
 
 function getBrandContact(source: string) {
@@ -186,6 +189,26 @@ export async function POST(request: NextRequest) {
       ? resolveInterviewManageUrl(booking as Record<string, unknown>)
       : null
 
+    // Interview candidate SMS first so Gmail delays cannot skip the text.
+    let customerSmsResult = null
+    if (isInterview && booking.phone && accountSid && authToken && twilioPhone) {
+      try {
+        customerSmsResult = await client.messages.create({
+          body: `Interview confirmed — ${INTERVIEW_BRAND_NAME}
+
+📅 ${booking.appointment_date || 'TBD'}
+🕐 ${booking.appointment_time || 'TBD'}${getInterviewCandidateLocationSms()}${getInterviewManageLinkSms(interviewManageUrl)}
+
+- ${INTERVIEW_BRAND_NAME}`,
+          from: twilioPhone,
+          to: toE164NorthAmerica(booking.phone)
+        })
+        console.log('Interview candidate SMS sent:', customerSmsResult.sid)
+      } catch (smsError) {
+        console.error('Error sending interview candidate SMS:', smsError)
+      }
+    }
+
     // ── 1. Admin SMS ──────────────────────────────────────────────
     let message = isInterview
       ? `🔔 New ${source} Interview Booking!\n\n👤 Candidate: ${firstname} ${lastname || ''}`
@@ -313,30 +336,37 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
 
     // ── 3. Create calendar event FIRST (needed to get Meet link) ──
     let calendarEvent: { meetLink?: string; eventId?: string; htmlLink?: string } | null = null
+    const existingCalendarEventId =
+      typeof booking.calendar_event_id === 'string' ? booking.calendar_event_id.trim() : ''
     try {
-      const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : process.env.NEXT_PUBLIC_BASE_URL || 'https://property-dashboard-three.vercel.app'
-
-      const calendarResponse = await fetch(`${baseUrl}/api/bookings/create-calendar-event`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...booking,
-          table_name: booking.table_name || (
-            isInterview ? 'fahad_sells_interview_bookings' :
-            source === 'Fahad Javed Real Estate' ? 'fj_bookings' :
-            source === 'Precon Factory' ? 'precon_factory_bookings' :
-            'gta_lowrise_bookings'
-          )
-        })
-      })
-
-      if (calendarResponse.ok) {
-        calendarEvent = await calendarResponse.json()
-        console.log('Calendar event created:', calendarEvent)
+      if (existingCalendarEventId) {
+        calendarEvent = { eventId: existingCalendarEventId }
+        console.log('Skipping calendar create; event already exists:', existingCalendarEventId)
       } else {
-        console.error('Failed to create calendar event:', await calendarResponse.text())
+        const baseUrl = process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : process.env.NEXT_PUBLIC_BASE_URL || 'https://property-dashboard-three.vercel.app'
+
+        const calendarResponse = await fetch(`${baseUrl}/api/bookings/create-calendar-event`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...booking,
+            table_name: booking.table_name || (
+              isInterview ? 'fahad_sells_interview_bookings' :
+              source === 'Fahad Javed Real Estate' ? 'fj_bookings' :
+              source === 'Precon Factory' ? 'precon_factory_bookings' :
+              'gta_lowrise_bookings'
+            )
+          })
+        })
+
+        if (calendarResponse.ok) {
+          calendarEvent = await calendarResponse.json()
+          console.log('Calendar event created:', calendarEvent)
+        } else {
+          console.error('Failed to create calendar event:', await calendarResponse.text())
+        }
       }
     } catch (calendarError) {
       console.error('Error creating calendar event:', calendarError)
@@ -436,18 +466,10 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
       console.error('Error sending customer confirmation email:', emailError)
     }
 
-    // ── 5. Candidate / customer confirmation SMS ──
-    let customerSmsResult = null
+    // ── 5. Customer confirmation SMS (property bookings only; interviews already sent above) ──
     try {
-      if (booking.phone && accountSid && authToken && twilioPhone) {
-        const customerSmsMessage = isInterview
-          ? `Interview confirmed — ${INTERVIEW_BRAND_NAME}
-
-📅 ${booking.appointment_date || 'TBD'}
-🕐 ${booking.appointment_time || 'TBD'}${getInterviewCandidateLocationSms()}${getInterviewManageLinkSms(interviewManageUrl)}
-
-- ${INTERVIEW_BRAND_NAME}`
-          : `✅ Appointment Confirmed!
+      if (!isInterview && booking.phone && accountSid && authToken && twilioPhone) {
+        const customerSmsMessage = `✅ Appointment Confirmed!
 
 📅 ${booking.appointment_date || 'TBD'}
 🕐 ${booking.appointment_time || 'TBD'}
