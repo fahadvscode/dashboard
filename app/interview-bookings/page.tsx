@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Calendar, Download, Mail, Phone, User, Trash2, X, Clock, Tag, MessageSquare } from 'lucide-react'
+import { Calendar, Download, Mail, Phone, User, Trash2, X, Clock, Tag, MessageSquare, FileText } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 import BookingReschedulePanel from '@/components/BookingReschedulePanel'
 import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
@@ -12,6 +12,7 @@ import {
   resolveBookingLastName,
 } from '@/lib/normalizeBookingPayload'
 import { resolveInterviewManageUrl } from '@/lib/interviewManageUrl'
+import { resolveInterviewResume } from '@/lib/interviewResume'
 
 const BOOKING_TABLE = FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
 
@@ -33,6 +34,9 @@ interface Booking {
   created_at: string
   manage_token?: string | null
   manage_url?: string | null
+  resume_file_name?: string | null
+  resume_path?: string | null
+  resume_url?: string | null
 }
 
 function mapRowToBooking(row: Record<string, unknown>): Booking {
@@ -56,6 +60,9 @@ function mapRowToBooking(row: Record<string, unknown>): Booking {
     created_at: String(row.created_at || ''),
     manage_token: (row.manage_token as string) || null,
     manage_url: (row.manage_url as string) || null,
+    resume_file_name: (row.resume_file_name as string) || null,
+    resume_path: (row.resume_path as string) || null,
+    resume_url: (row.resume_url as string) || null,
   }
 }
 
@@ -91,7 +98,7 @@ export default function InterviewBookings() {
   }
 
   const exportToCSV = () => {
-    const headers = ['Name', 'Email', 'Phone', 'Date', 'Time', 'Type', 'Status']
+    const headers = ['Name', 'Email', 'Phone', 'Date', 'Time', 'Type', 'Status', 'Resume']
     const csvData = bookings.map(b => [
       `${b.firstname} ${b.lastname}`,
       b.email,
@@ -99,7 +106,8 @@ export default function InterviewBookings() {
       b.appointment_date,
       b.appointment_time,
       b.appointment_type,
-      b.status
+      b.status,
+      resolveInterviewResume(b as Record<string, unknown>)?.url || ''
     ])
 
     const csvContent = [
@@ -258,6 +266,10 @@ export default function InterviewBookings() {
     return <div className="p-8"><div className="animate-pulse">Loading...</div></div>
   }
 
+  const selectedResume = selectedBooking
+    ? resolveInterviewResume(selectedBooking as Record<string, unknown>)
+    : null
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
@@ -359,6 +371,12 @@ export default function InterviewBookings() {
               {booking.message && (
                 <div className="text-xs text-gray-500 mt-2">
                   <span className="font-medium">Message:</span> {booking.message.substring(0, 100)}
+                </div>
+              )}
+              {resolveInterviewResume(booking as Record<string, unknown>) && (
+                <div className="text-xs text-blue-600 mt-2 flex items-center">
+                  <FileText className="h-3.5 w-3.5 mr-1" />
+                  Resume attached
                 </div>
               )}
             </div>
@@ -469,6 +487,31 @@ export default function InterviewBookings() {
                 <p className="mt-2 whitespace-pre-wrap rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
                   {selectedBooking.message}
                 </p>
+              </div>
+            )}
+
+            {selectedResume && (
+              <div className="border-t border-gray-100 px-6 py-4">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Resume</span>
+                <div className="mt-2 flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+                  <div className="flex items-center min-w-0">
+                    <FileText className="h-5 w-5 text-blue-600 mr-3 shrink-0" />
+                    <span className="text-sm font-medium text-gray-800 truncate">
+                      {selectedResume.fileName}
+                    </span>
+                  </div>
+                  {selectedResume.url && (
+                    <a
+                      href={selectedResume.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-3 inline-flex items-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 shrink-0"
+                    >
+                      <Download className="h-3.5 w-3.5 mr-1.5" />
+                      View / Download
+                    </a>
+                  )}
+                </div>
               </div>
             )}
 

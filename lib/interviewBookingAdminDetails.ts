@@ -18,6 +18,12 @@ const SKIP_INTERVIEW_ADMIN_KEYS = new Set([
   'appointment_type',
   'message',
   'notes',
+  'resume_url',
+  'resume_path',
+  'resume_file_name',
+  'last_sync_source',
+  'manage_token',
+  'manage_url',
 ])
 
 const INTERVIEW_FIELD_LABELS: Record<string, string> = {

@@ -24,6 +24,11 @@ import {
   resolveInterviewManageUrl,
 } from '@/lib/interviewManageUrl'
 import { interviewAlreadyNotified, markInterviewNotified } from '@/lib/markInterviewNotified'
+import {
+  buildInterviewResumeEmailHtml,
+  buildInterviewResumeSmsLine,
+  loadInterviewResumeAttachment,
+} from '@/lib/interviewResume'
 
 export const maxDuration = 60
 
@@ -239,6 +244,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
 
     if (isInterview) {
       message += buildInterviewAdminSmsDetails(booking as Record<string, unknown>)
+      message += buildInterviewResumeSmsLine(booking as Record<string, unknown>)
     }
 
     if (customerNotes) message += `\n💬 Message: ${customerNotes}`
@@ -281,6 +287,9 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
 
     // ── 2. Admin email ────────────────────────────────────────────
     const adminEmailResults: { email: string; messageId?: string; error?: string }[] = []
+    const interviewResumeAttachment = isInterview
+      ? await loadInterviewResumeAttachment(booking as Record<string, unknown>)
+      : null
     try {
       const adminActionHtml = `
         <div style="background:#fef3c7;padding:14px;border-radius:8px;margin:16px 0;border-left:4px solid #f59e0b;">
@@ -319,6 +328,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
             ${isInterview ? buildInterviewAdminEmailDetailRows(booking as Record<string, unknown>) : ''}
             ${customerNotes ? `<div class="detail-row"><div class="detail-label">💬 Message:</div><div class="detail-value">${customerNotes}</div></div>` : ''}
           </div>
+          ${isInterview ? buildInterviewResumeEmailHtml(booking as Record<string, unknown>) : ''}
           ${isInterview ? `<div style="text-align: center; margin: 30px 0;">
             <a href="${dashboardUrl}" class="button">👉 View in Dashboard</a>
           </div>` : `<div style="text-align: center; margin: 30px 0;">
@@ -335,7 +345,8 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
             from: `"Property Dashboard" <${process.env.GMAIL_USER || 'info@qikfill.com'}>`,
             to: email,
             subject: `🔔 New ${source} ${isInterview ? 'Interview ' : ''}Booking (${displayType}) - ${firstname} ${lastname || ''}`,
-            html: adminEmailHtml
+            html: adminEmailHtml,
+            attachments: interviewResumeAttachment ? [interviewResumeAttachment] : undefined,
           })
           return { email, messageId: result.messageId }
         })
