@@ -13,6 +13,7 @@ import {
 } from '@/lib/normalizeBookingPayload'
 import { resolveInterviewManageUrl } from '@/lib/interviewManageUrl'
 import { resolveInterviewResume } from '@/lib/interviewResume'
+import { listInterviewApplicationFields } from '@/lib/interviewBookingAdminDetails'
 
 const BOOKING_TABLE = FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
 
@@ -37,7 +38,17 @@ interface Booking {
   resume_file_name?: string | null
   resume_path?: string | null
   resume_url?: string | null
+  details: Record<string, unknown>
 }
+
+const CARD_SKIP_FIELDS = [
+  'full_name',
+  'status',
+  'slot_start',
+  'slot_end',
+  'application_id',
+  'position_id',
+]
 
 function mapRowToBooking(row: Record<string, unknown>): Booking {
   const copy = { ...row }
@@ -63,6 +74,7 @@ function mapRowToBooking(row: Record<string, unknown>): Booking {
     resume_file_name: (row.resume_file_name as string) || null,
     resume_path: (row.resume_path as string) || null,
     resume_url: (row.resume_url as string) || null,
+    details: copy,
   }
 }
 
@@ -107,7 +119,7 @@ export default function InterviewBookings() {
       b.appointment_time,
       b.appointment_type,
       b.status,
-      resolveInterviewResume(b as Record<string, unknown>)?.url || ''
+      resolveInterviewResume(b.details)?.url || ''
     ])
 
     const csvContent = [
@@ -267,8 +279,11 @@ export default function InterviewBookings() {
   }
 
   const selectedResume = selectedBooking
-    ? resolveInterviewResume(selectedBooking as Record<string, unknown>)
+    ? resolveInterviewResume(selectedBooking.details)
     : null
+  const selectedApplicationFields = selectedBooking
+    ? listInterviewApplicationFields(selectedBooking.details, ['full_name', 'status', 'slot_start', 'slot_end'])
+    : []
 
   return (
     <div className="p-8">
@@ -342,6 +357,9 @@ export default function InterviewBookings() {
                 </div>
                 <div className="ml-3">
                   <h3 className="font-semibold text-gray-900">{booking.firstname} {booking.lastname}</h3>
+                  {typeof booking.details.position_label === 'string' && booking.details.position_label && (
+                    <p className="text-xs text-gray-500 mt-0.5">{booking.details.position_label}</p>
+                  )}
                   <span className={`inline-block px-2 py-1 text-xs rounded-full ${getStatusColor(booking.status)}`}>
                     {booking.status}
                   </span>
@@ -351,31 +369,37 @@ export default function InterviewBookings() {
 
             <div className="space-y-2 text-sm">
               <div className="flex items-center text-gray-600">
-                <Mail className="h-4 w-4 mr-2" />
+                <Mail className="h-4 w-4 mr-2 shrink-0" />
                 <span className="truncate">{booking.email}</span>
               </div>
               <div className="flex items-center text-gray-600">
-                <Phone className="h-4 w-4 mr-2" />
+                <Phone className="h-4 w-4 mr-2 shrink-0" />
                 <span>{booking.phone}</span>
               </div>
               <div className="flex items-center text-gray-600">
-                <Calendar className="h-4 w-4 mr-2" />
+                <Calendar className="h-4 w-4 mr-2 shrink-0" />
                 <span>{booking.appointment_date} at {booking.appointment_time}</span>
               </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
               <div className="text-xs text-gray-500">
                 <span className="font-medium">Type:</span> {booking.appointment_type}
               </div>
+              {listInterviewApplicationFields(booking.details, CARD_SKIP_FIELDS).map((field) => (
+                <div key={field.key} className="text-xs text-gray-700">
+                  <span className="font-medium text-gray-500">{field.label}:</span>{' '}
+                  <span className="whitespace-pre-wrap break-words">{field.value}</span>
+                </div>
+              ))}
               {booking.message && (
-                <div className="text-xs text-gray-500 mt-2">
-                  <span className="font-medium">Message:</span> {booking.message.substring(0, 100)}
+                <div className="text-xs text-gray-500">
+                  <span className="font-medium">Message:</span> {booking.message}
                 </div>
               )}
-              {resolveInterviewResume(booking as Record<string, unknown>) && (
-                <div className="text-xs text-blue-600 mt-2 flex items-center">
-                  <FileText className="h-3.5 w-3.5 mr-1" />
+              {resolveInterviewResume(booking.details) && (
+                <div className="text-xs text-blue-600 flex items-center">
+                  <FileText className="h-3.5 w-3.5 mr-1 shrink-0" />
                   Resume attached
                 </div>
               )}
@@ -490,6 +514,20 @@ export default function InterviewBookings() {
               </div>
             )}
 
+            {selectedApplicationFields.length > 0 && (
+              <div className="border-t border-gray-100 px-6 py-4">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Application details</span>
+                <div className="mt-3 space-y-3">
+                  {selectedApplicationFields.map((field) => (
+                    <div key={field.key}>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">{field.label}</div>
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-gray-800">{field.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {selectedResume && (
               <div className="border-t border-gray-100 px-6 py-4">
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Resume</span>
@@ -520,7 +558,7 @@ export default function InterviewBookings() {
                 booking={selectedBooking}
                 table={BOOKING_TABLE}
                 cancelOnly
-                candidateManageUrl={resolveInterviewManageUrl(selectedBooking as Record<string, unknown>)}
+                candidateManageUrl={resolveInterviewManageUrl(selectedBooking.details)}
                 onRescheduled={handleRescheduled}
                 onCancelled={handleCancelled}
               />

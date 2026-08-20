@@ -77,9 +77,23 @@ const INTERVIEW_FIELD_ORDER = [
 function formatInterviewFieldValue(value: unknown): string {
   if (value === null || value === undefined) return ''
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => formatInterviewFieldValue(item))
+      .filter(Boolean)
+      .join(', ')
+  }
   if (typeof value === 'object') return JSON.stringify(value)
   const text = String(value).trim()
   return text
+}
+
+export function listInterviewApplicationFields(
+  booking: Record<string, unknown>,
+  extraSkip: string[] = []
+): Array<{ key: string; label: string; value: string }> {
+  const extra = new Set(extraSkip)
+  return orderedInterviewAdminEntries(booking).filter(({ key }) => !extra.has(key))
 }
 
 function orderedInterviewAdminEntries(booking: Record<string, unknown>): Array<{ key: string; label: string; value: string }> {
