@@ -6,8 +6,9 @@ import {
   Home, Calendar, Flame, Plus, Phone, Mail, Building2, Video,
   PhoneCall, Check, ChevronRight, User,
   Search, CheckSquare, UploadCloud, Users, FolderOpen, Sparkles,
-  Image, MessageSquare, Link2, Settings2, LogOut, MoreHorizontal,
+  Image, MessageSquare, Link2, LogOut, MoreHorizontal,
   Radio, Shuffle, MousePointerClick, Zap, MessageCircle, Loader2,
+  Rocket, FileText, Smartphone, Edit, Mailbox,
 } from 'lucide-react'
 import { logout } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
@@ -109,8 +110,16 @@ const MORE_SECTIONS = [
   {
     heading: 'Tools',
     items: [
+      { label: 'Generate Landing Page', icon: Rocket, tint: '#AF52DE', href: '/generate-landing-page' },
       { label: 'Landing Page Sources', icon: Link2, tint: '#8E8E93', href: '/landing-page-sources' },
-      { label: 'Tools & Links', icon: Settings2, tint: '#8E8E93', href: '#' },
+      { label: 'Landing Page Editor', icon: Edit, tint: '#FF2D55', href: 'https://qikfill-landing-page-editor.vercel.app/', external: true },
+      { label: 'PDF Processor', icon: FileText, tint: '#AF52DE', href: 'https://pdfmanipulator.streamlit.app/', external: true },
+      { label: 'Email Creator', icon: Mailbox, tint: '#FF9500', href: 'https://email-creator-beta.vercel.app', external: true },
+      { label: 'SMS Creator', icon: Smartphone, tint: '#34C759', href: '/sms-creator' },
+      { label: 'Mass SMS', icon: MessageSquare, tint: '#5856D6', href: 'https://sms-campaign-platform.vercel.app/', external: true },
+      { label: 'Rental Form', icon: Home, tint: '#30B0C7', href: 'https://www.qikfill.com/rental-signup.html', external: true },
+      { label: 'FJ Booking Page', icon: Link2, tint: '#007AFF', href: 'https://www.qikfill.com/fj-booking', external: true },
+      { label: 'Precon Booking Page', icon: Link2, tint: GOLD, href: 'https://www.qikfill.com/preconfactory-booking', external: true },
       { label: 'Logout', icon: LogOut, tint: DESTRUCTIVE, href: '#logout' },
     ],
   },
