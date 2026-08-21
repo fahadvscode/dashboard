@@ -4,12 +4,13 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Home, Calendar, Flame, Plus, Phone, Mail, Building2, Video,
-  PhoneCall, Check, X, Clock, ChevronRight, User,
+  PhoneCall, Check, ChevronRight, User,
   Search, CheckSquare, UploadCloud, Users, FolderOpen, Sparkles,
   Image, MessageSquare, Link2, Settings2, LogOut, MoreHorizontal,
-  Radio, Shuffle, MousePointerClick, Zap, MessageCircle,
+  Radio, Shuffle, MousePointerClick, Zap, MessageCircle, Loader2,
 } from 'lucide-react'
 import { logout } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 
 const BG = '#F2F2F7'
 const CARD = '#FFFFFF'
@@ -24,43 +25,47 @@ const DESTRUCTIVE = '#FF3B30'
 
 const font = { fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif" }
 
-const TODAY_MOCK = [
-  { id: 1, time: '1:00 PM', name: 'Ali Khalil', phone: '2267506270', brand: 'FJ', type: 'office visit', project: '6071 Fourth Line' },
-  { id: 2, time: '3:00 PM', name: 'Priya Sharma', phone: '6475559981', brand: 'Precon Factory', type: 'zoom/google meet', project: 'The Enclave by Sundial' },
-  { id: 3, time: '5:30 PM', name: 'Marcus Reid', phone: '9056671122', brand: 'FJ', type: 'phone call', project: 'Skyline Towns' },
+// Supabase table names
+const BOOKING_TABLES = {
+  FJ: 'fj_bookings',
+  Precon: 'precon_factory_bookings',
+  Lowrise: 'gta_lowrise_bookings',
+  Interview: 'fahad_sells_interview_bookings',
+} as const
+
+const LEAD_TABLES = [
+  { key: 'FJ Leads', table: 'fj_leads' },
+  { key: 'Precon Factory Leads', table: 'precon_factory_leads' },
+  { key: 'Precon Website Leads', table: 'precon_factory_website_leads' },
+  { key: 'GTA Lowrise Leads', table: 'gta_lowrise_leads' },
+  { key: 'Rental Leads', table: 'rental_leads' },
 ]
 
-const HOT_LEADS_MOCK = [
-  { id: 1, name: 'Ali Khalil', phone: '2267506270', email: 'aliahmed18@gmail.com', project: '6071 Fourth Line Townhomes', brand: 'Precon Factory' },
-  { id: 2, name: 'Nadia Osei', phone: '6475551234', email: 'nadia.o@gmail.com', project: 'The Enclave by Sundial', brand: 'FJ' },
-]
-
-const ALL_BOOKINGS: Record<string, Array<{ id: number; time: string; date: string; name: string; type: string; project: string }>> = {
-  FJ: [
-    { id: 1, time: '1:00 PM', date: 'Today', name: 'Ali Khalil', type: 'office visit', project: '6071 Fourth Line' },
-    { id: 2, time: '5:30 PM', date: 'Today', name: 'Marcus Reid', type: 'phone call', project: 'Skyline Towns' },
-    { id: 3, time: '11:00 AM', date: 'Tomorrow', name: 'Sana Malik', type: 'builder visit', project: 'Meadowvale Commons' },
-  ],
-  Precon: [
-    { id: 4, time: '3:00 PM', date: 'Today', name: 'Priya Sharma', type: 'zoom/google meet', project: 'The Enclave by Sundial' },
-    { id: 5, time: '2:00 PM', date: 'Tomorrow', name: 'Devon Clarke', type: 'office visit', project: 'Caledon Ridge' },
-  ],
-  Lowrise: [
-    { id: 6, time: '10:30 AM', date: 'Tomorrow', name: 'Ken Wu', type: 'builder visit', project: 'Brampton Heights' },
-  ],
-  Interview: [
-    { id: 7, time: '4:00 PM', date: 'Today', name: 'Sarah Kim', type: 'phone call', project: 'Agent Interview' },
-  ],
+interface Booking {
+  id: string
+  firstname: string
+  lastname: string
+  email: string
+  phone: string
+  appointment_date: string
+  appointment_time: string
+  appointment_type: string
+  status: string
+  project_name?: string | null
+  created_at: string
 }
 
-const LEAD_SOURCES = [
-  { key: 'FJ Leads', count: 12 },
-  { key: 'Precon Factory Leads', count: 8 },
-  { key: 'Precon Website Leads', count: 5 },
-  { key: 'GTA Lowrise Leads', count: 3 },
-  { key: 'Rental Leads', count: 2 },
-  { key: 'Landing Page Leads', count: 6 },
-]
+interface Lead {
+  id: string
+  firstname: string
+  lastname: string
+  email: string
+  phone: string
+  project_name: string
+  created_at: string
+  lead_temperature?: string | null
+  source?: string
+}
 
 const MORE_SECTIONS = [
   {
@@ -133,8 +138,16 @@ const APPT_TYPES = [
 ]
 
 function typeIcon(type: string) {
-  const found = APPT_TYPES.find((t) => t.key === type)
+  const normalized = type?.toLowerCase() || ''
+  const found = APPT_TYPES.find((t) => normalized.includes(t.key))
   return found ? found.icon : Calendar
+}
+
+function getBrandForBooking(table: string): string {
+  if (table.includes('precon')) return 'Precon Factory'
+  if (table.includes('lowrise')) return 'GTA Lowrise'
+  if (table.includes('interview')) return 'Interview'
+  return 'FJ'
 }
 
 function BrandTag({ brand }: { brand: string }) {
@@ -176,7 +189,7 @@ function NavBar({ title, subtitle, rightIcon: RightIcon, onRight }: {
         zIndex: 10,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', maxWidth: 700, margin: '0 auto' }}>
         <div>
           <div style={{ ...font, fontSize: 28, fontWeight: 700, color: LABEL, letterSpacing: 0.2 }}>
             {title}
@@ -248,7 +261,7 @@ function Row({ leading, title, subtitle, trailing, last, onClick }: {
       {leading}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ ...font, fontSize: 15.5, fontWeight: 500, color: LABEL }}>{title}</div>
-        {subtitle && <div style={{ ...font, fontSize: 12.5, color: SECONDARY, marginTop: 1 }}>{subtitle}</div>}
+        {subtitle && <div style={{ ...font, fontSize: 12.5, color: SECONDARY, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>}
       </div>
       {trailing}
     </div>
@@ -300,6 +313,14 @@ function CircleIconBtn({ Icon, href, filled }: {
   )
 }
 
+function LoadingSpinner() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '30px 0' }}>
+      <Loader2 size={24} color={TINT} strokeWidth={2.5} style={{ animation: 'spin 1s linear infinite' }} />
+    </div>
+  )
+}
+
 function TabBar({ active, setActive }: { active: string; setActive: (key: string) => void }) {
   const tabs = [
     { key: 'home', label: 'Today', icon: Home },
@@ -318,47 +339,67 @@ function TabBar({ active, setActive }: { active: string; setActive: (key: string
         borderTop: `0.5px solid ${SEPARATOR}`,
         paddingTop: 8,
         paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
+        justifyContent: 'center',
       }}
     >
-      {tabs.map((t) => {
-        const Icon = t.icon
-        const isActive = active === t.key
-        return (
-          <button
-            key={t.key}
-            onClick={() => setActive(t.key)}
-            style={{ flex: 1, background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '4px 0', cursor: 'pointer' }}
-          >
-            <Icon size={23} color={isActive ? TINT : '#9a9a9e'} strokeWidth={isActive ? 2.3 : 1.8} fill={isActive && t.key === 'leads' ? TINT : 'none'} />
-            <span style={{ ...font, fontSize: 10, fontWeight: isActive ? 600 : 500, color: isActive ? TINT : '#9a9a9e' }}>{t.label}</span>
-          </button>
-        )
-      })}
+      <div style={{ display: 'flex', width: '100%', maxWidth: 500 }}>
+        {tabs.map((t) => {
+          const Icon = t.icon
+          const isActive = active === t.key
+          return (
+            <button
+              key={t.key}
+              onClick={() => setActive(t.key)}
+              style={{ flex: 1, background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '4px 0', cursor: 'pointer' }}
+            >
+              <Icon size={23} color={isActive ? TINT : '#9a9a9e'} strokeWidth={isActive ? 2.3 : 1.8} fill={isActive && t.key === 'leads' ? TINT : 'none'} />
+              <span style={{ ...font, fontSize: 10, fontWeight: isActive ? 600 : 500, color: isActive ? TINT : '#9a9a9e' }}>{t.label}</span>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
 
 // ---------- Today Tab ----------
 function HomeTab({ openAdd }: { openAdd: () => void }) {
-  const [todayData, setTodayData] = useState(TODAY_MOCK)
-  const [hotLeads, setHotLeads] = useState(HOT_LEADS_MOCK)
+  const [todayBookings, setTodayBookings] = useState<(Booking & { brand: string })[]>([])
+  const [hotLeads, setHotLeads] = useState<Lead[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/hot-leads')
-      .then(res => res.json())
-      .then(data => {
-        if (data.leads && data.leads.length > 0) {
-          setHotLeads(data.leads.slice(0, 2).map((l: { id?: number; name?: string; phone?: string; email?: string; project_interested?: string; brand?: string }, i: number) => ({
-            id: l.id || i + 1,
-            name: l.name || 'Unknown',
-            phone: l.phone || '',
-            email: l.email || '',
-            project: l.project_interested || '',
-            brand: l.brand || 'FJ',
-          })))
+    async function loadData() {
+      setLoading(true)
+      try {
+        const today = new Date().toISOString().split('T')[0]
+
+        // Fetch today's bookings from all tables
+        const bookingPromises = Object.entries(BOOKING_TABLES).map(async ([brand, table]) => {
+          const { data } = await supabase
+            .from(table)
+            .select('*')
+            .eq('appointment_date', today)
+            .order('appointment_time', { ascending: true })
+          return (data || []).map((b: Booking) => ({ ...b, brand: getBrandForBooking(table) }))
+        })
+
+        const allBookings = (await Promise.all(bookingPromises)).flat()
+        setTodayBookings(allBookings)
+
+        // Fetch hot leads
+        const res = await fetch('/api/hot-leads')
+        const hotData = await res.json()
+        if (hotData.leads) {
+          setHotLeads(hotData.leads.slice(0, 3))
         }
-      })
-      .catch(() => {})
+      } catch (e) {
+        console.error('Error loading today data:', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
   }, [])
 
   const now = new Date()
@@ -366,53 +407,76 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
 
   return (
     <div>
-      <NavBar title="Today" subtitle={`${todayData.length} appointments · ${dateStr}`} rightIcon={Plus} onRight={openAdd} />
-      <div style={{ padding: '0 16px 110px' }}>
-        <SectionHeader>Schedule</SectionHeader>
-        <GroupedList>
-          {todayData.map((a, i) => {
-            const Icon = typeIcon(a.type)
-            return (
-              <Row
-                key={a.id}
-                last={i === todayData.length - 1}
-                leading={<IconChip Icon={Icon} tint={a.brand === 'FJ' ? TINT : GOLD} />}
-                title={a.name}
-                subtitle={`${a.project} · ${a.time}`}
-                trailing={
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <BrandTag brand={a.brand} />
-                    <CircleIconBtn Icon={Phone} href={`tel:${a.phone}`} filled />
-                  </div>
-                }
-              />
-            )
-          })}
-        </GroupedList>
+      <NavBar title="Today" subtitle={`${todayBookings.length} appointments · ${dateStr}`} rightIcon={Plus} onRight={openAdd} />
+      <div style={{ padding: '0 16px 110px', maxWidth: 700, margin: '0 auto' }}>
+        {loading ? (
+          <LoadingSpinner />
+        ) : (
+          <>
+            <SectionHeader>Schedule</SectionHeader>
+            <GroupedList>
+              {todayBookings.length === 0 ? (
+                <div style={{ padding: '26px 14px', textAlign: 'center', ...font, fontSize: 13.5, color: SECONDARY }}>
+                  No appointments scheduled for today.
+                </div>
+              ) : (
+                todayBookings.map((a, i) => {
+                  const Icon = typeIcon(a.appointment_type || '')
+                  const isFJ = a.brand === 'FJ'
+                  return (
+                    <Row
+                      key={a.id}
+                      last={i === todayBookings.length - 1}
+                      leading={<IconChip Icon={Icon} tint={isFJ ? TINT : GOLD} />}
+                      title={`${a.firstname} ${a.lastname}`}
+                      subtitle={`${a.project_name || 'No project'} · ${a.appointment_time || ''}`}
+                      trailing={
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <BrandTag brand={a.brand} />
+                          {a.phone && <CircleIconBtn Icon={Phone} href={`tel:${a.phone}`} filled />}
+                        </div>
+                      }
+                    />
+                  )
+                })
+              )}
+            </GroupedList>
 
-        <SectionHeader>Hot Lead</SectionHeader>
-        {hotLeads.length > 0 && (
-          <GroupedList>
-            <div style={{ padding: '14px 14px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <div style={{ width: 8, height: 8, borderRadius: 999, background: DESTRUCTIVE }} />
-                <span style={{ ...font, fontSize: 16, fontWeight: 600, color: LABEL }}>{hotLeads[0].name}</span>
-              </div>
-              <div style={{ ...font, fontSize: 13, color: SECONDARY, marginBottom: 14, marginLeft: 16 }}>
-                {hotLeads[0].project}
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <a href={`tel:${hotLeads[0].phone}`} style={{ flex: 1, background: TINT, borderRadius: 10, padding: '11px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, textDecoration: 'none' }}>
-                  <Phone size={15} color="#fff" strokeWidth={2.2} />
-                  <span style={{ ...font, color: '#fff', fontWeight: 600, fontSize: 14.5 }}>Call</span>
-                </a>
-                <a href={`mailto:${hotLeads[0].email}`} style={{ flex: 1, background: TINT_SOFT, borderRadius: 10, padding: '11px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, textDecoration: 'none' }}>
-                  <Mail size={15} color={TINT} strokeWidth={2.2} />
-                  <span style={{ ...font, color: TINT, fontWeight: 600, fontSize: 14.5 }}>Email</span>
-                </a>
-              </div>
-            </div>
-          </GroupedList>
+            {hotLeads.length > 0 && (
+              <>
+                <SectionHeader>Hot Leads</SectionHeader>
+                <GroupedList>
+                  {hotLeads.map((lead, i) => (
+                    <div key={lead.id || i} style={{ padding: '14px 14px 16px', borderBottom: i < hotLeads.length - 1 ? `0.5px solid ${SEPARATOR}` : 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: 999, background: DESTRUCTIVE }} />
+                        <span style={{ ...font, fontSize: 16, fontWeight: 600, color: LABEL }}>
+                          {(lead as any).display_name || `${lead.firstname || ''} ${lead.lastname || ''}`.trim() || 'Unknown'}
+                        </span>
+                      </div>
+                      <div style={{ ...font, fontSize: 13, color: SECONDARY, marginBottom: 14, marginLeft: 16 }}>
+                        {(lead as any).project_name || lead.project_name || 'No project assigned'}
+                      </div>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        {((lead as any).phone || lead.phone) && (
+                          <a href={`tel:${(lead as any).phone || lead.phone}`} style={{ flex: 1, background: TINT, borderRadius: 10, padding: '11px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, textDecoration: 'none' }}>
+                            <Phone size={15} color="#fff" strokeWidth={2.2} />
+                            <span style={{ ...font, color: '#fff', fontWeight: 600, fontSize: 14.5 }}>Call</span>
+                          </a>
+                        )}
+                        {((lead as any).email || lead.email) && (
+                          <a href={`mailto:${(lead as any).email || lead.email}`} style={{ flex: 1, background: TINT_SOFT, borderRadius: 10, padding: '11px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, textDecoration: 'none' }}>
+                            <Mail size={15} color={TINT} strokeWidth={2.2} />
+                            <span style={{ ...font, color: TINT, fontWeight: 600, fontSize: 14.5 }}>Email</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </GroupedList>
+              </>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -426,7 +490,7 @@ function SegmentedControl({ options, value, onChange }: {
   onChange: (key: string) => void
 }) {
   return (
-    <div style={{ display: 'flex', background: '#E4E4E8', borderRadius: 9, padding: 2, margin: '4px 16px 18px' }}>
+    <div style={{ display: 'flex', background: '#E4E4E8', borderRadius: 9, padding: 2, margin: '4px 16px 18px', maxWidth: 700, marginLeft: 'auto', marginRight: 'auto' }}>
       {options.map((o) => {
         const active = value === o.key
         return (
@@ -458,43 +522,75 @@ function SegmentedControl({ options, value, onChange }: {
 
 function BookingsTab() {
   const [brand, setBrand] = useState('FJ')
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [loading, setLoading] = useState(true)
+
   const options = [
     { key: 'FJ', label: 'FJ' },
     { key: 'Precon', label: 'Precon' },
     { key: 'Lowrise', label: 'Lowrise' },
     { key: 'Interview', label: 'Interview' },
   ]
-  const list = ALL_BOOKINGS[brand] || []
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      const table = BOOKING_TABLES[brand as keyof typeof BOOKING_TABLES]
+      const { data } = await supabase
+        .from(table)
+        .select('*')
+        .order('appointment_date', { ascending: false })
+        .limit(20)
+      setBookings(data || [])
+      setLoading(false)
+    }
+    load()
+  }, [brand])
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return ''
+    const today = new Date().toISOString().split('T')[0]
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+    if (dateStr === today) return 'Today'
+    if (dateStr === tomorrow) return 'Tomorrow'
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
   return (
     <div>
       <NavBar title="Bookings" subtitle="Every calendar, one screen" />
       <SegmentedControl options={options} value={brand} onChange={setBrand} />
-      <div style={{ padding: '0 16px 110px' }}>
-        <GroupedList>
-          {list.length === 0 && (
-            <div style={{ padding: '26px 14px', textAlign: 'center', ...font, fontSize: 13.5, color: SECONDARY }}>
-              Nothing booked here yet.
-            </div>
-          )}
-          {list.map((b, i) => {
-            const Icon = typeIcon(b.type)
-            return (
-              <Row
-                key={b.id}
-                last={i === list.length - 1}
-                leading={<IconChip Icon={Icon} tint={TINT} />}
-                title={b.name}
-                subtitle={b.project}
-                trailing={
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ ...font, fontWeight: 600, fontSize: 13.5, color: LABEL }}>{b.date}</div>
-                    <div style={{ ...font, fontSize: 12, color: SECONDARY }}>{b.time}</div>
-                  </div>
-                }
-              />
-            )
-          })}
-        </GroupedList>
+      <div style={{ padding: '0 16px 110px', maxWidth: 700, margin: '0 auto' }}>
+        {loading ? (
+          <LoadingSpinner />
+        ) : (
+          <GroupedList>
+            {bookings.length === 0 ? (
+              <div style={{ padding: '26px 14px', textAlign: 'center', ...font, fontSize: 13.5, color: SECONDARY }}>
+                Nothing booked here yet.
+              </div>
+            ) : (
+              bookings.map((b, i) => {
+                const Icon = typeIcon(b.appointment_type || '')
+                return (
+                  <Row
+                    key={b.id}
+                    last={i === bookings.length - 1}
+                    leading={<IconChip Icon={Icon} tint={TINT} />}
+                    title={`${b.firstname} ${b.lastname}`}
+                    subtitle={b.project_name || 'No project'}
+                    trailing={
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ ...font, fontWeight: 600, fontSize: 13.5, color: LABEL }}>{formatDate(b.appointment_date)}</div>
+                        <div style={{ ...font, fontSize: 12, color: SECONDARY }}>{b.appointment_time || ''}</div>
+                      </div>
+                    }
+                  />
+                )
+              })
+            )}
+          </GroupedList>
+        )}
       </div>
     </div>
   )
@@ -502,71 +598,122 @@ function BookingsTab() {
 
 // ---------- Leads Tab ----------
 function LeadsTab() {
+  const [leadCounts, setLeadCounts] = useState<Array<{ key: string; count: number }>>([])
+  const [recentLeads, setRecentLeads] = useState<Lead[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      try {
+        // Get counts from each lead table
+        const countPromises = LEAD_TABLES.map(async ({ key, table }) => {
+          const { count } = await supabase
+            .from(table)
+            .select('*', { count: 'exact', head: true })
+          return { key, count: count || 0 }
+        })
+        const counts = await Promise.all(countPromises)
+        setLeadCounts(counts)
+
+        // Get recent leads that need attention (from FJ leads + precon leads)
+        const { data: fjLeads } = await supabase
+          .from('fj_leads')
+          .select('id, firstname, lastname, email, phone, project_name, created_at, lead_temperature')
+          .order('created_at', { ascending: false })
+          .limit(5)
+
+        const { data: preconLeads } = await supabase
+          .from('precon_factory_leads')
+          .select('id, firstname, lastname, email, phone, project_name, created_at, lead_temperature')
+          .order('created_at', { ascending: false })
+          .limit(5)
+
+        const all = [...(fjLeads || []), ...(preconLeads || [])]
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 6)
+        setRecentLeads(all)
+      } catch (e) {
+        console.error('Error loading leads:', e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
   return (
     <div>
-      <NavBar title="Leads" subtitle="6 inboxes, one list" />
-      <div style={{ padding: '0 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#E4E4E8', borderRadius: 10, padding: '9px 12px', marginTop: 4, marginBottom: 16 }}>
-          <Search size={16} color={SECONDARY} />
-          <span style={{ ...font, fontSize: 14.5, color: SECONDARY }}>Search leads</span>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 18, marginBottom: 4, WebkitOverflowScrolling: 'touch' }}>
-          {LEAD_SOURCES.map((s) => (
-            <div
-              key={s.key}
-              style={{
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: CARD,
-                borderRadius: 999,
-                padding: '7px 12px 7px 13px',
-                border: `0.5px solid ${SEPARATOR}`,
-              }}
-            >
-              <span style={{ ...font, fontSize: 12.5, fontWeight: 500, color: LABEL, whiteSpace: 'nowrap' }}>{s.key}</span>
-              <span
-                style={{
-                  ...font,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: '#fff',
-                  background: TINT,
-                  borderRadius: 999,
-                  minWidth: 18,
-                  height: 18,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0 5px',
-                }}
-              >
-                {s.count}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <SectionHeader>Needs a call today</SectionHeader>
-        <GroupedList>
-          {HOT_LEADS_MOCK.map((l, i) => (
-            <Row
-              key={l.id}
-              last={i === HOT_LEADS_MOCK.length - 1}
-              leading={<div style={{ width: 8, height: 8, borderRadius: 999, background: DESTRUCTIVE, marginLeft: 4, marginRight: 3 }} />}
-              title={l.name}
-              subtitle={l.project}
-              trailing={
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <CircleIconBtn Icon={Phone} href={`tel:${l.phone}`} filled />
-                  <CircleIconBtn Icon={Mail} href={`mailto:${l.email}`} />
+      <NavBar title="Leads" subtitle={`${LEAD_TABLES.length} inboxes`} />
+      <div style={{ padding: '0 16px', maxWidth: 700, margin: '0 auto' }}>
+        {loading ? (
+          <LoadingSpinner />
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 18, marginTop: 12, marginBottom: 4, WebkitOverflowScrolling: 'touch' }}>
+              {leadCounts.map((s) => (
+                <div
+                  key={s.key}
+                  style={{
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: CARD,
+                    borderRadius: 999,
+                    padding: '7px 12px 7px 13px',
+                    border: `0.5px solid ${SEPARATOR}`,
+                  }}
+                >
+                  <span style={{ ...font, fontSize: 12.5, fontWeight: 500, color: LABEL, whiteSpace: 'nowrap' }}>{s.key}</span>
+                  <span
+                    style={{
+                      ...font,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#fff',
+                      background: TINT,
+                      borderRadius: 999,
+                      minWidth: 18,
+                      height: 18,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '0 5px',
+                    }}
+                  >
+                    {s.count}
+                  </span>
                 </div>
-              }
-            />
-          ))}
-        </GroupedList>
+              ))}
+            </div>
+
+            <SectionHeader>Recent leads</SectionHeader>
+            <GroupedList>
+              {recentLeads.length === 0 ? (
+                <div style={{ padding: '26px 14px', textAlign: 'center', ...font, fontSize: 13.5, color: SECONDARY }}>
+                  No leads found.
+                </div>
+              ) : (
+                recentLeads.map((l, i) => (
+                  <Row
+                    key={l.id}
+                    last={i === recentLeads.length - 1}
+                    leading={<div style={{ width: 8, height: 8, borderRadius: 999, background: l.lead_temperature === 'hot' ? DESTRUCTIVE : l.lead_temperature === 'warm' ? '#FF9500' : TINT, marginLeft: 4, marginRight: 3 }} />}
+                    title={`${l.firstname || ''} ${l.lastname || ''}`.trim() || 'Unknown'}
+                    subtitle={l.project_name || 'No project'}
+                    trailing={
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {l.phone && <CircleIconBtn Icon={Phone} href={`tel:${l.phone}`} filled />}
+                        {l.email && <CircleIconBtn Icon={Mail} href={`mailto:${l.email}`} />}
+                      </div>
+                    }
+                  />
+                ))
+              )}
+            </GroupedList>
+          </>
+        )}
       </div>
       <div style={{ height: 110 }} />
     </div>
@@ -595,7 +742,7 @@ function MoreTab() {
   return (
     <div>
       <NavBar title="More" subtitle="Everything from the old menu" />
-      <div style={{ padding: '0 16px 110px' }}>
+      <div style={{ padding: '0 16px 110px', maxWidth: 700, margin: '0 auto' }}>
         {MORE_SECTIONS.map((section) => (
           <div key={section.heading}>
             <SectionHeader>{section.heading}</SectionHeader>
@@ -672,6 +819,9 @@ function PageToast({ toast }: { toast: { name: string; detail: string } | null }
         gap: 10,
         boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
         animation: 'pagerSlideDown 0.25s ease-out',
+        maxWidth: 500,
+        marginLeft: 'auto',
+        marginRight: 'auto',
       }}
     >
       <div style={{ width: 30, height: 30, borderRadius: 999, background: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -713,8 +863,7 @@ function PageTab() {
   const [queueIndex, setQueueIndex] = useState(0)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [log, setLog] = useState([
-    { id: 1, name: 'Marcus Reid', time: '11:42 AM', via: 'Round robin' },
-    { id: 2, name: 'Sana Malik', time: '10:15 AM', via: 'Picked' },
+    { id: 1, name: 'Fahad Javed', time: '11:42 AM', via: 'Round robin' },
   ])
   const [toast, setToast] = useState<{ name: string; detail: string } | null>(null)
   const [pulsing, setPulsing] = useState(false)
@@ -750,7 +899,7 @@ function PageTab() {
       <PageToast toast={toast} />
       <NavBar title="Page" subtitle="Walkie-talkie style team paging" />
 
-      <div style={{ padding: '0 16px' }}>
+      <div style={{ padding: '0 16px', maxWidth: 700, margin: '0 auto' }}>
         <div style={{ display: 'flex', gap: 8, marginTop: 4, marginBottom: 20, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {modes.map((m) => {
             const Icon = m.icon
@@ -904,7 +1053,7 @@ function PageTab() {
         </GroupedList>
       </div>
       <div style={{ height: 110 }} />
-      <style>{`@keyframes pagerSlideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } } @keyframes pagerPulse { 0% { box-shadow: 0 0 0 0 rgba(12,92,53,0.45); } 100% { box-shadow: 0 0 0 22px rgba(12,92,53,0); } }`}</style>
+      <style>{`@keyframes pagerSlideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } } @keyframes pagerPulse { 0% { box-shadow: 0 0 0 0 rgba(12,92,53,0.45); } 100% { box-shadow: 0 0 0 22px rgba(12,92,53,0); } } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
@@ -943,6 +1092,7 @@ function SheetNav({ title, leftLabel, onLeft, rightLabel, rightEnabled, onRight 
 function AddBookingSheet({ close }: { close: () => void }) {
   const [step, setStep] = useState(1)
   const [confirmed, setConfirmed] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [data, setData] = useState({ brand: '', type: '', firstname: '', lastname: '', email: '', phone: '', project: '', date: '', time: '' })
   const totalSteps = 5
   const update = (k: string, v: string) => setData((d) => ({ ...d, [k]: v }))
@@ -957,16 +1107,38 @@ function AddBookingSheet({ close }: { close: () => void }) {
     5: true,
   }
 
-  const handleRight = () => {
-    if (step === totalSteps) setConfirmed(true)
-    else setStep((s) => s + 1)
+  const handleRight = async () => {
+    if (step === totalSteps) {
+      setSaving(true)
+      try {
+        const table = data.brand === 'FJ' ? 'fj_bookings' : 'precon_factory_bookings'
+        await supabase.from(table).insert({
+          firstname: data.firstname,
+          lastname: data.lastname,
+          email: data.email,
+          phone: data.phone,
+          appointment_date: data.date,
+          appointment_time: data.time,
+          appointment_type: data.type,
+          project_name: data.project,
+          status: 'confirmed',
+        })
+        setConfirmed(true)
+      } catch (e) {
+        console.error('Error saving booking:', e)
+      } finally {
+        setSaving(false)
+      }
+    } else {
+      setStep((s) => s + 1)
+    }
   }
   const handleLeft = () => (step === 1 ? close() : setStep((s) => s - 1))
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
       <div onClick={close} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)' }} />
-      <div style={{ position: 'relative', background: BG, borderTopLeftRadius: 16, borderTopRightRadius: 16, height: '88%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ position: 'relative', background: BG, borderTopLeftRadius: 16, borderTopRightRadius: 16, height: '88%', width: '100%', maxWidth: 600, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {confirmed ? (
           <SuccessScreen close={close} name={data.firstname} />
         ) : (
@@ -976,8 +1148,8 @@ function AddBookingSheet({ close }: { close: () => void }) {
                 title={`New Booking · ${stepTitles[step - 1]}`}
                 leftLabel={step === 1 ? 'Cancel' : 'Back'}
                 onLeft={handleLeft}
-                rightLabel={step === totalSteps ? 'Add' : 'Next'}
-                rightEnabled={canNext[step]}
+                rightLabel={step === totalSteps ? (saving ? '...' : 'Add') : 'Next'}
+                rightEnabled={canNext[step] && !saving}
                 onRight={handleRight}
               />
               <div style={{ display: 'flex', gap: 4, padding: '0 16px 10px' }}>
@@ -1153,7 +1325,7 @@ function FormRow({ label, value, onChange, type = 'text', last }: {
   )
 }
 
-// ---------- Root Mobile Dashboard ----------
+// ---------- Root Dashboard ----------
 export default function MobileDashboard() {
   const [tab, setTab] = useState('home')
   const [showAdd, setShowAdd] = useState(false)
