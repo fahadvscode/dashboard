@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Smartphone, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned, PlusCircle } from 'lucide-react'
+import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Smartphone, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned, PlusCircle, Rocket } from 'lucide-react'
 import { useState } from 'react'
 import { logout } from '@/lib/auth'
 
@@ -27,6 +27,7 @@ const navigation = [
   { name: 'Rental Leads', href: '/rental-leads', icon: Mail },
   { name: 'Landing Pages Leads', href: '/landing-pages-leads', icon: Mail },
   { name: 'Landing Page Sources', href: '/landing-page-sources', icon: PlusCircle },
+  { name: 'Generate Landing Page', href: '/generate-landing-page', icon: Rocket },
 ]
 
 const BOOKING_PAGES = {
