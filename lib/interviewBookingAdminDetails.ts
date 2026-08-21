@@ -24,6 +24,7 @@ const SKIP_INTERVIEW_ADMIN_KEYS = new Set([
   'last_sync_source',
   'manage_token',
   'manage_url',
+  'candidate_number',
 ])
 
 const INTERVIEW_FIELD_LABELS: Record<string, string> = {
@@ -94,6 +95,40 @@ export function listInterviewApplicationFields(
 ): Array<{ key: string; label: string; value: string }> {
   const extra = new Set(extraSkip)
   return orderedInterviewAdminEntries(booking).filter(({ key }) => !extra.has(key))
+}
+
+export function interviewApplicationExportFieldDefs(
+  records: Record<string, unknown>[]
+): Array<{ key: string; label: string }> {
+  const skip = new Set([
+    ...SKIP_INTERVIEW_ADMIN_KEYS,
+    'full_name',
+    'status',
+    'slot_start',
+    'slot_end',
+  ])
+  const seen = new Set<string>()
+  const defs: Array<{ key: string; label: string }> = []
+
+  const add = (key: string) => {
+    if (seen.has(key) || skip.has(key)) return
+    seen.add(key)
+    defs.push({
+      key,
+      label: INTERVIEW_FIELD_LABELS[key] || key.replace(/_/g, ' '),
+    })
+  }
+
+  for (const key of INTERVIEW_FIELD_ORDER) add(key)
+  for (const record of records) {
+    for (const key of Object.keys(record).sort()) add(key)
+  }
+
+  return defs
+}
+
+export function getInterviewFieldDisplayValue(booking: Record<string, unknown>, key: string): string {
+  return formatInterviewFieldValue(booking[key])
 }
 
 function orderedInterviewAdminEntries(booking: Record<string, unknown>): Array<{ key: string; label: string; value: string }> {

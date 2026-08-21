@@ -30,5 +30,6 @@ Use **`cancelled`** (British spelling), not `canceled`. The DB check constraint 
 2. `setup_fahad_sells_interview_booking_update_notifications.sql` (reschedule/cancel on site → calendar + candidate SMS/email)
 3. `fix_fahad_sells_interview_bookings_rls.sql`
 4. `fix_fahad_sells_interview_bookings_status_constraint.sql` (aligns with site migration 005)
+5. `007_interview_candidate_number.sql` (4-digit candidate IDs for existing and new bookings)
 
 If you previously ran an older dashboard constraint that allowed `canceled`, run step 3 again to migrate `canceled` → `cancelled` and restore partial indexes.

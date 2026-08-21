@@ -13,7 +13,8 @@ import {
 } from '@/lib/normalizeBookingPayload'
 import { resolveInterviewManageUrl } from '@/lib/interviewManageUrl'
 import { resolveInterviewResume } from '@/lib/interviewResume'
-import { listInterviewApplicationFields } from '@/lib/interviewBookingAdminDetails'
+import { listInterviewApplicationFields, interviewApplicationExportFieldDefs, getInterviewFieldDisplayValue } from '@/lib/interviewBookingAdminDetails'
+import { formatInterviewCandidateId } from '@/lib/interviewCandidateNumber'
 
 const BOOKING_TABLE = FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
 
@@ -38,6 +39,7 @@ interface Booking {
   resume_file_name?: string | null
   resume_path?: string | null
   resume_url?: string | null
+  candidate_number?: number | null
   details: Record<string, unknown>
 }
 
@@ -48,6 +50,7 @@ const CARD_SKIP_FIELDS = [
   'slot_end',
   'application_id',
   'position_id',
+  'candidate_number',
 ]
 
 function mapRowToBooking(row: Record<string, unknown>): Booking {
@@ -74,6 +77,7 @@ function mapRowToBooking(row: Record<string, unknown>): Booking {
     resume_file_name: (row.resume_file_name as string) || null,
     resume_path: (row.resume_path as string) || null,
     resume_url: (row.resume_url as string) || null,
+    candidate_number: typeof row.candidate_number === 'number' ? row.candidate_number : null,
     details: copy,
   }
 }
@@ -110,24 +114,49 @@ export default function InterviewBookings() {
   }
 
   const exportToCSV = () => {
-    const headers = ['Name', 'Email', 'Phone', 'Date', 'Time', 'Type', 'Status', 'Resume']
-    const csvData = bookings.map(b => [
-      `${b.firstname} ${b.lastname}`,
-      b.email,
-      b.phone,
-      b.appointment_date,
-      b.appointment_time,
-      b.appointment_type,
-      b.status,
-      resolveInterviewResume(b.details)?.url || ''
-    ])
+    const records = bookings.map((b) => b.details)
+    const applicationFields = interviewApplicationExportFieldDefs(records)
+    const headers = [
+      'Candidate ID',
+      'Name',
+      'Email',
+      'Phone',
+      'Date',
+      'Time',
+      'Type',
+      'Status',
+      'Created',
+      ...applicationFields.map((field) => field.label),
+      'Resume file',
+      'Resume URL',
+    ]
+
+    const csvCell = (value: string) => `"${value.replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`
+
+    const csvData = bookings.map((b) => {
+      const resume = resolveInterviewResume(b.details)
+      return [
+        formatInterviewCandidateId(b.candidate_number ?? b.details.candidate_number) || '',
+        `${b.firstname} ${b.lastname}`.trim(),
+        b.email,
+        b.phone,
+        b.appointment_date,
+        b.appointment_time,
+        b.appointment_type,
+        b.status,
+        b.created_at,
+        ...applicationFields.map((field) => getInterviewFieldDisplayValue(b.details, field.key)),
+        resume?.fileName || '',
+        resume?.url || '',
+      ]
+    })
 
     const csvContent = [
-      headers.join(','),
-      ...csvData.map(row => row.map(cell => `"${cell}"`).join(','))
+      headers.map(csvCell).join(','),
+      ...csvData.map((row) => row.map(csvCell).join(',')),
     ].join('\n')
 
-    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -356,7 +385,14 @@ export default function InterviewBookings() {
                   <User className="h-5 w-5 text-blue-600" />
                 </div>
                 <div className="ml-3">
-                  <h3 className="font-semibold text-gray-900">{booking.firstname} {booking.lastname}</h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {formatInterviewCandidateId(booking.candidate_number ?? booking.details.candidate_number) && (
+                      <span className="inline-flex items-center rounded-md bg-slate-900 px-2 py-0.5 text-xs font-bold tracking-wide text-white">
+                        #{formatInterviewCandidateId(booking.candidate_number ?? booking.details.candidate_number)}
+                      </span>
+                    )}
+                    <h3 className="font-semibold text-gray-900">{booking.firstname} {booking.lastname}</h3>
+                  </div>
                   {typeof booking.details.position_label === 'string' && booking.details.position_label && (
                     <p className="text-xs text-gray-500 mt-0.5">{booking.details.position_label}</p>
                   )}
@@ -424,9 +460,16 @@ export default function InterviewBookings() {
 
             <div className="flex items-start justify-between border-b border-gray-100 px-6 pt-5 pb-4 pr-16">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">
-                  {selectedBooking.firstname} {selectedBooking.lastname}
-                </h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {formatInterviewCandidateId(selectedBooking.candidate_number ?? selectedBooking.details.candidate_number) && (
+                    <span className="inline-flex items-center rounded-md bg-slate-900 px-2 py-0.5 text-xs font-bold tracking-wide text-white">
+                      #{formatInterviewCandidateId(selectedBooking.candidate_number ?? selectedBooking.details.candidate_number)}
+                    </span>
+                  )}
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    {selectedBooking.firstname} {selectedBooking.lastname}
+                  </h2>
+                </div>
                 <p className="mt-1 text-sm text-gray-500">
                   Booking · {formatDistanceToNow(new Date(selectedBooking.created_at), { addSuffix: true })}
                 </p>
@@ -602,7 +645,9 @@ export default function InterviewBookings() {
 
             <div className="border-t border-gray-100 px-6 py-4">
               <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>Booking ID: {selectedBooking.id}</span>
+                <span>
+                  Candidate ID: #{formatInterviewCandidateId(selectedBooking.candidate_number ?? selectedBooking.details.candidate_number) || '—'}
+                </span>
                 <span>Created: {format(new Date(selectedBooking.created_at), 'PPpp')}</span>
               </div>
             </div>

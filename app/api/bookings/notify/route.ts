@@ -24,6 +24,7 @@ import {
   resolveInterviewManageUrl,
 } from '@/lib/interviewManageUrl'
 import { interviewAlreadyNotified, markInterviewNotified } from '@/lib/markInterviewNotified'
+import { formatInterviewCandidateId } from '@/lib/interviewCandidateNumber'
 import {
   buildInterviewResumeEmailHtml,
   buildInterviewResumeSmsLine,
@@ -202,6 +203,10 @@ export async function POST(request: NextRequest) {
     const customerNotes = resolveCustomerNotes(booking)
     const personLabel = isInterview ? 'Candidate' : 'Customer'
     const bookingKindLabel = isInterview ? 'Interview Booking' : 'Booking'
+    const interviewCandidateId = isInterview
+      ? formatInterviewCandidateId(booking.candidate_number)
+      : null
+    const interviewCandidateLabel = interviewCandidateId ? `#${interviewCandidateId}` : ''
     const interviewManageUrl = isInterview
       ? resolveInterviewManageUrl(booking as Record<string, unknown>)
       : null
@@ -228,7 +233,7 @@ export async function POST(request: NextRequest) {
 
     // ── 1. Admin SMS ──────────────────────────────────────────────
     let message = isInterview
-      ? `🔔 New ${source} Interview Booking!\n\n👤 Candidate: ${firstname} ${lastname || ''}`
+      ? `🔔 New ${source} Interview Booking!\n\n🆔 Candidate ID: ${interviewCandidateLabel || 'pending'}\n👤 Candidate: ${firstname} ${lastname || ''}`
       : `🔔 New ${source} Booking!\n\n👤 ${firstname} ${lastname || ''}`
     message += `
 📧 ${booking.email}
@@ -317,6 +322,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
           ${adminActionHtml}
           <div class="booking-details">
             <div class="detail-row"><div class="detail-label">👤 ${personLabel}:</div><div class="detail-value">${firstname} ${lastname || ''}</div></div>
+            ${interviewCandidateId ? `<div class="detail-row"><div class="detail-label">🆔 Candidate ID:</div><div class="detail-value">${interviewCandidateLabel}</div></div>` : ''}
             <div class="detail-row"><div class="detail-label">📧 Email:</div><div class="detail-value"><a href="mailto:${booking.email}">${booking.email}</a></div></div>
             <div class="detail-row"><div class="detail-label">📱 Phone:</div><div class="detail-value"><a href="tel:${booking.phone || ''}">${booking.phone || 'Not provided'}</a></div></div>
             <div class="detail-row"><div class="detail-label">📅 Date:</div><div class="detail-value">${booking.appointment_date || 'Not specified'}</div></div>
@@ -344,7 +350,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
           const result = await emailTransporter.sendMail({
             from: `"Property Dashboard" <${process.env.GMAIL_USER || 'info@qikfill.com'}>`,
             to: email,
-            subject: `🔔 New ${source} ${isInterview ? 'Interview ' : ''}Booking (${displayType}) - ${firstname} ${lastname || ''}`,
+            subject: `🔔 New ${source} ${isInterview ? 'Interview ' : ''}Booking (${displayType}) - ${interviewCandidateLabel ? `${interviewCandidateLabel} ` : ''}${firstname} ${lastname || ''}`,
             html: adminEmailHtml,
             attachments: interviewResumeAttachment ? [interviewResumeAttachment] : undefined,
           })
