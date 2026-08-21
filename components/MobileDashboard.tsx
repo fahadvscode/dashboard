@@ -72,7 +72,7 @@ const MORE_SECTIONS = [
     heading: 'Properties',
     items: [
       { label: 'Task Manager', icon: CheckSquare, tint: '#FF9500', href: 'https://task-management-app-flame-seven.vercel.app/', external: true },
-      { label: 'Canada Properties', icon: Building2, tint: '#007AFF', href: '/' },
+      { label: 'Canada Properties', icon: Building2, tint: '#007AFF', href: '/properties' },
       { label: 'Upload Project', icon: UploadCloud, tint: '#5856D6', href: '/project-upload' },
       { label: 'Project Presentation', icon: Users, tint: '#AF52DE', href: '/project-presentation' },
       { label: 'Project Collections', icon: FolderOpen, tint: '#FF9500', href: '/collections' },
