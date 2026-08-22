@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateLandingPage, LANDING_PAGES_ROOT } from '@/lib/landing-page-generator'
+import { generateLandingPage } from '@/lib/landing-page-generator'
+import type { GeneratedFile } from '@/lib/landing-page-generator'
 import { generateProjectContent, buildFallbackContent, researchProject } from '@/lib/landing-page-generator/content-generator'
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-import { writeFile } from 'fs/promises'
 import type { ProjectConfig } from '@/lib/landing-page-generator/types'
-import { join } from 'path'
 
-const execAsync = promisify(exec)
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
 
 async function parseRequestBody(req: NextRequest): Promise<{ body: Record<string, unknown>; imageFiles: Map<string, File> }> {
   const contentType = req.headers.get('content-type') || ''
@@ -36,10 +34,6 @@ export async function POST(req: NextRequest) {
   try {
     const { body, imageFiles } = await parseRequestBody(req)
     const { action } = body
-
-    if (action === 'deploy') {
-      return handleDeploy(body)
-    }
 
     if (action === 'research') {
       return handleResearch(body)
@@ -93,10 +87,22 @@ async function handleGenerate(body: Record<string, unknown>, imageFiles?: Map<st
     content.metaDescription = body.metaDescriptionOverride as string
   }
 
-  // Generate the project
-  const result = await generateLandingPage(config, content)
+  const extraFiles: GeneratedFile[] = []
+  if (imageFiles && imageFiles.size > 0) {
+    const imageSlotNames = ['hero', 'gallery-1', 'gallery-2', 'gallery-3', 'gallery-4', 'gallery-5', 'gallery-6', 'feature-bg']
+    for (const [key, file] of imageFiles.entries()) {
+      const index = parseInt(key.replace('image_', ''), 10)
+      const slotName = imageSlotNames[index] || `image-${index}`
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+      extraFiles.push({
+        path: `public/images/${slotName}.${ext}`,
+        content: Buffer.from(await file.arrayBuffer()),
+      })
+    }
+  }
 
-  // Register in landing_page_lead_sources if generation succeeded
+  const result = await generateLandingPage(config, content, extraFiles)
+
   if (result.success) {
     try {
       const supabase = getSupabaseAdmin()
@@ -120,55 +126,7 @@ async function handleGenerate(body: Record<string, unknown>, imageFiles?: Map<st
     }
   }
 
-  // Save uploaded images to the project folder
-  if (result.success && imageFiles && imageFiles.size > 0) {
-    const imageSlotNames = ['hero', 'gallery-1', 'gallery-2', 'gallery-3', 'gallery-4', 'gallery-5', 'gallery-6', 'feature-bg']
-    for (const [key, file] of imageFiles.entries()) {
-      const index = parseInt(key.replace('image_', ''), 10)
-      const slotName = imageSlotNames[index] || `image-${index}`
-      const ext = file.name.split('.').pop() || 'jpg'
-      const filePath = join(result.projectPath, 'public', 'images', `${slotName}.${ext}`)
-      try {
-        const buffer = Buffer.from(await file.arrayBuffer())
-        await writeFile(filePath, buffer)
-      } catch (err) {
-        result.errors.push(`Warning: Could not save image ${slotName}: ${err instanceof Error ? err.message : 'unknown error'}`)
-      }
-    }
-  }
-
   return NextResponse.json(result)
-}
-
-async function handleDeploy(body: Record<string, unknown>) {
-  const folderName = String(body.folderName || '').trim()
-  if (!folderName) {
-    return NextResponse.json({ error: 'folderName is required' }, { status: 400 })
-  }
-
-  const projectDir = join(LANDING_PAGES_ROOT, folderName)
-
-  try {
-    // Initialize git
-    await execAsync('git init', { cwd: projectDir })
-    await execAsync('git add -A', { cwd: projectDir })
-    await execAsync('git commit -m "Initial commit: landing page generated"', { cwd: projectDir })
-
-    return NextResponse.json({
-      success: true,
-      message: 'Git repository initialized. To deploy to Vercel, run the following commands in the project folder.',
-      commands: [
-        `cd "${projectDir}"`,
-        'npx vercel --yes',
-        `npx vercel --prod`,
-      ],
-    })
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Deployment step failed' },
-      { status: 500 }
-    )
-  }
 }
 
 function buildConfigFromBody(body: Record<string, unknown>): ProjectConfig {

@@ -153,6 +153,8 @@ export interface GenerationResult {
   domain: string
   folderName: string
   errors: string[]
+  zipBase64?: string
+  wroteToDisk?: boolean
 }
 
 export interface GenerationProgress {

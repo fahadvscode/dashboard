@@ -13,6 +13,7 @@ import {
   X,
   Image as ImageIcon,
   Sparkles,
+  Download,
 } from 'lucide-react'
 import {
   TEMPLATE_OPTIONS,
@@ -110,9 +111,10 @@ export default function GenerateLandingPage() {
     domain: string
     folderName: string
     errors: string[]
+    zipBase64?: string
+    wroteToDisk?: boolean
   } | null>(null)
   const [copied, setCopied] = useState(false)
-  const [deploying, setDeploying] = useState(false)
   const fileInputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const [form, setForm] = useState<FormData>({
@@ -321,17 +323,18 @@ export default function GenerateLandingPage() {
     }
   }
 
-  async function handleDeploy() {
-    setDeploying(true)
-    try {
-      await fetch('/api/generate-landing-page', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'deploy', folderName: form.folderName }),
-      })
-    } finally {
-      setDeploying(false)
-    }
+  function downloadZip() {
+    if (!result?.zipBase64 || !result.folderName) return
+    const binary = atob(result.zipBase64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    const blob = new Blob([bytes], { type: 'application/zip' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${result.folderName}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   function copyToClipboard(text: string) {
@@ -427,9 +430,8 @@ export default function GenerateLandingPage() {
               generationStep={generationStep}
               result={result}
               copied={copied}
-              deploying={deploying}
               onGenerate={handleGenerate}
-              onDeploy={handleDeploy}
+              onDownload={downloadZip}
               onCopy={copyToClipboard}
             />
           )}
@@ -1177,9 +1179,8 @@ function StepReview({
   generationStep,
   result,
   copied,
-  deploying,
   onGenerate,
-  onDeploy,
+  onDownload,
   onCopy,
 }: {
   form: FormData
@@ -1195,11 +1196,12 @@ function StepReview({
     domain: string
     folderName: string
     errors: string[]
+    zipBase64?: string
+    wroteToDisk?: boolean
   } | null
   copied: boolean
-  deploying: boolean
   onGenerate: () => void
-  onDeploy: () => void
+  onDownload: () => void
   onCopy: (text: string) => void
 }) {
   if (generating) {
@@ -1238,8 +1240,26 @@ function StepReview({
       <div className="space-y-6">
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           <p className="font-medium">Landing page generated successfully!</p>
-          <p className="mt-1">Project path: <code className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs">{result.projectPath}</code></p>
+          {result.wroteToDisk ? (
+            <p className="mt-1">Saved to <code className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs">{result.projectPath}</code></p>
+          ) : (
+            <p className="mt-1">
+              Download the ZIP and unzip it into{' '}
+              <code className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs">Documents/Jaydeep Data/Landing Pages/{result.folderName}</code>
+            </p>
+          )}
         </div>
+
+        {result.zipBase64 && (
+          <button
+            type="button"
+            onClick={onDownload}
+            className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            <Download className="h-4 w-4" />
+            Download {result.folderName}.zip
+          </button>
+        )}
 
         {result.sql && (
           <div className="space-y-2">
@@ -1261,25 +1281,18 @@ function StepReview({
         )}
 
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <h3 className="text-sm font-semibold text-gray-700">DNS Configuration</h3>
-          <p className="mt-2 text-sm text-gray-600">
-            Point your domain <code className="rounded bg-gray-200 px-1.5 py-0.5 text-xs">{result.domain}</code> to Vercel:
-          </p>
-          <ul className="mt-2 space-y-1 text-sm text-gray-600">
+          <h3 className="text-sm font-semibold text-gray-700">Deploy to Vercel</h3>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-600">
+            <li>Unzip into <code className="rounded bg-gray-200 px-1.5 py-0.5 text-xs">Documents/Jaydeep Data/Landing Pages/{result.folderName}</code></li>
+            <li>Run <code className="rounded bg-gray-200 px-1.5 py-0.5 text-xs">npx vercel --yes</code> then <code className="rounded bg-gray-200 px-1.5 py-0.5 text-xs">npx vercel --prod</code></li>
+            <li>Add domain <code className="rounded bg-gray-200 px-1.5 py-0.5 text-xs">{result.domain}</code> in Vercel</li>
+          </ol>
+          <p className="mt-3 text-sm font-medium text-gray-700">DNS</p>
+          <ul className="mt-1 space-y-1 text-sm text-gray-600">
             <li><code className="text-xs">A Record → 76.76.21.21</code></li>
             <li><code className="text-xs">CNAME (www) → cname.vercel-dns.com</code></li>
           </ul>
         </div>
-
-        <button
-          type="button"
-          onClick={onDeploy}
-          disabled={deploying}
-          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-        >
-          {deploying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-          {deploying ? 'Deploying...' : 'Deploy to Vercel'}
-        </button>
       </div>
     )
   }
