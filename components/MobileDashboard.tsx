@@ -370,7 +370,7 @@ function TabBar({ active, setActive }: { active: string; setActive: (key: string
             <button
               key={t.key}
               onClick={() => setActive(t.key)}
-              style={{ flex: 1, background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '4px 0', cursor: 'pointer' }}
+              style={{ flex: 1, background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '6px 0', minHeight: 48, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}
             >
               <Icon size={23} color={isActive ? TINT : '#9a9a9e'} strokeWidth={isActive ? 2.3 : 1.8} fill={isActive && t.key === 'leads' ? TINT : 'none'} />
               <span style={{ ...font, fontSize: 10, fontWeight: isActive ? 600 : 500, color: isActive ? TINT : '#9a9a9e' }}>{t.label}</span>
@@ -1462,13 +1462,22 @@ function FormRow({ label, value, onChange, type = 'text', last }: {
 }
 
 // ---------- Root Dashboard ----------
+const VALID_TABS = new Set(['home', 'bookings', 'leads', 'page', 'more'])
+
 export default function MobileDashboard() {
   const [tab, setTab] = useState('home')
   const [showAdd, setShowAdd] = useState(false)
 
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab')
+    if (requested && VALID_TABS.has(requested)) {
+      setTab(requested)
+    }
+  }, [])
+
   return (
     <div style={{ height: '100dvh', background: BG, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
-      <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {tab === 'home' && <HomeTab openAdd={() => setShowAdd(true)} />}
         {tab === 'bookings' && <BookingsTab />}
         {tab === 'leads' && <LeadsTab />}

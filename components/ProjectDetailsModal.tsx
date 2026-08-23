@@ -88,7 +88,7 @@ export default function ProjectDetailsModal({ property, onClose }: Props) {
           <button
             type="button"
             onClick={() => setShowCollectionModal(true)}
-            className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-50 text-blue-700 font-semibold text-sm hover:bg-blue-100 active:scale-[0.98] transition-all"
+            className="flex items-center justify-center gap-2 px-4 py-3 min-h-[44px] rounded-xl bg-blue-50 text-blue-700 font-semibold text-sm hover:bg-blue-100 active:scale-[0.98] transition-all"
           >
             <FolderPlus className="h-4 w-4" />
             Add to collection
@@ -96,7 +96,7 @@ export default function ProjectDetailsModal({ property, onClose }: Props) {
           <button
             type="button"
             onClick={toggleHomeScreen}
-            className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm active:scale-[0.98] transition-all ${
+            className={`flex items-center justify-center gap-2 px-4 py-3 min-h-[44px] rounded-xl font-semibold text-sm active:scale-[0.98] transition-all ${
               pinned
                 ? 'bg-green-50 text-green-700 hover:bg-green-100'
                 : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
