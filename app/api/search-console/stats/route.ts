@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchSearchConsoleStats, isSearchConsoleConnected } from '@/lib/searchConsole'
 
+export const maxDuration = 60
+
 export async function GET(request: NextRequest) {
   try {
     const connected = await isSearchConsoleConnected()

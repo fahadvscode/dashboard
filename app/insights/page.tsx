@@ -13,7 +13,7 @@ export default function InsightsPage() {
       <div className="mb-6 mt-2">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Insights</h1>
         <p className="text-gray-600 mt-1 text-sm md:text-base">
-          Latest project updates and tasks
+          Latest project updates, Search Console, and tasks
         </p>
       </div>
 
