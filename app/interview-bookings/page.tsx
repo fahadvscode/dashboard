@@ -6,6 +6,7 @@ import { Calendar, Download, Mail, Phone, User, Trash2, X, Clock, Tag, MessageSq
 import { format, formatDistanceToNow } from 'date-fns'
 import BookingReschedulePanel from '@/components/BookingReschedulePanel'
 import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
+import { formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
 import {
   normalizeBookingPayload,
   resolveBookingFirstName,
@@ -414,7 +415,7 @@ export default function InterviewBookings() {
               </div>
               <div className="flex items-center text-gray-600">
                 <Calendar className="h-4 w-4 mr-2 shrink-0" />
-                <span>{booking.appointment_date} at {booking.appointment_time}</span>
+                <span>{booking.appointment_date} at {formatAppointmentTimeDisplay(booking.appointment_time)}</span>
               </div>
             </div>
 
@@ -498,7 +499,7 @@ export default function InterviewBookings() {
                   <Calendar className="mr-3 h-4 w-4 text-gray-400" />
                   <div>
                     <div className="font-medium">Date: {selectedBooking.appointment_date}</div>
-                    <div className="text-xs text-gray-500">Time: {selectedBooking.appointment_time}</div>
+                    <div className="text-xs text-gray-500">Time: {formatAppointmentTimeDisplay(selectedBooking.appointment_time)}</div>
                   </div>
                 </div>
                 <div className="flex items-center text-gray-700">
@@ -542,7 +543,7 @@ export default function InterviewBookings() {
                   <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Appointment Date & Time</span>
                   <div className="mt-2 text-gray-700">
                     <div className="font-medium">{selectedBooking.appointment_date}</div>
-                    <div className="text-sm text-gray-500">at {selectedBooking.appointment_time}</div>
+                    <div className="text-sm text-gray-500">at {formatAppointmentTimeDisplay(selectedBooking.appointment_time)}</div>
                   </div>
                 </div>
               </div>

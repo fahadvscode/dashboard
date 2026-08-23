@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Home, Calendar, Flame, Plus, Phone, Mail, Building2, Video,
   PhoneCall, Check, ChevronRight, User, X,
-  Search, CheckSquare, UploadCloud, Users, FolderOpen, Sparkles,
+  Search, CheckSquare, UploadCloud, Users, FolderOpen, Sparkles, TrendingUp,
   Image, MessageSquare, Link2, LogOut, MoreHorizontal,
   Radio, Shuffle, MousePointerClick, Zap, MessageCircle, Loader2,
   FileText, Edit, Mailbox,
@@ -20,6 +20,7 @@ import {
   unpinHomeScreenProject,
   type HomeScreenProject,
 } from '@/lib/homeScreenProjects'
+import { formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
 
 const BG = '#F2F2F7'
 const CARD = '#FFFFFF'
@@ -78,21 +79,8 @@ interface Lead {
 
 const MORE_SECTIONS = [
   {
-    heading: 'Under Construction',
-    items: [
-      { label: 'Upload Project', icon: UploadCloud, tint: '#5856D6', href: '/project-upload' },
-      { label: 'Media Upload', icon: Image, tint: '#30B0C7', href: '/media-upload' },
-      { label: 'Landing Page Editor', icon: Edit, tint: '#FF2D55', href: 'https://qikfill-landing-page-editor.vercel.app/', external: true },
-      { label: 'PDF Processor', icon: FileText, tint: '#AF52DE', href: 'https://pdfmanipulator.streamlit.app/', external: true },
-      { label: 'Email Creator', icon: Mailbox, tint: '#FF9500', href: 'https://email-creator-beta.vercel.app', external: true },
-      { label: 'Mass SMS', icon: MessageSquare, tint: '#5856D6', href: 'https://sms-campaign-platform.vercel.app/', external: true },
-      { label: 'Landing Page Sources', icon: Link2, tint: '#8E8E93', href: '/landing-page-sources' },
-    ],
-  },
-  {
     heading: 'Properties',
     items: [
-      { label: 'Task Manager', icon: CheckSquare, tint: '#FF9500', href: 'https://task-management-app-flame-seven.vercel.app/', external: true },
       { label: 'Canada Properties', icon: Building2, tint: '#007AFF', href: '/properties' },
       { label: 'Project Presentation', icon: Users, tint: '#AF52DE', href: '/project-presentation' },
       { label: 'Project Collections', icon: FolderOpen, tint: '#FF9500', href: '/collections' },
@@ -101,6 +89,8 @@ const MORE_SECTIONS = [
   {
     heading: 'Insights & Media',
     items: [
+      { label: 'Latest Updates', icon: TrendingUp, tint: '#007AFF', href: '/insights' },
+      { label: 'Task Manager', icon: CheckSquare, tint: '#FF9500', href: 'https://task-management-app-flame-seven.vercel.app/', external: true },
       { label: 'AI Lead Insights', icon: Sparkles, tint: '#5856D6', href: '/ai-insights' },
       { label: 'SMS Conversations', icon: MessageSquare, tint: '#34C759', href: '/conversations' },
     ],
@@ -132,6 +122,18 @@ const MORE_SECTIONS = [
       { label: 'FJ Booking Page', icon: Link2, tint: '#007AFF', href: 'https://www.qikfill.com/fj-booking', external: true },
       { label: 'Precon Booking Page', icon: Link2, tint: GOLD, href: 'https://www.qikfill.com/preconfactory-booking', external: true },
       { label: 'Logout', icon: LogOut, tint: DESTRUCTIVE, href: '#logout' },
+    ],
+  },
+  {
+    heading: 'Under Construction',
+    items: [
+      { label: 'Upload Project', icon: UploadCloud, tint: '#5856D6', href: '/project-upload' },
+      { label: 'Media Upload', icon: Image, tint: '#30B0C7', href: '/media-upload' },
+      { label: 'Landing Page Editor', icon: Edit, tint: '#FF2D55', href: 'https://qikfill-landing-page-editor.vercel.app/', external: true },
+      { label: 'PDF Processor', icon: FileText, tint: '#AF52DE', href: 'https://pdfmanipulator.streamlit.app/', external: true },
+      { label: 'Email Creator', icon: Mailbox, tint: '#FF9500', href: 'https://email-creator-beta.vercel.app', external: true },
+      { label: 'Mass SMS', icon: MessageSquare, tint: '#5856D6', href: 'https://sms-campaign-platform.vercel.app/', external: true },
+      { label: 'Landing Page Sources', icon: Link2, tint: '#8E8E93', href: '/landing-page-sources' },
     ],
   },
 ]
@@ -568,7 +570,7 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
                       last={i === todayBookings.length - 1}
                       leading={<IconChip Icon={Icon} tint={isFJ ? TINT : GOLD} />}
                       title={`${a.firstname} ${a.lastname}`}
-                      subtitle={`${a.project_name || 'No project'} · ${a.appointment_time || ''}`}
+                      subtitle={`${a.project_name || 'No project'} · ${formatAppointmentTimeDisplay(a.appointment_time)}`}
                       trailing={
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <BrandTag brand={a.brand} />
@@ -727,7 +729,7 @@ function BookingsTab() {
                     trailing={
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ ...font, fontWeight: 600, fontSize: 13.5, color: LABEL }}>{formatDate(b.appointment_date)}</div>
-                        <div style={{ ...font, fontSize: 12, color: SECONDARY }}>{b.appointment_time || ''}</div>
+                        <div style={{ ...font, fontSize: 12, color: SECONDARY }}>{formatAppointmentTimeDisplay(b.appointment_time)}</div>
                       </div>
                     }
                   />
@@ -1354,7 +1356,7 @@ function AddBookingSheet({ close }: { close: () => void }) {
                   <SectionHeader>Review</SectionHeader>
                   <GroupedList>
                     <Row leading={<IconChip Icon={User} tint={TINT} />} title={`${data.firstname} ${data.lastname}`} subtitle={data.phone} />
-                    <Row leading={<IconChip Icon={Building2} tint={GOLD} />} title={data.project} subtitle={`${data.date || '—'} at ${data.time || '—'}`} />
+                    <Row leading={<IconChip Icon={Building2} tint={GOLD} />} title={data.project} subtitle={`${data.date || '—'} at ${formatAppointmentTimeDisplay(data.time) || '—'}`} />
                     <Row
                       last
                       leading={<IconChip Icon={typeIcon(data.type)} tint={TINT} />}

@@ -59,6 +59,15 @@ export function formatAppointmentTime(hours: number, minutes: number): string {
   return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`
 }
 
+/** Display stored booking times (e.g. "14:30") as a 12-hour clock. */
+export function formatAppointmentTimeDisplay(appointmentTime: string | null | undefined): string {
+  const raw = String(appointmentTime || '').trim()
+  if (!raw) return ''
+  if (!/\d/.test(raw)) return raw
+  const { hours, minutes } = parseAppointmentTime(raw)
+  return formatAppointmentTime(hours, minutes)
+}
+
 export function buildAppointmentDateTimes(appointmentDate: string, appointmentTime: string) {
   const { hours, minutes } = parseAppointmentTime(appointmentTime)
   const startDateTimeLocal = `${appointmentDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`

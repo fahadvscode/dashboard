@@ -1,5 +1,6 @@
 import { format, formatDistanceToNow, isPast, isToday, parseISO, startOfDay, isValid } from 'date-fns'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
 import {
   buildDisplayName,
   CONTACT_SOURCE_TABLES,
@@ -142,7 +143,7 @@ function formatAppointmentLabel(row: RawRow): string | null {
   if (!appt) return null
   const apptTime = row.appointment_time as string | undefined
   const datePart = format(appt, 'MMM d, yyyy')
-  return apptTime ? `${datePart} at ${apptTime}` : datePart
+  return apptTime ? `${datePart} at ${formatAppointmentTimeDisplay(apptTime)}` : datePart
 }
 
 function formatActivitySummary(

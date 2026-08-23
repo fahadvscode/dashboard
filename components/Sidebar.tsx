@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned, PlusCircle } from 'lucide-react'
+import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned, PlusCircle, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 import { logout } from '@/lib/auth'
 
@@ -17,18 +17,6 @@ type NavItem = {
 
 const navigationSections: { heading: string; items: NavItem[] }[] = [
   {
-    heading: 'Under Construction',
-    items: [
-      { name: 'Upload Project', href: '/project-upload', icon: PlusCircle },
-      { name: 'Media Upload', href: '/media-upload', icon: Upload },
-      { name: 'Landing Page Editor', href: 'https://qikfill-landing-page-editor.vercel.app/', icon: Edit, external: true },
-      { name: 'PDF Processor', href: 'https://pdfmanipulator.streamlit.app/', icon: FileText, external: true },
-      { name: 'Email Creator', href: 'https://email-creator-beta.vercel.app', icon: Mailbox, external: true },
-      { name: 'Mass SMS', href: 'https://sms-campaign-platform.vercel.app/', icon: MessageSquare, external: true },
-      { name: 'Landing Page Sources', href: '/landing-page-sources', icon: PlusCircle },
-    ],
-  },
-  {
     heading: 'Properties',
     items: [
       { name: 'Canada Properties', href: '/', icon: Building2 },
@@ -39,6 +27,8 @@ const navigationSections: { heading: string; items: NavItem[] }[] = [
   {
     heading: 'Insights & Media',
     items: [
+      { name: 'Latest Updates', href: '/insights', icon: TrendingUp },
+      { name: 'Task Manager', href: TASK_MANAGER_URL, icon: CheckSquare, external: true },
       { name: 'AI Lead Insights', href: '/ai-insights', icon: Brain },
       { name: 'SMS Conversations', href: '/conversations', icon: MessageSquare },
     ],
@@ -61,6 +51,18 @@ const navigationSections: { heading: string; items: NavItem[] }[] = [
       { name: 'GTA Lowrise Leads', href: '/gta-lowrise-leads', icon: Mail },
       { name: 'Rental Leads', href: '/rental-leads', icon: Mail },
       { name: 'Landing Pages Leads', href: '/landing-pages-leads', icon: Mail },
+    ],
+  },
+  {
+    heading: 'Under Construction',
+    items: [
+      { name: 'Upload Project', href: '/project-upload', icon: PlusCircle },
+      { name: 'Media Upload', href: '/media-upload', icon: Upload },
+      { name: 'Landing Page Editor', href: 'https://qikfill-landing-page-editor.vercel.app/', icon: Edit, external: true },
+      { name: 'PDF Processor', href: 'https://pdfmanipulator.streamlit.app/', icon: FileText, external: true },
+      { name: 'Email Creator', href: 'https://email-creator-beta.vercel.app', icon: Mailbox, external: true },
+      { name: 'Mass SMS', href: 'https://sms-campaign-platform.vercel.app/', icon: MessageSquare, external: true },
+      { name: 'Landing Page Sources', href: '/landing-page-sources', icon: PlusCircle },
     ],
   },
 ]
@@ -144,18 +146,6 @@ export default function Sidebar() {
                 {section.heading}
               </p>
               <div className="space-y-1 md:space-y-2">
-                {section.heading === 'Properties' && (
-                  <a
-                    href={TASK_MANAGER_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center w-full px-3 py-2.5 md:px-4 md:py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold text-sm shadow-md hover:from-indigo-700 hover:to-indigo-800 active:scale-[0.98] transition-all touch-manipulation"
-                  >
-                    <CheckSquare className="h-5 w-5 mr-2 md:mr-3 flex-shrink-0" />
-                    Task Manager
-                  </a>
-                )}
                 {section.items.map((item) => {
                   const isActive = !item.external && pathname === item.href
                   const Icon = item.icon

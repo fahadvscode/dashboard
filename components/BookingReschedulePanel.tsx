@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { CalendarClock, Ban } from 'lucide-react'
-import { APPOINTMENT_TIME_SLOTS, normalizeAppointmentTime, isBookingStatusCanceled } from '@/lib/bookingTimes'
+import { APPOINTMENT_TIME_SLOTS, normalizeAppointmentTime, isBookingStatusCanceled, formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
 import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
 
 type BookingTable =
@@ -117,7 +117,7 @@ export default function BookingReschedulePanel({
   const handleCancel = async () => {
     if (
       !confirm(
-        `Cancel the appointment for ${booking.firstname} ${booking.lastname} on ${booking.appointment_date} at ${booking.appointment_time}?`
+        `Cancel the appointment for ${booking.firstname} ${booking.lastname} on ${booking.appointment_date} at ${formatAppointmentTimeDisplay(booking.appointment_time)}?`
       )
     ) {
       return
