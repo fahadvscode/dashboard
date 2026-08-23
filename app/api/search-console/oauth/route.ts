@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server'
-import { getSearchConsoleOAuthClient, SEARCH_CONSOLE_SCOPE } from '@/lib/searchConsole'
+import { getSearchConsoleOAuthClient, getSearchConsoleRedirectUri, SEARCH_CONSOLE_SCOPE } from '@/lib/searchConsole'
 
 export async function GET() {
   try {
-    const oauth2Client = getSearchConsoleOAuthClient()
+    const redirectUri = getSearchConsoleRedirectUri()
+    const oauth2Client = getSearchConsoleOAuthClient(redirectUri)
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'select_account consent',
       include_granted_scopes: false,
       scope: [SEARCH_CONSOLE_SCOPE],
       state: 'search_console',
+      redirect_uri: redirectUri,
     })
 
     return NextResponse.redirect(authUrl)

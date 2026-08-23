@@ -20,16 +20,18 @@ export function getSearchConsoleRedirectUri() {
   return process.env.GOOGLE_SEARCH_CONSOLE_REDIRECT_URI || DEFAULT_SEARCH_CONSOLE_REDIRECT_URI
 }
 
-export function getSearchConsoleOAuthClient() {
+export function getSearchConsoleOAuthClient(redirectUri?: string) {
   const { google } = require('googleapis') as typeof import('googleapis')
-  const clientId =
-    process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID || process.env.QIKFILL_GOOGLE_CLIENT_ID
-  const clientSecret =
-    process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET || process.env.QIKFILL_GOOGLE_CLIENT_SECRET
+  const clientId = process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET
   if (!clientId || !clientSecret) {
     throw new Error('Search Console Google OAuth client is not configured.')
   }
-  return new google.auth.OAuth2(clientId, clientSecret, getSearchConsoleRedirectUri())
+  return new google.auth.OAuth2(
+    clientId,
+    clientSecret,
+    redirectUri || getSearchConsoleRedirectUri()
+  )
 }
 
 export async function getSearchConsoleClient() {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import {
   getSearchConsoleOAuthClient,
+  getSearchConsoleRedirectUri,
   SEARCH_CONSOLE_TOKEN_TYPE,
 } from '@/lib/searchConsole'
 
@@ -23,7 +24,10 @@ export async function GET(request: NextRequest) {
     }
 
     const oauth2Client = getSearchConsoleOAuthClient()
-    const { tokens } = await oauth2Client.getToken(code)
+    const { tokens } = await oauth2Client.getToken({
+      code,
+      redirect_uri: getSearchConsoleRedirectUri(),
+    })
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
