@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Home, Calendar, Flame, Plus, Phone, Mail, Building2, Video,
   PhoneCall, Check, ChevronRight, User, X,
-  Search, CheckSquare, UploadCloud, Users, FolderOpen, Sparkles, TrendingUp, ClipboardList,
+  Search, CheckSquare, UploadCloud, Users, FolderOpen, Sparkles, TrendingUp, ClipboardList, BarChart3,
   Image, MessageSquare, Link2, LogOut, MoreHorizontal,
   Radio, Shuffle, MousePointerClick, Zap, MessageCircle, Loader2,
   FileText, Edit, Mailbox,
@@ -89,7 +89,8 @@ const MORE_SECTIONS = [
   {
     heading: 'Insights & Media',
     items: [
-      { label: 'Latest Updates', icon: TrendingUp, tint: '#007AFF', href: '/insights' },
+      { label: 'Insights', icon: TrendingUp, tint: '#007AFF', href: '/insights' },
+      { label: 'Search Console', icon: BarChart3, tint: '#34C759', href: '/insights#search-console' },
       { label: 'Task Manager', icon: CheckSquare, tint: '#FF9500', href: 'https://task-management-app-flame-seven.vercel.app/', external: true },
       { label: 'Daily Report', icon: ClipboardList, tint: '#30B0C7', href: 'https://fahadsells.com/internal/timecard', external: true },
       { label: 'AI Lead Insights', icon: Sparkles, tint: '#5856D6', href: '/ai-insights' },

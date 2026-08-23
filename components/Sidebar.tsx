@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned, PlusCircle, TrendingUp, ClipboardList } from 'lucide-react'
+import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned, PlusCircle, TrendingUp, ClipboardList, BarChart3 } from 'lucide-react'
 import { useState } from 'react'
 import { logout } from '@/lib/auth'
 
@@ -27,7 +27,8 @@ const navigationSections: { heading: string; items: NavItem[] }[] = [
   {
     heading: 'Insights & Media',
     items: [
-      { name: 'Latest Updates', href: '/insights', icon: TrendingUp },
+      { name: 'Insights', href: '/insights', icon: TrendingUp },
+      { name: 'Search Console', href: '/insights#search-console', icon: BarChart3 },
       { name: 'Task Manager', href: TASK_MANAGER_URL, icon: CheckSquare, external: true },
       { name: 'Daily Report', href: 'https://fahadsells.com/internal/timecard', icon: ClipboardList, external: true },
       { name: 'AI Lead Insights', href: '/ai-insights', icon: Brain },

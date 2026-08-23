@@ -71,7 +71,6 @@ export async function GET(request: NextRequest) {
         { 
           error: 'Failed to store tokens',
           details: dbError.message,
-          tokens: tokens // Return tokens so user can manually store them
         },
         { status: 500 }
       )

@@ -1,6 +1,7 @@
 'use client'
 
 import LatestProjects from '@/components/LatestProjects'
+import SearchConsoleInsights from '@/components/SearchConsoleInsights'
 import { CheckSquare, ClipboardList, ExternalLink } from 'lucide-react'
 
 const TASK_MANAGER_URL = 'https://task-management-app-flame-seven.vercel.app/'
@@ -15,6 +16,8 @@ export default function InsightsPage() {
           Latest project updates and tasks
         </p>
       </div>
+
+      <SearchConsoleInsights />
 
       <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <a
