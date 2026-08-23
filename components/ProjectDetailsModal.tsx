@@ -1,8 +1,14 @@
 'use client'
 
-import { X, ExternalLink, MapPin, DollarSign, Home, Ruler, Building2, Calendar } from 'lucide-react'
-import { useState } from 'react'
+import { X, ExternalLink, MapPin, DollarSign, Home, Ruler, Building2, Calendar, FolderPlus, MonitorSmartphone } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { handlePropertyImageError, parsePropertyPictures } from '@/lib/propertyImages'
+import AddToCollectionModal from './AddToCollectionModal'
+import {
+  isPinnedToHomeScreen,
+  pinHomeScreenProject,
+  unpinHomeScreenProject,
+} from '@/lib/homeScreenProjects'
 
 interface Property {
   id: string
@@ -32,8 +38,34 @@ interface Props {
 
 export default function ProjectDetailsModal({ property, onClose }: Props) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  
+  const [showCollectionModal, setShowCollectionModal] = useState(false)
+  const [pinned, setPinned] = useState(false)
+
   const images = parsePropertyPictures(property.pictures)
+  const propertyId = String(property.id)
+
+  useEffect(() => {
+    setPinned(isPinnedToHomeScreen(propertyId))
+  }, [propertyId])
+
+  const toggleHomeScreen = () => {
+    if (pinned) {
+      unpinHomeScreenProject(propertyId)
+      setPinned(false)
+      return
+    }
+
+    pinHomeScreenProject({
+      id: propertyId,
+      project_name: property.project_name || '',
+      builder: property.builder || '',
+      city: property.city || '',
+      price: property.price || '',
+      address: property.address || '',
+      pictures: property.pictures || '',
+    })
+    setPinned(true)
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto">
@@ -49,6 +81,29 @@ export default function ProjectDetailsModal({ property, onClose }: Props) {
             className="ml-2 md:ml-4 p-3 md:p-2 hover:bg-gray-100 active:bg-gray-200 rounded-full transition-colors touch-manipulation flex-shrink-0"
           >
             <X className="h-6 w-6 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="px-4 md:px-6 py-3 border-b border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setShowCollectionModal(true)}
+            className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-50 text-blue-700 font-semibold text-sm hover:bg-blue-100 active:scale-[0.98] transition-all"
+          >
+            <FolderPlus className="h-4 w-4" />
+            Add to collection
+          </button>
+          <button
+            type="button"
+            onClick={toggleHomeScreen}
+            className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm active:scale-[0.98] transition-all ${
+              pinned
+                ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+            }`}
+          >
+            <MonitorSmartphone className="h-4 w-4" />
+            {pinned ? 'On home screen' : 'Add to home screen'}
           </button>
         </div>
 
@@ -310,6 +365,13 @@ export default function ProjectDetailsModal({ property, onClose }: Props) {
           </button>
         </div>
       </div>
+      {showCollectionModal && (
+        <AddToCollectionModal
+          propertyId={propertyId}
+          projectName={property.project_name}
+          onClose={() => setShowCollectionModal(false)}
+        />
+      )}
     </div>
   )
 }

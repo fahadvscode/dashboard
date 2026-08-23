@@ -33,9 +33,10 @@ interface PropertiesTableProps {
     bedrooms: string
     bathrooms: string
   }
+  refreshKey?: number
 }
 
-export default function PropertiesTable({ searchQuery = '', filters = { city: '', bedrooms: '', bathrooms: '' } }: PropertiesTableProps) {
+export default function PropertiesTable({ searchQuery = '', filters = { city: '', bedrooms: '', bathrooms: '' }, refreshKey = 0 }: PropertiesTableProps) {
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
@@ -46,11 +47,11 @@ export default function PropertiesTable({ searchQuery = '', filters = { city: ''
 
   useEffect(() => {
     setCurrentPage(1) // Reset to first page when search/filters change
-  }, [searchQuery, filters])
+  }, [searchQuery, filters, refreshKey])
 
   useEffect(() => {
     fetchProperties()
-  }, [currentPage, searchQuery, filters])
+  }, [currentPage, searchQuery, filters, refreshKey])
 
   async function fetchProperties() {
     try {

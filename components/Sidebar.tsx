@@ -17,6 +17,18 @@ type NavItem = {
 
 const navigationSections: { heading: string; items: NavItem[] }[] = [
   {
+    heading: 'Under Construction',
+    items: [
+      { name: 'Upload Project', href: '/project-upload', icon: PlusCircle },
+      { name: 'Media Upload', href: '/media-upload', icon: Upload },
+      { name: 'Landing Page Editor', href: 'https://qikfill-landing-page-editor.vercel.app/', icon: Edit, external: true },
+      { name: 'PDF Processor', href: 'https://pdfmanipulator.streamlit.app/', icon: FileText, external: true },
+      { name: 'Email Creator', href: 'https://email-creator-beta.vercel.app', icon: Mailbox, external: true },
+      { name: 'Mass SMS', href: 'https://sms-campaign-platform.vercel.app/', icon: MessageSquare, external: true },
+      { name: 'Landing Page Sources', href: '/landing-page-sources', icon: PlusCircle },
+    ],
+  },
+  {
     heading: 'Properties',
     items: [
       { name: 'Canada Properties', href: '/', icon: Building2 },
@@ -49,18 +61,6 @@ const navigationSections: { heading: string; items: NavItem[] }[] = [
       { name: 'GTA Lowrise Leads', href: '/gta-lowrise-leads', icon: Mail },
       { name: 'Rental Leads', href: '/rental-leads', icon: Mail },
       { name: 'Landing Pages Leads', href: '/landing-pages-leads', icon: Mail },
-    ],
-  },
-  {
-    heading: 'Under Construction',
-    items: [
-      { name: 'Upload Project', href: '/project-upload', icon: PlusCircle },
-      { name: 'Media Upload', href: '/media-upload', icon: Upload },
-      { name: 'Landing Page Editor', href: 'https://qikfill-landing-page-editor.vercel.app/', icon: Edit, external: true },
-      { name: 'PDF Processor', href: 'https://pdfmanipulator.streamlit.app/', icon: FileText, external: true },
-      { name: 'Email Creator', href: 'https://email-creator-beta.vercel.app', icon: Mailbox, external: true },
-      { name: 'Mass SMS', href: 'https://sms-campaign-platform.vercel.app/', icon: MessageSquare, external: true },
-      { name: 'Landing Page Sources', href: '/landing-page-sources', icon: PlusCircle },
     ],
   },
 ]

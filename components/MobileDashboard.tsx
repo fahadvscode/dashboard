@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Home, Calendar, Flame, Plus, Phone, Mail, Building2, Video,
-  PhoneCall, Check, ChevronRight, User,
+  PhoneCall, Check, ChevronRight, User, X,
   Search, CheckSquare, UploadCloud, Users, FolderOpen, Sparkles,
   Image, MessageSquare, Link2, LogOut, MoreHorizontal,
   Radio, Shuffle, MousePointerClick, Zap, MessageCircle, Loader2,
@@ -12,6 +12,14 @@ import {
 } from 'lucide-react'
 import { logout } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import ProjectDetailsModal from '@/components/ProjectDetailsModal'
+import { getFirstPropertyImage } from '@/lib/propertyImages'
+import {
+  HOME_SCREEN_PROJECTS_EVENT,
+  getHomeScreenProjects,
+  unpinHomeScreenProject,
+  type HomeScreenProject,
+} from '@/lib/homeScreenProjects'
 
 const BG = '#F2F2F7'
 const CARD = '#FFFFFF'
@@ -70,6 +78,18 @@ interface Lead {
 
 const MORE_SECTIONS = [
   {
+    heading: 'Under Construction',
+    items: [
+      { label: 'Upload Project', icon: UploadCloud, tint: '#5856D6', href: '/project-upload' },
+      { label: 'Media Upload', icon: Image, tint: '#30B0C7', href: '/media-upload' },
+      { label: 'Landing Page Editor', icon: Edit, tint: '#FF2D55', href: 'https://qikfill-landing-page-editor.vercel.app/', external: true },
+      { label: 'PDF Processor', icon: FileText, tint: '#AF52DE', href: 'https://pdfmanipulator.streamlit.app/', external: true },
+      { label: 'Email Creator', icon: Mailbox, tint: '#FF9500', href: 'https://email-creator-beta.vercel.app', external: true },
+      { label: 'Mass SMS', icon: MessageSquare, tint: '#5856D6', href: 'https://sms-campaign-platform.vercel.app/', external: true },
+      { label: 'Landing Page Sources', icon: Link2, tint: '#8E8E93', href: '/landing-page-sources' },
+    ],
+  },
+  {
     heading: 'Properties',
     items: [
       { label: 'Task Manager', icon: CheckSquare, tint: '#FF9500', href: 'https://task-management-app-flame-seven.vercel.app/', external: true },
@@ -103,18 +123,6 @@ const MORE_SECTIONS = [
       { label: 'GTA Lowrise Leads', icon: Mail, tint: '#FF9500', href: '/gta-lowrise-leads' },
       { label: 'Rental Leads', icon: Mail, tint: '#30B0C7', href: '/rental-leads' },
       { label: 'Landing Pages Leads', icon: Mail, tint: '#AF52DE', href: '/landing-pages-leads' },
-    ],
-  },
-  {
-    heading: 'Under Construction',
-    items: [
-      { label: 'Upload Project', icon: UploadCloud, tint: '#5856D6', href: '/project-upload' },
-      { label: 'Media Upload', icon: Image, tint: '#30B0C7', href: '/media-upload' },
-      { label: 'Landing Page Editor', icon: Edit, tint: '#FF2D55', href: 'https://qikfill-landing-page-editor.vercel.app/', external: true },
-      { label: 'PDF Processor', icon: FileText, tint: '#AF52DE', href: 'https://pdfmanipulator.streamlit.app/', external: true },
-      { label: 'Email Creator', icon: Mailbox, tint: '#FF9500', href: 'https://email-creator-beta.vercel.app', external: true },
-      { label: 'Mass SMS', icon: MessageSquare, tint: '#5856D6', href: 'https://sms-campaign-platform.vercel.app/', external: true },
-      { label: 'Landing Page Sources', icon: Link2, tint: '#8E8E93', href: '/landing-page-sources' },
     ],
   },
   {
@@ -379,6 +387,15 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
   const [todayBookings, setTodayBookings] = useState<(Booking & { brand: string })[]>([])
   const [hotLeads, setHotLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
+  const [pinnedProjects, setPinnedProjects] = useState<HomeScreenProject[]>([])
+  const [selectedPinned, setSelectedPinned] = useState<Record<string, string> | null>(null)
+
+  useEffect(() => {
+    const loadPins = () => setPinnedProjects(getHomeScreenProjects())
+    loadPins()
+    window.addEventListener(HOME_SCREEN_PROJECTS_EVENT, loadPins)
+    return () => window.removeEventListener(HOME_SCREEN_PROJECTS_EVENT, loadPins)
+  }, [])
 
   useEffect(() => {
     async function loadData() {
@@ -417,10 +434,111 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
   const now = new Date()
   const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 
+  async function openPinnedProject(project: HomeScreenProject) {
+    const { data } = await supabase
+      .from('canada_properties')
+      .select('*')
+      .eq('id', project.id)
+      .maybeSingle()
+
+    setSelectedPinned(
+      (data as Record<string, string> | null) ?? {
+        id: project.id,
+        project_name: project.project_name,
+        builder: project.builder,
+        address: project.address,
+        city: project.city,
+        price: project.price,
+        bedrooms: '',
+        bathrooms: '',
+        sqft: '',
+        details: '',
+        features: '',
+        quick_facts: '',
+        pictures: project.pictures,
+        website_url: '',
+        timestamp: '',
+        created_at: '',
+        fj_landing_page: '',
+        precon_factory_landing_page: '',
+      }
+    )
+  }
+
   return (
     <div>
       <NavBar title="Today" subtitle={`${todayBookings.length} appointments · ${dateStr}`} rightIcon={Plus} onRight={openAdd} />
       <div style={{ padding: '0 16px 110px', maxWidth: 700, margin: '0 auto' }}>
+        {pinnedProjects.length > 0 && (
+          <>
+            <SectionHeader>Pinned Projects</SectionHeader>
+            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 12, marginBottom: 4 }}>
+              {pinnedProjects.map((project) => {
+                const image = getFirstPropertyImage(project.pictures)
+                return (
+                  <div
+                    key={project.id}
+                    style={{
+                      minWidth: 168,
+                      maxWidth: 168,
+                      background: CARD,
+                      borderRadius: 16,
+                      overflow: 'hidden',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                      position: 'relative',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        unpinHomeScreenProject(project.id)
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        width: 26,
+                        height: 26,
+                        borderRadius: 999,
+                        border: 'none',
+                        background: 'rgba(0,0,0,0.55)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        zIndex: 1,
+                      }}
+                      aria-label={`Remove ${project.project_name} from home screen`}
+                    >
+                      <X size={14} color="#fff" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void openPinnedProject(project)}
+                      style={{ width: '100%', border: 'none', background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}
+                    >
+                      <img
+                        src={image}
+                        alt=""
+                        style={{ width: '100%', height: 92, objectFit: 'cover', display: 'block', background: '#E5E5EA' }}
+                      />
+                      <div style={{ padding: '10px 11px 12px' }}>
+                        <div style={{ ...font, fontSize: 13.5, fontWeight: 700, color: LABEL, lineHeight: 1.25 }} className="line-clamp-2">
+                          {project.project_name}
+                        </div>
+                        <div style={{ ...font, fontSize: 12, color: SECONDARY, marginTop: 4 }}>
+                          {project.city || project.builder || 'Canada'}
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
         {loading ? (
           <LoadingSpinner />
         ) : (
@@ -491,6 +609,12 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
           </>
         )}
       </div>
+      {selectedPinned && (
+        <ProjectDetailsModal
+          property={selectedPinned as any}
+          onClose={() => setSelectedPinned(null)}
+        />
+      )}
     </div>
   )
 }
