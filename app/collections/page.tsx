@@ -149,7 +149,7 @@ export default function CollectionsPage() {
         }
         throw error
       }
-      setCollections(data ?? [])
+      setCollections((data ?? []).filter((row: Collection) => row.name !== '__home_screen__'))
     } catch (error: unknown) {
       const err = error as { code?: string; message?: string; status?: number }
       if (err?.status === 404 || err?.code === '42P01' || err?.code === 'PGRST116' || err?.message?.includes('relation') || err?.message?.includes('does not exist')) {

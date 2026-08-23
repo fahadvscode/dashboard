@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { handlePropertyImageError, parsePropertyPictures } from '@/lib/propertyImages'
 import AddToCollectionModal from './AddToCollectionModal'
 import {
-  isPinnedToHomeScreen,
+  fetchHomeScreenProjects,
   pinHomeScreenProject,
   unpinHomeScreenProject,
 } from '@/lib/homeScreenProjects'
@@ -45,17 +45,19 @@ export default function ProjectDetailsModal({ property, onClose }: Props) {
   const propertyId = String(property.id)
 
   useEffect(() => {
-    setPinned(isPinnedToHomeScreen(propertyId))
+    void fetchHomeScreenProjects().then((projects) => {
+      setPinned(projects.some((item) => item.id === propertyId))
+    })
   }, [propertyId])
 
-  const toggleHomeScreen = () => {
+  const toggleHomeScreen = async () => {
     if (pinned) {
-      unpinHomeScreenProject(propertyId)
+      await unpinHomeScreenProject(propertyId)
       setPinned(false)
       return
     }
 
-    pinHomeScreenProject({
+    await pinHomeScreenProject({
       id: propertyId,
       project_name: property.project_name || '',
       builder: property.builder || '',

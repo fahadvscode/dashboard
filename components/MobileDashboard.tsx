@@ -16,7 +16,7 @@ import ProjectDetailsModal from '@/components/ProjectDetailsModal'
 import { getFirstPropertyImage } from '@/lib/propertyImages'
 import {
   HOME_SCREEN_PROJECTS_EVENT,
-  getHomeScreenProjects,
+  fetchHomeScreenProjects,
   unpinHomeScreenProject,
   type HomeScreenProject,
 } from '@/lib/homeScreenProjects'
@@ -391,7 +391,9 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
   const [selectedPinned, setSelectedPinned] = useState<Record<string, string> | null>(null)
 
   useEffect(() => {
-    const loadPins = () => setPinnedProjects(getHomeScreenProjects())
+    const loadPins = () => {
+      void fetchHomeScreenProjects().then(setPinnedProjects)
+    }
     loadPins()
     window.addEventListener(HOME_SCREEN_PROJECTS_EVENT, loadPins)
     return () => window.removeEventListener(HOME_SCREEN_PROJECTS_EVENT, loadPins)
@@ -469,75 +471,82 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
     <div>
       <NavBar title="Today" subtitle={`${todayBookings.length} appointments · ${dateStr}`} rightIcon={Plus} onRight={openAdd} />
       <div style={{ padding: '0 16px 110px', maxWidth: 700, margin: '0 auto' }}>
-        {pinnedProjects.length > 0 && (
-          <>
-            <SectionHeader>Pinned Projects</SectionHeader>
-            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 12, marginBottom: 4 }}>
-              {pinnedProjects.map((project) => {
-                const image = getFirstPropertyImage(project.pictures)
-                return (
-                  <div
-                    key={project.id}
-                    style={{
-                      minWidth: 168,
-                      maxWidth: 168,
-                      background: CARD,
-                      borderRadius: 16,
-                      overflow: 'hidden',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-                      position: 'relative',
-                      flexShrink: 0,
+        <SectionHeader>Quick Projects</SectionHeader>
+        {pinnedProjects.length === 0 ? (
+          <div style={{ ...font, fontSize: 13.5, color: SECONDARY, padding: '4px 2px 16px' }}>
+            Open a project in Canada Properties and tap Add to home screen. It will show up here on every phone and computer.
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 10,
+              marginBottom: 8,
+            }}
+          >
+            {pinnedProjects.map((project) => {
+              const image = getFirstPropertyImage(project.pictures)
+              return (
+                <div
+                  key={project.id}
+                  style={{
+                    background: CARD,
+                    borderRadius: 16,
+                    overflow: 'hidden',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                    position: 'relative',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setPinnedProjects((prev) => prev.filter((item) => item.id !== project.id))
+                      void unpinHomeScreenProject(project.id)
                     }}
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      width: 28,
+                      height: 28,
+                      borderRadius: 999,
+                      border: 'none',
+                      background: 'rgba(0,0,0,0.55)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      zIndex: 1,
+                    }}
+                    aria-label={`Remove ${project.project_name} from home screen`}
                   >
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        unpinHomeScreenProject(project.id)
-                      }}
-                      style={{
-                        position: 'absolute',
-                        top: 8,
-                        right: 8,
-                        width: 26,
-                        height: 26,
-                        borderRadius: 999,
-                        border: 'none',
-                        background: 'rgba(0,0,0,0.55)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        zIndex: 1,
-                      }}
-                      aria-label={`Remove ${project.project_name} from home screen`}
-                    >
-                      <X size={14} color="#fff" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void openPinnedProject(project)}
-                      style={{ width: '100%', border: 'none', background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}
-                    >
-                      <img
-                        src={image}
-                        alt=""
-                        style={{ width: '100%', height: 92, objectFit: 'cover', display: 'block', background: '#E5E5EA' }}
-                      />
-                      <div style={{ padding: '10px 11px 12px' }}>
-                        <div style={{ ...font, fontSize: 13.5, fontWeight: 700, color: LABEL, lineHeight: 1.25 }} className="line-clamp-2">
-                          {project.project_name}
-                        </div>
-                        <div style={{ ...font, fontSize: 12, color: SECONDARY, marginTop: 4 }}>
-                          {project.city || project.builder || 'Canada'}
-                        </div>
+                    <X size={14} color="#fff" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void openPinnedProject(project)}
+                    style={{ width: '100%', border: 'none', background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}
+                  >
+                    <img
+                      src={image}
+                      alt=""
+                      style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block', background: '#E5E5EA' }}
+                    />
+                    <div style={{ padding: '10px 11px 12px' }}>
+                      <div style={{ ...font, fontSize: 14, fontWeight: 700, color: LABEL, lineHeight: 1.25 }} className="line-clamp-2">
+                        {project.project_name}
                       </div>
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </>
+                      <div style={{ ...font, fontSize: 12, color: SECONDARY, marginTop: 4 }}>
+                        {project.city || project.builder || 'Canada'}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
         )}
         {loading ? (
           <LoadingSpinner />
