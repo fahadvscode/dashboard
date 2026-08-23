@@ -2,32 +2,67 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Smartphone, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned, PlusCircle, Rocket } from 'lucide-react'
+import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned, PlusCircle } from 'lucide-react'
 import { useState } from 'react'
 import { logout } from '@/lib/auth'
 
 const TASK_MANAGER_URL = 'https://task-management-app-flame-seven.vercel.app/'
 
-const navigation = [
-  { name: 'Canada Properties', href: '/', icon: Building2 },
-  { name: 'Upload Project', href: '/project-upload', icon: PlusCircle },
-  { name: 'Project Presentation', href: '/project-presentation', icon: MapPinned },
-  { name: 'Project Collections', href: '/collections', icon: FolderOpen },
-  { name: 'AI Lead Insights', href: '/ai-insights', icon: Brain },
-  { name: 'Media Upload', href: '/media-upload', icon: Upload },
-  { name: 'SMS Conversations', href: '/conversations', icon: MessageSquare },
-  { name: 'FJ Bookings', href: '/fj-bookings', icon: Calendar },
-  { name: 'Fahad Sells Interview Bookings', href: '/interview-bookings', icon: Calendar },
-  { name: 'FJ Leads', href: '/fj-leads', icon: Mail },
-  { name: 'Precon Factory Bookings', href: '/precon-bookings', icon: Calendar },
-  { name: 'Precon Factory Leads', href: '/precon-leads', icon: Mail },
-  { name: 'Precon Factory Website Leads', href: '/precon-factory-website-leads', icon: Mail },
-  { name: 'GTA Lowrise Bookings', href: '/gta-lowrise-bookings', icon: Calendar },
-  { name: 'GTA Lowrise Leads', href: '/gta-lowrise-leads', icon: Mail },
-  { name: 'Rental Leads', href: '/rental-leads', icon: Mail },
-  { name: 'Landing Pages Leads', href: '/landing-pages-leads', icon: Mail },
-  { name: 'Landing Page Sources', href: '/landing-page-sources', icon: PlusCircle },
-  { name: 'Generate Landing Page', href: '/generate-landing-page', icon: Rocket },
+type NavItem = {
+  name: string
+  href: string
+  icon: typeof Building2
+  external?: boolean
+}
+
+const navigationSections: { heading: string; items: NavItem[] }[] = [
+  {
+    heading: 'Properties',
+    items: [
+      { name: 'Canada Properties', href: '/', icon: Building2 },
+      { name: 'Project Presentation', href: '/project-presentation', icon: MapPinned },
+      { name: 'Project Collections', href: '/collections', icon: FolderOpen },
+    ],
+  },
+  {
+    heading: 'Insights & Media',
+    items: [
+      { name: 'AI Lead Insights', href: '/ai-insights', icon: Brain },
+      { name: 'SMS Conversations', href: '/conversations', icon: MessageSquare },
+    ],
+  },
+  {
+    heading: 'Bookings',
+    items: [
+      { name: 'FJ Bookings', href: '/fj-bookings', icon: Calendar },
+      { name: 'Fahad Sells Interview Bookings', href: '/interview-bookings', icon: Calendar },
+      { name: 'Precon Factory Bookings', href: '/precon-bookings', icon: Calendar },
+      { name: 'GTA Lowrise Bookings', href: '/gta-lowrise-bookings', icon: Calendar },
+    ],
+  },
+  {
+    heading: 'Leads',
+    items: [
+      { name: 'FJ Leads', href: '/fj-leads', icon: Mail },
+      { name: 'Precon Factory Leads', href: '/precon-leads', icon: Mail },
+      { name: 'Precon Factory Website Leads', href: '/precon-factory-website-leads', icon: Mail },
+      { name: 'GTA Lowrise Leads', href: '/gta-lowrise-leads', icon: Mail },
+      { name: 'Rental Leads', href: '/rental-leads', icon: Mail },
+      { name: 'Landing Pages Leads', href: '/landing-pages-leads', icon: Mail },
+    ],
+  },
+  {
+    heading: 'Under Construction',
+    items: [
+      { name: 'Upload Project', href: '/project-upload', icon: PlusCircle },
+      { name: 'Media Upload', href: '/media-upload', icon: Upload },
+      { name: 'Landing Page Editor', href: 'https://qikfill-landing-page-editor.vercel.app/', icon: Edit, external: true },
+      { name: 'PDF Processor', href: 'https://pdfmanipulator.streamlit.app/', icon: FileText, external: true },
+      { name: 'Email Creator', href: 'https://email-creator-beta.vercel.app', icon: Mailbox, external: true },
+      { name: 'Mass SMS', href: 'https://sms-campaign-platform.vercel.app/', icon: MessageSquare, external: true },
+      { name: 'Landing Page Sources', href: '/landing-page-sources', icon: PlusCircle },
+    ],
+  },
 ]
 
 const BOOKING_PAGES = {
@@ -101,57 +136,64 @@ export default function Sidebar() {
 
         {/* Scrollable: routes + tools + logout (short viewports still reach everything) */}
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain">
-        {/* Task Manager - Top, always visible, mobile-friendly */}
-        <div className="shrink-0 px-4 pt-4 pb-2 border-b border-gray-100">
-          <a
-            href={TASK_MANAGER_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center w-full px-4 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold text-sm shadow-md hover:from-indigo-700 hover:to-indigo-800 active:scale-[0.98] transition-all touch-manipulation"
-          >
-            <CheckSquare className="h-5 w-5 mr-3 flex-shrink-0" />
-            Task Manager
-          </a>
-        </div>
-
         {/* Navigation */}
-        <nav className="px-4 py-4 md:py-6 space-y-1 md:space-y-2">
-          {navigation.map((item) => {
-            const isActive = !('external' in item) && pathname === item.href
-            const Icon = item.icon
-            const className = `flex items-center px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-[15px] font-medium rounded-lg transition-colors touch-manipulation ${
-              isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
-            }`
+        <nav className="px-4 py-4 md:py-6 space-y-5">
+          {navigationSections.map((section) => (
+            <div key={section.heading}>
+              <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                {section.heading}
+              </p>
+              <div className="space-y-1 md:space-y-2">
+                {section.heading === 'Properties' && (
+                  <a
+                    href={TASK_MANAGER_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center w-full px-3 py-2.5 md:px-4 md:py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold text-sm shadow-md hover:from-indigo-700 hover:to-indigo-800 active:scale-[0.98] transition-all touch-manipulation"
+                  >
+                    <CheckSquare className="h-5 w-5 mr-2 md:mr-3 flex-shrink-0" />
+                    Task Manager
+                  </a>
+                )}
+                {section.items.map((item) => {
+                  const isActive = !item.external && pathname === item.href
+                  const Icon = item.icon
+                  const className = `flex items-center px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-[15px] font-medium rounded-lg transition-colors touch-manipulation ${
+                    isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
+                  }`
 
-            if ('external' in item && item.external) {
-              return (
-                <a
-                  key={item.name}
-                  href={item.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setIsOpen(false)}
-                  className={className}
-                >
-                  <Icon className={`h-5 w-5 md:h-5 md:w-5 mr-2 md:mr-3 text-gray-400 shrink-0`} />
-                  {item.name}
-                </a>
-              )
-            }
+                  if (item.external) {
+                    return (
+                      <a
+                        key={item.name}
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setIsOpen(false)}
+                        className={className}
+                      >
+                        <Icon className="h-5 w-5 md:h-5 md:w-5 mr-2 md:mr-3 text-gray-400 shrink-0" />
+                        {item.name}
+                      </a>
+                    )
+                  }
 
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                onClick={() => setIsOpen(false)}
-                className={className}
-              >
-                <Icon className={`h-5 w-5 md:h-5 md:w-5 mr-2 md:mr-3 shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
-                {item.name}
-              </Link>
-            )
-          })}
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      onClick={() => setIsOpen(false)}
+                      className={className}
+                    >
+                      <Icon className={`h-5 w-5 md:h-5 md:w-5 mr-2 md:mr-3 shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                      {item.name}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* External Tools */}
@@ -172,53 +214,7 @@ export default function Sidebar() {
 
           {/* Tools Container - Hidden on mobile unless toggled */}
           <div className={`px-4 pb-4 pt-2 md:pt-4 ${showTools ? 'block' : 'hidden md:block'}`}>
-            {/* PDF Processor Button */}
-            <a
-              href="https://pdfmanipulator.streamlit.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-[15px] font-medium rounded-lg transition-colors touch-manipulation bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700 active:from-purple-700 active:to-purple-800 shadow-md hover:shadow-lg mb-2 md:mb-3"
-            >
-              <FileText className="h-5 w-5 md:h-5 md:w-5 mr-2 md:mr-3 shrink-0" />
-              PDF Processor
-            </a>
-
-            {/* Email Creator Button */}
-            <a
-              href="https://email-creator-beta.vercel.app"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-[15px] font-medium rounded-lg transition-colors touch-manipulation bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 active:from-orange-700 active:to-orange-800 shadow-md hover:shadow-lg mb-2 md:mb-3"
-            >
-              <Mailbox className="h-5 w-5 md:h-5 md:w-5 mr-2 md:mr-3 shrink-0" />
-              Email Creator
-            </a>
-
-            {/* SMS Creator Button */}
-            <Link
-              href="/sms-creator"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-[15px] font-medium rounded-lg transition-colors touch-manipulation bg-gradient-to-r from-green-500 to-teal-600 text-white hover:from-green-600 hover:to-teal-700 active:from-green-700 active:to-teal-800 shadow-md hover:shadow-lg mb-2 md:mb-3"
-            >
-              <Smartphone className="h-5 w-5 md:h-5 md:w-5 mr-2 md:mr-3 shrink-0" />
-              SMS Creator
-            </Link>
-
-            {/* Mass SMS Button */}
-            <a
-              href="https://sms-campaign-platform.vercel.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-[15px] font-medium rounded-lg transition-colors touch-manipulation bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 active:from-indigo-700 active:to-purple-800 shadow-md hover:shadow-lg mb-2 md:mb-3"
-            >
-              <MessageSquare className="h-5 w-5 md:h-5 md:w-5 mr-2 md:mr-3 shrink-0" />
-              Mass SMS
-            </a>
-
-            {/* Rental Form Button */}
+            {/* Rental Screening Form Button */}
             <a
               href="https://www.qikfill.com/rental-signup.html"
               target="_blank"
@@ -227,19 +223,7 @@ export default function Sidebar() {
               className="flex items-center px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-[15px] font-medium rounded-lg transition-colors touch-manipulation bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700 active:from-cyan-700 active:to-blue-800 shadow-md hover:shadow-lg mb-2 md:mb-3"
             >
               <Home className="h-5 w-5 md:h-5 md:w-5 mr-2 md:mr-3 shrink-0" />
-              Rental Form
-            </a>
-
-            {/* Landing Page Editor Button */}
-            <a
-              href="https://qikfill-landing-page-editor.vercel.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setIsOpen(false)}
-              className="flex items-center px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-[15px] font-medium rounded-lg transition-colors touch-manipulation bg-gradient-to-r from-pink-500 to-rose-600 text-white hover:from-pink-600 hover:to-rose-700 active:from-pink-700 active:to-rose-800 shadow-md hover:shadow-lg mb-2 md:mb-3"
-            >
-              <Edit className="h-5 w-5 md:h-5 md:w-5 mr-2 md:mr-3 shrink-0" />
-              Landing Page Editor
+              Rental Screening Form
             </a>
 
             {/* Booking Pages Button */}

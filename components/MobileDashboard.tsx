@@ -8,7 +8,7 @@ import {
   Search, CheckSquare, UploadCloud, Users, FolderOpen, Sparkles,
   Image, MessageSquare, Link2, LogOut, MoreHorizontal,
   Radio, Shuffle, MousePointerClick, Zap, MessageCircle, Loader2,
-  Rocket, FileText, Smartphone, Edit, Mailbox,
+  FileText, Edit, Mailbox,
 } from 'lucide-react'
 import { logout } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
@@ -74,7 +74,6 @@ const MORE_SECTIONS = [
     items: [
       { label: 'Task Manager', icon: CheckSquare, tint: '#FF9500', href: 'https://task-management-app-flame-seven.vercel.app/', external: true },
       { label: 'Canada Properties', icon: Building2, tint: '#007AFF', href: '/properties' },
-      { label: 'Upload Project', icon: UploadCloud, tint: '#5856D6', href: '/project-upload' },
       { label: 'Project Presentation', icon: Users, tint: '#AF52DE', href: '/project-presentation' },
       { label: 'Project Collections', icon: FolderOpen, tint: '#FF9500', href: '/collections' },
     ],
@@ -83,7 +82,6 @@ const MORE_SECTIONS = [
     heading: 'Insights & Media',
     items: [
       { label: 'AI Lead Insights', icon: Sparkles, tint: '#5856D6', href: '/ai-insights' },
-      { label: 'Media Upload', icon: Image, tint: '#30B0C7', href: '/media-upload' },
       { label: 'SMS Conversations', icon: MessageSquare, tint: '#34C759', href: '/conversations' },
     ],
   },
@@ -108,16 +106,21 @@ const MORE_SECTIONS = [
     ],
   },
   {
-    heading: 'Tools',
+    heading: 'Under Construction',
     items: [
-      { label: 'Generate Landing Page', icon: Rocket, tint: '#AF52DE', href: '/generate-landing-page' },
-      { label: 'Landing Page Sources', icon: Link2, tint: '#8E8E93', href: '/landing-page-sources' },
+      { label: 'Upload Project', icon: UploadCloud, tint: '#5856D6', href: '/project-upload' },
+      { label: 'Media Upload', icon: Image, tint: '#30B0C7', href: '/media-upload' },
       { label: 'Landing Page Editor', icon: Edit, tint: '#FF2D55', href: 'https://qikfill-landing-page-editor.vercel.app/', external: true },
       { label: 'PDF Processor', icon: FileText, tint: '#AF52DE', href: 'https://pdfmanipulator.streamlit.app/', external: true },
       { label: 'Email Creator', icon: Mailbox, tint: '#FF9500', href: 'https://email-creator-beta.vercel.app', external: true },
-      { label: 'SMS Creator', icon: Smartphone, tint: '#34C759', href: '/sms-creator' },
       { label: 'Mass SMS', icon: MessageSquare, tint: '#5856D6', href: 'https://sms-campaign-platform.vercel.app/', external: true },
-      { label: 'Rental Form', icon: Home, tint: '#30B0C7', href: 'https://www.qikfill.com/rental-signup.html', external: true },
+      { label: 'Landing Page Sources', icon: Link2, tint: '#8E8E93', href: '/landing-page-sources' },
+    ],
+  },
+  {
+    heading: 'Tools',
+    items: [
+      { label: 'Rental Screening Form', icon: Home, tint: '#30B0C7', href: 'https://www.qikfill.com/rental-signup.html', external: true },
       { label: 'FJ Booking Page', icon: Link2, tint: '#007AFF', href: 'https://www.qikfill.com/fj-booking', external: true },
       { label: 'Precon Booking Page', icon: Link2, tint: GOLD, href: 'https://www.qikfill.com/preconfactory-booking', external: true },
       { label: 'Logout', icon: LogOut, tint: DESTRUCTIVE, href: '#logout' },
