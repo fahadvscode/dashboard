@@ -27,6 +27,12 @@ export async function GET(request: NextRequest) {
       const sql = generateLandingPageSetupSql({
         table_name: table,
         display_name: source?.display_name,
+        page_name: source?.page_name,
+        site_url: source?.site_url,
+        name_style: source?.name_style,
+        enabled: source?.enabled,
+        has_crm: source?.has_crm,
+        notes: source?.notes,
       })
       return NextResponse.json({ table_name: table, sql })
     }
@@ -55,9 +61,16 @@ export async function POST(request: NextRequest) {
     if (action === 'sql') {
       const tableName = String(body.table_name || '').trim().toLowerCase()
       const displayName = String(body.display_name || '').trim()
+      const pageName = String(body.page_name || displayName).trim()
       const sql = generateLandingPageSetupSql({
         table_name: tableName,
         display_name: displayName || undefined,
+        page_name: pageName || undefined,
+        site_url: String(body.site_url || ''),
+        name_style: body.name_style,
+        enabled: body.enabled !== false,
+        has_crm: Boolean(body.has_crm),
+        notes: body.notes != null ? String(body.notes) : null,
       })
       return NextResponse.json({ table_name: tableName, sql })
     }
@@ -116,24 +129,34 @@ export async function POST(request: NextRequest) {
       .select('*')
       .single()
 
-    if (error) {
-      console.error('landing_page_lead_sources upsert:', error)
-      return NextResponse.json(
-        {
-          error: error.message.includes('landing_page_lead_sources')
-            ? 'Registry table missing. Run setup_landing_page_lead_sources.sql in Supabase first.'
-            : error.message,
-        },
-        { status: 500 }
-      )
-    }
-
-    clearLandingPageSourcesCache()
-
     const sql = generateLandingPageSetupSql({
       table_name: tableName,
       display_name: displayName,
+      page_name: pageName,
+      site_url: siteUrl,
+      name_style: nameStyle,
+      enabled,
+      has_crm: hasCrm,
+      notes,
     })
+
+    if (error) {
+      console.error('landing_page_lead_sources upsert:', error)
+      return NextResponse.json({
+        source: null,
+        sql,
+        warning: error.message.includes('landing_page_lead_sources')
+          ? 'Registry table was missing. The SQL below creates it and registers this source — run it in Supabase.'
+          : error.message,
+        next_steps: [
+          'Run the full SQL in Supabase SQL Editor (creates table if needed, registry, RLS, notify trigger).',
+          'Confirm the website inserts into this table name.',
+          'Submit a test lead — you should get email and a Google Sheet row.',
+        ],
+      })
+    }
+
+    clearLandingPageSourcesCache()
 
     const verify = await verifyLeadTable(tableName)
 
@@ -142,9 +165,9 @@ export async function POST(request: NextRequest) {
       sql,
       verify,
       next_steps: [
-        'Run the returned SQL in Supabase SQL Editor (RLS + notify trigger).',
+        'Run the full SQL in Supabase SQL Editor (creates table if needed, registry, RLS, notify trigger).',
         'Confirm the website inserts into this table name.',
-        'Submit a test lead — you should get email, SMS, and a Google Sheet row.',
+        'Submit a test lead — you should get email and a Google Sheet row.',
       ],
     })
   } catch (error) {

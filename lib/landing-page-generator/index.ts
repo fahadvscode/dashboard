@@ -18,7 +18,7 @@ import {
   generateReadme,
 } from './base-files'
 import { generateTemplatePage } from './templates'
-import { generateSitemapXml, generateRobotsTxt, generateCreateTableSql, generateFaviconSvg } from './seo'
+import { generateSitemapXml, generateRobotsTxt, generateFaviconSvg } from './seo'
 import { generateLandingPageSetupSql, isValidLandingPageTableName } from '@/lib/landingPageSources'
 import { createZip } from './zip'
 
@@ -79,12 +79,20 @@ export async function generateLandingPage(
   }
 
   try {
-    const createTableSql = generateCreateTableSql(config)
-    const triggerSql = generateLandingPageSetupSql({
+    const domainUrl = config.domain
+      ? /^https?:\/\//i.test(config.domain)
+        ? config.domain.replace(/\/$/, '')
+        : `https://${config.domain.replace(/\/$/, '')}`
+      : ''
+    const fullSql = generateLandingPageSetupSql({
       table_name: config.tableName,
       display_name: config.projectName,
+      page_name: config.projectName,
+      site_url: domainUrl,
+      name_style: 'first_name',
+      enabled: true,
+      has_crm: true,
     })
-    const fullSql = createTableSql + '\n' + triggerSql
 
     const files = [...buildProjectFiles(config, content, fullSql), ...extraFiles]
     let wroteToDisk = false

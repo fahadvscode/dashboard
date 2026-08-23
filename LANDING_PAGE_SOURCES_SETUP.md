@@ -1,24 +1,24 @@
 # Landing Page Sources (auto setup)
 
-Register any lead table once. New inserts get **email + SMS + Google Sheet**, and show on **Landing Pages Leads** — without more code changes.
+Register any lead table once. The form generates **one full SQL script**. Run it in Supabase and new inserts get **email + Google Sheet**, and show on **Landing Pages Leads**.
 
-## One-time Supabase setup
+## Add a new landing page
 
-Run in Supabase SQL Editor:
-
-1. `setup_landing_page_lead_sources.sql` — creates the registry + seeds existing pages
-
-## Add a new landing page (ongoing)
-
-1. Create your lead table in Supabase (website form inserts into it).
-2. Open dashboard → **Landing Page Sources**.
-3. Enter:
-   - **Table name** (e.g. `my_project_leads`)
-   - **Display name** (e.g. `My Project`)
+1. Open dashboard → **Landing Page Sources**.
+2. Enter:
+   - **Table name** (e.g. `caledon_station_homes_leads`) — created by the SQL if it does not exist
+   - **Display name** (e.g. `Caledon Station`)
    - **Site URL** (optional)
-4. Click **Save & generate SQL**.
-5. Copy the SQL → run in Supabase (RLS + `AFTER INSERT` notify trigger).
-6. Submit a test lead.
+3. Click **Save & generate full SQL** (or **Generate SQL only**).
+4. Copy the SQL → run once in Supabase SQL Editor.
+5. Point the website form at that table and submit a test lead (needs a name + email).
+
+The generated SQL includes:
+
+- Registry row (`landing_page_lead_sources`) so notify/sheets treat it as a landing page
+- `CREATE TABLE IF NOT EXISTS` with standard lead columns
+- RLS policies
+- `AFTER INSERT` trigger → `/api/leads/notify` (email + Google Sheet)
 
 Expected columns (any mix is fine):
 
@@ -31,8 +31,8 @@ Expected columns (any mix is fine):
 ```
 INSERT into your_table
   → pg_net trigger POSTs row + table_name to /api/leads/notify
-  → notify looks up table in landing_page_lead_sources (builtins if registry missing)
-  → email + SMS + Google Sheet row
+  → notify looks up table in landing_page_lead_sources
+  → email + Google Sheet row
   → Landing Pages Leads lists all enabled sources dynamically
 ```
 
@@ -41,3 +41,4 @@ INSERT into your_table
 - Built-in pages still work even before you run the registry SQL.
 - Disabling a source stops notifications and hides it from the leads list.
 - Removing a source only deletes the registry row — not the lead table or trigger.
+- Admin SMS is currently off in `/api/leads/notify`.

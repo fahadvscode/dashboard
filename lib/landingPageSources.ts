@@ -315,34 +315,198 @@ export function appendLandingLeadDetailLines(
   }
 }
 
-/**
- * One-shot SQL: RLS for dashboard + AFTER INSERT → /api/leads/notify
- * Safe to re-run. Does not alter lead columns or delete rows.
- */
-export function generateLandingPageSetupSql(source: {
+function sqlLiteral(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+export type LandingPageSetupSqlInput = {
   table_name: string
   display_name?: string
-}): string {
+  page_name?: string
+  site_url?: string
+  name_style?: LandingPageNameStyle
+  enabled?: boolean
+  has_crm?: boolean
+  notes?: string | null
+}
+
+/**
+ * One-shot SQL: registry + lead table (if missing) + RLS + AFTER INSERT → /api/leads/notify
+ * (email + Google Sheet). Safe to re-run. Does not drop columns or delete rows.
+ */
+export function generateLandingPageSetupSql(source: LandingPageSetupSqlInput): string {
   const table = source.table_name.trim().toLowerCase()
   if (!isValidLandingPageTableName(table)) {
     throw new Error('Invalid table_name. Use lowercase letters, numbers, underscores; start with a letter.')
   }
 
   const fn = `notify_new_${table}_lead`
-  // Postgres truncates identifiers at 63 chars
   const fnSafe = fn.slice(0, 63)
-  const label = source.display_name || table
+  const label = source.display_name?.trim() || table
+  const pageName = source.page_name?.trim() || label
+  const siteUrl = sanitizeSiteUrl(source.site_url || '')
+  const nameStyle: LandingPageNameStyle =
+    source.name_style === 'firstname' || source.name_style === 'first_name'
+      ? source.name_style
+      : 'auto'
+  const createNameStyle = nameStyle === 'firstname' ? 'firstname' : 'first_name'
+  const enabled = source.enabled !== false
+  const hasCrm = Boolean(source.has_crm)
+  const notesSql = source.notes != null && String(source.notes).trim() !== ''
+    ? sqlLiteral(String(source.notes))
+    : 'NULL'
+  const noticeLabel = label.replace(/%/g, '%%').replace(/\$/g, '')
+  const idxEmail = `idx_${table}_email`.slice(0, 63)
+  const idxCreated = `idx_${table}_created`.slice(0, 63)
+
+  const nameCreateCols =
+    createNameStyle === 'firstname'
+      ? `  firstname text,
+  lastname text,`
+      : `  first_name text,
+  last_name text,`
+
+  const nameAddCols =
+    createNameStyle === 'firstname'
+      ? `ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS firstname text;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS lastname text;`
+      : `ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS first_name text;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS last_name text;`
+
+  const crmCreateCols = hasCrm
+    ? `,
+  call_count integer DEFAULT 0,
+  lead_temperature text DEFAULT 'warm',
+  call_history jsonb DEFAULT '[]'::jsonb,
+  last_note text`
+    : ''
+
+  const crmAddCols = hasCrm
+    ? `
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS call_count integer DEFAULT 0;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS lead_temperature text DEFAULT 'warm';
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS call_history jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS last_note text;`
+    : ''
 
   return `-- =============================================================================
 -- ${label} (${table})
--- RLS for dashboard + AFTER INSERT notification (email / SMS / Google Sheet)
--- SAFE: does not alter columns or delete rows. Idempotent re-run OK.
+-- FULL SETUP: registry + table (if missing) + RLS + notify (email / Google Sheet)
+-- SAFE: does not drop columns or delete rows. Idempotent re-run OK.
 -- =============================================================================
 
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pg_net;
 
+-- ---------------------------------------------------------------------------
+-- 1. Registry (so notify + dashboard treat this as a landing page)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.landing_page_lead_sources (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  table_name text NOT NULL,
+  display_name text NOT NULL,
+  page_name text,
+  site_url text NOT NULL DEFAULT '',
+  name_style text NOT NULL DEFAULT 'auto'
+    CHECK (name_style IN ('auto', 'firstname', 'first_name')),
+  enabled boolean NOT NULL DEFAULT true,
+  has_crm boolean NOT NULL DEFAULT false,
+  notes text,
+  CONSTRAINT landing_page_lead_sources_table_name_format
+    CHECK (table_name ~ '^[a-z][a-z0-9_]*$'),
+  CONSTRAINT landing_page_lead_sources_table_name_unique UNIQUE (table_name)
+);
+
+CREATE INDEX IF NOT EXISTS landing_page_lead_sources_enabled_idx
+  ON public.landing_page_lead_sources (enabled)
+  WHERE enabled = true;
+
+ALTER TABLE public.landing_page_lead_sources ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow read landing_page_lead_sources" ON public.landing_page_lead_sources;
+CREATE POLICY "Allow read landing_page_lead_sources"
+  ON public.landing_page_lead_sources FOR SELECT TO anon, authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "Allow write landing_page_lead_sources" ON public.landing_page_lead_sources;
+CREATE POLICY "Allow write landing_page_lead_sources"
+  ON public.landing_page_lead_sources FOR ALL TO anon, authenticated
+  USING (true) WITH CHECK (true);
+
+INSERT INTO public.landing_page_lead_sources
+  (table_name, display_name, page_name, site_url, name_style, enabled, has_crm, notes, updated_at)
+VALUES
+  (
+    ${sqlLiteral(table)},
+    ${sqlLiteral(label)},
+    ${sqlLiteral(pageName)},
+    ${sqlLiteral(siteUrl)},
+    ${sqlLiteral(nameStyle)},
+    ${enabled},
+    ${hasCrm},
+    ${notesSql},
+    now()
+  )
+ON CONFLICT (table_name) DO UPDATE SET
+  display_name = EXCLUDED.display_name,
+  page_name = EXCLUDED.page_name,
+  site_url = EXCLUDED.site_url,
+  name_style = EXCLUDED.name_style,
+  enabled = EXCLUDED.enabled,
+  has_crm = EXCLUDED.has_crm,
+  notes = EXCLUDED.notes,
+  updated_at = now();
+
+-- ---------------------------------------------------------------------------
+-- 2. Lead table (created only if it does not already exist)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.${table} (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+${nameCreateCols}
+  email text,
+  phone text,
+  is_broker boolean,
+  is_realtor boolean,
+  project_name text,
+  source text,
+  form_location text,
+  form_type text,
+  page_path text,
+  notes text,
+  status text DEFAULT 'new',
+  priority text,
+  utm_source text,
+  utm_campaign text${crmCreateCols}
+);
+
+${nameAddCols}
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS phone text;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS is_broker boolean;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS is_realtor boolean;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS project_name text;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS form_location text;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS form_type text;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS page_path text;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS notes text;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS status text DEFAULT 'new';
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS priority text;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS utm_source text;
+ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS utm_campaign text;${crmAddCols}
+
+CREATE INDEX IF NOT EXISTS ${idxEmail} ON public.${table} (email);
+CREATE INDEX IF NOT EXISTS ${idxCreated} ON public.${table} (created_at DESC);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.${table} TO anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 3. RLS so the dashboard + website form can use this table
+-- ---------------------------------------------------------------------------
 ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow dashboard to read ${table}" ON public.${table};
@@ -365,6 +529,9 @@ CREATE POLICY "Allow dashboard to delete ${table}"
   ON public.${table} FOR DELETE TO anon, authenticated
   USING (true);
 
+-- ---------------------------------------------------------------------------
+-- 4. AFTER INSERT → /api/leads/notify (email + Google Sheet)
+-- ---------------------------------------------------------------------------
 DROP TRIGGER IF EXISTS ${fnSafe} ON public.${table};
 DROP FUNCTION IF EXISTS public.${fnSafe}();
 
@@ -373,7 +540,7 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $notify$
 DECLARE
   payload JSONB;
   request_id BIGINT;
@@ -387,10 +554,10 @@ BEGIN
     body := payload
   ) INTO request_id;
 
-  RAISE NOTICE '${label} lead notification sent (request_id: %)', request_id;
+  RAISE NOTICE ${sqlLiteral(noticeLabel + ' lead notification sent (request_id: %)')}, request_id;
   RETURN NEW;
 END;
-$$;
+$notify$;
 
 CREATE TRIGGER ${fnSafe}
   AFTER INSERT ON public.${table}
@@ -398,6 +565,10 @@ CREATE TRIGGER ${fnSafe}
   EXECUTE FUNCTION public.${fnSafe}();
 
 COMMIT;
+
+SELECT table_name, display_name, page_name, site_url, name_style, enabled, has_crm
+FROM public.landing_page_lead_sources
+WHERE table_name = ${sqlLiteral(table)};
 
 SELECT trigger_name, event_object_table
 FROM information_schema.triggers

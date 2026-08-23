@@ -73,9 +73,11 @@ export default function LandingPageSourcesPage() {
       setSql(data.sql || '')
       setSqlTable(form.table_name.trim().toLowerCase())
       setMessage(
-        data.verify?.ok
-          ? `Saved “${form.display_name}”. Table verified. Run the SQL below in Supabase (if trigger not already installed).`
-          : `Saved “${form.display_name}”. ${data.verify?.message || 'Create the lead table first, then run the SQL below.'}`
+        data.warning
+          ? `${data.warning} Full SQL is below — run it in Supabase.`
+          : data.verify?.ok
+            ? `Saved “${form.display_name}”. Copy the SQL below and run it in Supabase (table + registry + RLS + email/sheet trigger).`
+            : `Saved “${form.display_name}”. Run the SQL below in Supabase — it creates the table if needed, plus notifications.`
       )
       if (data.verify?.message) setVerifyMsg(data.verify.message)
       setForm(emptyForm)
@@ -87,15 +89,28 @@ export default function LandingPageSourcesPage() {
     }
   }
 
-  async function showSql(tableName: string, displayName?: string) {
+  async function showSql(source: {
+    table_name: string
+    display_name?: string
+    page_name?: string
+    site_url?: string
+    name_style?: FormState['name_style']
+    enabled?: boolean
+    has_crm?: boolean
+  }) {
     setError(null)
     const res = await fetch('/api/landing-page-sources', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'sql',
-        table_name: tableName,
-        display_name: displayName,
+        table_name: source.table_name,
+        display_name: source.display_name,
+        page_name: source.page_name,
+        site_url: source.site_url,
+        name_style: source.name_style,
+        enabled: source.enabled,
+        has_crm: source.has_crm,
       }),
     })
     const data = await res.json()
@@ -104,8 +119,16 @@ export default function LandingPageSourcesPage() {
       return
     }
     setSql(data.sql || '')
-    setSqlTable(tableName)
-    setMessage(`SQL ready for ${tableName}`)
+    setSqlTable(source.table_name)
+    setMessage(`Full setup SQL ready for ${source.table_name} — run it once in Supabase.`)
+  }
+
+  async function generateSqlOnly() {
+    if (!form.table_name.trim() || !form.display_name.trim()) {
+      setError('Table name and display name are required to generate SQL.')
+      return
+    }
+    await showSql(form)
   }
 
   async function verify(tableName: string) {
@@ -163,8 +186,9 @@ export default function LandingPageSourcesPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">Landing Page Sources</h1>
             <p className="mt-1 max-w-2xl text-sm text-gray-600">
-              Register a Supabase lead table once. New inserts get email, SMS, and Google Sheet rows after you
-              run the generated trigger SQL. Leads appear on Landing Pages Leads automatically.
+              Fill the form and generate SQL. One script creates the lead table (if missing), registers the
+              source, sets RLS, and installs the notify trigger (email + Google Sheet). Then run that SQL in
+              Supabase. Leads show on Landing Pages Leads automatically.
             </p>
           </div>
           <button
@@ -207,7 +231,7 @@ export default function LandingPageSourcesPage() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm"
               />
               <span className="mt-1 block text-xs text-gray-500">
-                Must already exist in Supabase. Lowercase + underscores only.
+                Lowercase + underscores only. Created by the SQL if it does not exist yet.
               </span>
             </label>
             <label className="block text-sm">
@@ -278,21 +302,30 @@ export default function LandingPageSourcesPage() {
             Expected fields: first name, last name, email, phone, plus optional is_broker / is_realtor, project_name,
             source, form_location, notes, etc.
           </p>
-          <button
-            type="submit"
-            disabled={saving}
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Save &amp; generate SQL
-          </button>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Save &amp; generate full SQL
+            </button>
+            <button
+              type="button"
+              onClick={generateSqlOnly}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50"
+            >
+              Generate SQL only
+            </button>
+          </div>
         </form>
 
         {sql && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold text-gray-900">
-                Supabase SQL — {sqlTable || 'trigger + RLS'}
+                Supabase SQL — {sqlTable || 'full setup'}
               </h2>
               <button
                 type="button"
@@ -304,7 +337,8 @@ export default function LandingPageSourcesPage() {
               </button>
             </div>
             <p className="mb-3 text-sm text-amber-900">
-              Paste into Supabase → SQL Editor → Run. Safe to re-run. Does not delete leads or change columns.
+              Paste into Supabase → SQL Editor → Run. This is the whole setup: lead table (if missing),
+              registry row, RLS, and notify trigger (email + Google Sheet). Safe to re-run.
             </p>
             <pre className="max-h-96 overflow-auto rounded-lg bg-gray-900 p-4 text-xs text-gray-100">{sql}</pre>
           </div>
@@ -356,7 +390,7 @@ export default function LandingPageSourcesPage() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => showSql(source.table_name, source.display_name)}
+                      onClick={() => showSql(source)}
                       className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                     >
                       Setup SQL
