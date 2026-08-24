@@ -182,8 +182,8 @@ function pickSitesToQuery(
   const matched = sites.filter((site) =>
     landingSources.some((source) => gscSiteMatchesLanding(site.siteUrl, source))
   )
-  const list = matched.length > 0 ? matched : sites
-  return list.slice(0, 20)
+  const rest = sites.filter((site) => !matched.some((row) => row.siteUrl === site.siteUrl))
+  return [...matched, ...rest].slice(0, 40)
 }
 
 export async function fetchSearchConsoleStats(requestedSiteUrl?: string) {
@@ -285,8 +285,8 @@ export async function fetchSearchConsoleStats(requestedSiteUrl?: string) {
     )
   )
 
-  const topWorking = pages
-    .filter((page) => page.status === 'working')
+  const topWorking = [...pages]
+    .filter((page) => page.clicks > 0 || page.impressions > 0)
     .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)
     .slice(0, 10)
   const topClicks = [...pages].sort((a, b) => b.clicks - a.clicks).slice(0, 10)
@@ -373,16 +373,32 @@ const SHARED_APP_HOSTS = new Set([
   'herokuapp.com',
 ])
 
+function projectSlug(source: LandingPageSource) {
+  const fromName = toSlug(source.display_name)
+  const fromTable = toSlug(source.table_name.replace(/_leads$/, ''))
+  const fromHost = hostnameOf(source.site_url).split('.')[0] || ''
+  return { fromName, fromTable, fromHost }
+}
+
+function hostLooksLikeSource(host: string, source: LandingPageSource) {
+  if (!host) return false
+  const sourceHost = hostnameOf(source.site_url)
+  if (sourceHost && (host === sourceHost || host.endsWith(`.${sourceHost}`) || sourceHost.endsWith(`.${host}`))) {
+    if (SHARED_APP_HOSTS.has(host) || SHARED_APP_HOSTS.has(sourceHost)) return host === sourceHost
+    return true
+  }
+  const { fromName, fromTable, fromHost } = projectSlug(source)
+  const tokens = [fromName, fromTable, fromHost].filter((token) => token.length >= 5)
+  return tokens.some((token) => host.includes(token))
+}
+
 function gscSiteMatchesLanding(gscSiteUrl: string, source: LandingPageSource) {
   const site = source.site_url || ''
   if (!site) return false
   const gscHost = hostnameOf(gscSiteUrl)
-  const sourceHost = hostnameOf(site)
-  if (!gscHost || !sourceHost) return false
-  if (SHARED_APP_HOSTS.has(gscHost) || SHARED_APP_HOSTS.has(sourceHost)) {
-    return gscHost === sourceHost
-  }
-  return gscHost === sourceHost || sourceHost.endsWith(`.${gscHost}`) || gscHost.endsWith(`.${sourceHost}`)
+  if (!gscHost) return false
+  if (SHARED_APP_HOSTS.has(gscHost)) return false
+  return hostLooksLikeSource(gscHost, source)
 }
 
 function canonicalUrl(url: string) {
@@ -407,13 +423,17 @@ function matchLandingSource(pageUrl: string, sources: LandingPageSource[]) {
     .sort((a, b) => (b.site_url?.length || 0) - (a.site_url?.length || 0))
   if (prefixMatches[0]) return prefixMatches[0]
 
-  return (
-    sources.find((source) => {
-      const site = source.site_url || ''
-      if (!site || sitePathname(site)) return false
-      return hostnameOf(site) === pageHost
-    }) || null
-  )
+  const hostMatches = sources.filter((source) => {
+    const site = source.site_url || ''
+    if (!site || sitePathname(site)) return false
+    return hostnameOf(site) === pageHost
+  })
+  if (hostMatches.length === 1) return hostMatches[0]
+  if (hostMatches[0]) return hostMatches[0]
+
+  const nameMatches = sources.filter((source) => hostLooksLikeSource(pageHost, source))
+  if (nameMatches.length === 1) return nameMatches[0]
+  return null
 }
 
 type ParsedLead = {
@@ -793,6 +813,29 @@ function buildLandingComparison(
       extra.statusLabel = 'Leads not tied to a page'
       rows.push(extra)
     }
+  }
+
+  const unmatchedGooglePages = pages
+    .filter((page) => !page.landingPageTable && (page.clicks > 0 || page.impressions > 0))
+    .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)
+    .slice(0, 15)
+
+  for (const page of unmatchedGooglePages) {
+    const verdict = landingStatus(page.clicks, page.impressions, page.leads, 1, page.status === 'hidden')
+    rows.push({
+      name: page.title,
+      projectName: hostnameOf(page.page) || 'Other Google pages',
+      table: '',
+      siteUrl: page.page,
+      page: page.page,
+      pathLabel: pathLabelOf(page.page),
+      leads: page.leads,
+      clicks: page.clicks,
+      impressions: page.impressions,
+      ctr: page.ctr,
+      googlePages: 1,
+      ...verdict,
+    })
   }
 
   return rows.sort((a, b) => b.leads - a.leads || b.clicks - a.clicks || b.impressions - a.impressions)

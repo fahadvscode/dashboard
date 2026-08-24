@@ -265,10 +265,10 @@ export default function SearchConsoleInsights() {
           <section>
             <SectionTitle
               icon={<CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-              title="Top 10 pages that are working"
-              subtitle="Most Google clicks, and nothing looks broken."
+              title="Top 10 pages with Google traffic"
+              subtitle="Most clicks in the last 7 days. This includes pages that still need work."
             />
-            <PageList rows={stats.topWorking || []} empty="No healthy pages in this range yet." />
+            <PageList rows={stats.topWorking || []} empty="No Google traffic in this range yet." />
           </section>
 
           <section>
