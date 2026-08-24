@@ -28,8 +28,11 @@ type PageInsight = {
 
 type LandingRow = {
   name: string
+  projectName: string
   table: string
   siteUrl: string
+  page: string | null
+  pathLabel: string
   leads: number
   clicks: number
   impressions: number
@@ -72,6 +75,22 @@ function formatRange(range?: { startDate: string; endDate: string }) {
     ...opts,
     year: 'numeric',
   })}`
+}
+
+function groupLandingRows(rows: LandingRow[]) {
+  const groups: Array<{ project: string; rows: LandingRow[] }> = []
+  const indexByProject = new Map<string, number>()
+  for (const row of rows) {
+    const project = row.projectName || row.name
+    const existing = indexByProject.get(project)
+    if (existing === undefined) {
+      indexByProject.set(project, groups.length)
+      groups.push({ project, rows: [row] })
+    } else {
+      groups[existing].rows.push(row)
+    }
+  }
+  return groups
 }
 
 function statusClass(status: PageInsight['status']) {
@@ -196,7 +215,7 @@ export default function SearchConsoleInsights() {
               <p className="text-sm text-gray-600">{stats.selectedSite === 'all' ? 'All sites' : stats.selectedSite}</p>
             )}
             {stats.range ? (
-              <span className="text-xs text-gray-400">Last 28 days · {formatRange(stats.range)}</span>
+              <span className="text-xs text-gray-400">Last 7 days · {formatRange(stats.range)}</span>
             ) : null}
           </div>
 
@@ -215,21 +234,30 @@ export default function SearchConsoleInsights() {
             <div className="mb-3">
               <h3 className="text-base font-semibold text-gray-900">Landing pages vs Google</h3>
               <p className="text-sm text-gray-500 mt-0.5">
-                Same date range as Search Console. Leads are from Landing Pages Leads. Clicks and views are from Google.
+                Last 7 days. If a project has more than one page, each URL is listed on its own with that page’s Google clicks and leads.
               </p>
             </div>
             {activeLandings.length === 0 ? (
               <p className="text-sm text-gray-400">No matching landing-page traffic in this range yet.</p>
             ) : (
-              <div className="space-y-2">
-                {activeLandings.map((row) => (
-                  <ComparisonCard key={row.table} row={row} />
+              <div className="space-y-4">
+                {groupLandingRows(activeLandings).map((group) => (
+                  <div key={group.project}>
+                    {group.rows.length > 1 ? (
+                      <h4 className="text-sm font-semibold text-gray-800 mb-2">{group.project}</h4>
+                    ) : null}
+                    <div className="space-y-2">
+                      {group.rows.map((row) => (
+                        <ComparisonCard key={`${row.table}-${row.page || row.pathLabel}`} row={row} />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
             {quietLandings.length > 0 ? (
               <p className="mt-3 text-xs text-gray-400">
-                No Google traffic and no leads: {quietLandings.map((row) => row.name).join(', ')}.
+                No Google traffic and no leads: {[...new Set(quietLandings.map((row) => row.projectName || row.name))].join(', ')}.
               </p>
             ) : null}
           </section>
@@ -326,16 +354,27 @@ function ComparisonCard({ row }: { row: LandingRow }) {
   return (
     <div className="rounded-xl border border-gray-100 px-3 py-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+        <div className="min-w-0">
           <div className="font-medium text-gray-900">{row.name}</div>
           <p className="text-sm text-gray-600 mt-1">{row.why}</p>
+          {row.page ? (
+            <a
+              href={row.page}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 truncate max-w-full"
+            >
+              {row.page.replace(/^https?:\/\//, '')}
+              <ExternalLink className="h-3 w-3 shrink-0" />
+            </a>
+          ) : null}
         </div>
         <span className={`text-xs font-medium rounded-full px-2 py-1 ${statusClass(row.status)}`}>
           {row.statusLabel}
         </span>
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-        <Metric label="Leads" value={formatNumber(row.leads)} />
+        <Metric label="Leads (7 days)" value={formatNumber(row.leads)} />
         <Metric label="Google clicks" value={formatNumber(row.clicks)} />
         <Metric label="Times shown" value={formatNumber(row.impressions)} />
       </div>
@@ -393,7 +432,7 @@ function PageList({
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
             <span>{formatNumber(row.clicks)} clicks</span>
             <span>shown {formatNumber(row.impressions)}</span>
-            {row.landingPageName ? <span>{formatNumber(row.leads)} landing leads</span> : null}
+            {row.landingPageName ? <span>{formatNumber(row.leads)} leads (7 days)</span> : null}
             <span>rank {row.position.toFixed(1)}</span>
           </div>
         </li>

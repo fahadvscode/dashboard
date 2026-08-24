@@ -30,8 +30,11 @@ export type SearchConsolePageInsight = {
 
 export type SearchConsoleLandingComparison = {
   name: string
+  projectName: string
   table: string
   siteUrl: string
+  page: string | null
+  pathLabel: string
   leads: number
   clicks: number
   impressions: number
@@ -129,7 +132,7 @@ export function getSearchConsoleDateRange() {
   const end = new Date()
   end.setUTCDate(end.getUTCDate() - 2)
   const start = new Date(end)
-  start.setUTCDate(start.getUTCDate() - 27)
+  start.setUTCDate(start.getUTCDate() - 6)
   return { startDate: isoDate(start), endDate: isoDate(end) }
 }
 
@@ -219,7 +222,7 @@ export async function fetchSearchConsoleStats(requestedSiteUrl?: string) {
           }),
           searchconsole.searchanalytics.query({
             siteUrl: site.siteUrl,
-            requestBody: { startDate, endDate, dimensions: ['page'], rowLimit: 50, dataState: 'all' },
+            requestBody: { startDate, endDate, dimensions: ['page'], rowLimit: 100, dataState: 'all' },
           }),
         ])
         const totals = totalsRes.data.rows?.[0]
@@ -256,22 +259,30 @@ export async function fetchSearchConsoleStats(requestedSiteUrl?: string) {
   const querySite =
     [...siteReports].sort((a, b) => b.totals.clicks - a.totals.clicks)[0]?.siteUrl || sitesToQuery[0].siteUrl
 
-  const [queriesRes, leadCounts] = await Promise.all([
+  const [queriesRes, leadRows] = await Promise.all([
     searchconsole.searchanalytics
       .query({
         siteUrl: querySite,
         requestBody: { startDate, endDate, dimensions: ['query'], rowLimit: 10, dataState: 'all' },
       })
       .catch(() => ({ data: { rows: [] as Array<{ keys?: string[]; clicks?: number | null; impressions?: number | null; ctr?: number | null; position?: number | null }> } })),
-    countLandingPageLeads(landingSources, startDate, endDate).catch(() => new Map<string, number>()),
+    fetchLandingLeadRows(landingSources, startDate, endDate).catch(() => [] as ParsedLead[]),
   ])
+
+  const { pageLeadCounts, unmatchedByTable } = attributeLeadsToPages(pageRows, landingSources, leadRows)
 
   const indexIssues = viewingAll
     ? new Map<string, string>()
     : await inspectProblemPages(searchconsole, selectedSite, pageRows).catch(() => new Map<string, string>())
 
   const pages = pageRows.map((row) =>
-    buildPageInsight(row, landingSources, leadCounts, indexIssues.get(row.page) || null)
+    buildPageInsight(
+      row,
+      landingSources,
+      pageLeadCounts.get(row.page) || 0,
+      unmatchedByTable,
+      indexIssues.get(row.page) || null
+    )
   )
 
   const topWorking = pages
@@ -284,7 +295,7 @@ export async function fetchSearchConsoleStats(requestedSiteUrl?: string) {
     .filter((page) => page.status !== 'working')
     .sort((a, b) => b.impressions - a.impressions)
     .slice(0, 10)
-  const landingComparison = buildLandingComparison(landingSources, pages, leadCounts)
+  const landingComparison = buildLandingComparison(landingSources, pages, unmatchedByTable)
 
   const best =
     landingComparison.find((row) => row.leads > 0) ||
@@ -353,12 +364,24 @@ function sitePathname(url: string) {
   }
 }
 
+const SHARED_APP_HOSTS = new Set([
+  'vercel.app',
+  'netlify.app',
+  'github.io',
+  'web.app',
+  'pages.dev',
+  'herokuapp.com',
+])
+
 function gscSiteMatchesLanding(gscSiteUrl: string, source: LandingPageSource) {
   const site = source.site_url || ''
   if (!site) return false
   const gscHost = hostnameOf(gscSiteUrl)
   const sourceHost = hostnameOf(site)
   if (!gscHost || !sourceHost) return false
+  if (SHARED_APP_HOSTS.has(gscHost) || SHARED_APP_HOSTS.has(sourceHost)) {
+    return gscHost === sourceHost
+  }
   return gscHost === sourceHost || sourceHost.endsWith(`.${gscHost}`) || gscHost.endsWith(`.${sourceHost}`)
 }
 
@@ -393,28 +416,196 @@ function matchLandingSource(pageUrl: string, sources: LandingPageSource[]) {
   )
 }
 
-async function countLandingPageLeads(
+type ParsedLead = {
+  table: string
+  path: string | null
+  slugs: string[]
+}
+
+const GENERIC_LEAD_SOURCES = new Set([
+  'google',
+  'facebook',
+  'instagram',
+  'direct',
+  'organic',
+  'cpc',
+  'paid',
+  'bing',
+  'youtube',
+  'tiktok',
+  'unknown',
+  'website',
+  'other',
+  'search',
+  'gsc',
+  'n/a',
+  'na',
+  '-',
+])
+
+const TRACKING_HOSTS = new Set([
+  'google.com',
+  'google.ca',
+  'facebook.com',
+  'l.facebook.com',
+  'instagram.com',
+  'bing.com',
+  't.co',
+  'youtube.com',
+])
+
+const LEAD_SELECTS = [
+  'id, page_path, source_page, source, form_name, form_location',
+  'id, source, form_name',
+  'id',
+]
+
+function toSlug(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function normalizePath(input: string) {
+  let raw = input.trim()
+  try {
+    if (/^https?:\/\//i.test(raw)) {
+      raw = new URL(raw).pathname
+    }
+  } catch {
+    // keep as-is
+  }
+  raw = raw.split('?')[0].split('#')[0]
+  if (!raw.startsWith('/')) raw = `/${raw}`
+  if (raw.length > 1) raw = raw.replace(/\/+$/, '')
+  return (raw || '/').toLowerCase()
+}
+
+function pathOfPage(pageUrl: string) {
+  try {
+    return normalizePath(new URL(pageUrl).pathname)
+  } catch {
+    return '/'
+  }
+}
+
+function pathLabelOf(pageUrl: string | null) {
+  if (!pageUrl) return 'other pages'
+  const path = pathOfPage(pageUrl)
+  return path === '/' ? 'home' : path
+}
+
+function parseLeadHints(lead: Record<string, unknown>, source: LandingPageSource): Omit<ParsedLead, 'table'> {
+  const projectSlugs = new Set(
+    [toSlug(source.display_name), toSlug(source.table_name), toSlug(source.page_name || '')].filter(
+      (slug) => slug.length >= 3
+    )
+  )
+  let path: string | null = null
+  const slugs: string[] = []
+
+  for (const key of ['page_path', 'source_page', 'source', 'form_location', 'form_name']) {
+    const value = String(lead[key] ?? '').trim()
+    if (!value) continue
+    if (GENERIC_LEAD_SOURCES.has(value.toLowerCase())) continue
+
+    if (/^https?:\/\//i.test(value) || value.startsWith('/') || (value.includes('/') && value.includes('.'))) {
+      try {
+        if (/^https?:\/\//i.test(value) && TRACKING_HOSTS.has(hostnameOf(value))) continue
+      } catch {
+        // ignore
+      }
+      if (!path) path = normalizePath(value)
+      continue
+    }
+
+    const slug = toSlug(value)
+    if (slug.length >= 4 && !projectSlugs.has(slug)) slugs.push(slug)
+  }
+
+  return { path, slugs }
+}
+
+async function fetchLandingLeadRows(
   sources: LandingPageSource[],
   startDate: string,
   endDate: string
-) {
+): Promise<ParsedLead[]> {
   const supabase = getSupabaseAdmin()
-  const counts = new Map<string, number>()
+  const rows: ParsedLead[] = []
+
   await Promise.all(
     sources.map(async (source) => {
-      try {
-        const { count, error } = await supabase
+      let data: Record<string, unknown>[] | null = null
+      for (const columns of LEAD_SELECTS) {
+        const result = await supabase
           .from(source.table_name)
-          .select('id', { count: 'exact', head: true })
+          .select(columns)
           .gte('created_at', `${startDate}T00:00:00`)
           .lte('created_at', `${endDate}T23:59:59`)
-        counts.set(source.table_name, error ? 0 : count || 0)
-      } catch {
-        counts.set(source.table_name, 0)
+        if (!result.error) {
+          data = (result.data || []) as Record<string, unknown>[]
+          break
+        }
+      }
+      for (const lead of data || []) {
+        const hints = parseLeadHints(lead, source)
+        rows.push({ table: source.table_name, ...hints })
       }
     })
   )
-  return counts
+
+  return rows
+}
+
+function leadMatchesPage(lead: ParsedLead, pageUrl: string) {
+  const pagePath = pathOfPage(pageUrl)
+  if (lead.path) return lead.path === pagePath
+  if (lead.slugs.length === 0) return false
+  const lastSegment = pagePath.split('/').filter(Boolean).pop() || ''
+  if (!lastSegment) return false
+  return lead.slugs.some(
+    (slug) => lastSegment === slug || lastSegment.includes(slug) || (lastSegment.length >= 4 && slug.includes(lastSegment))
+  )
+}
+
+function attributeLeadsToPages(
+  pageRows: Array<{ page: string }>,
+  sources: LandingPageSource[],
+  leads: ParsedLead[]
+) {
+  const pageLeadCounts = new Map<string, number>()
+  const unmatchedByTable = new Map<string, number>()
+
+  for (const source of sources) {
+    const sourceLeads = leads.filter((lead) => lead.table === source.table_name)
+    const sourcePages = pageRows.filter((row) => matchLandingSource(row.page, sources)?.table_name === source.table_name)
+    const assigned = new Set<number>()
+
+    for (const page of sourcePages) {
+      let count = 0
+      sourceLeads.forEach((lead, index) => {
+        if (assigned.has(index)) return
+        if (leadMatchesPage(lead, page.page)) {
+          assigned.add(index)
+          count += 1
+        }
+      })
+      pageLeadCounts.set(page.page, count)
+    }
+
+    const leftover = sourceLeads.length - assigned.size
+    if (leftover <= 0) continue
+    if (sourcePages.length === 1) {
+      const onlyPage = sourcePages[0].page
+      pageLeadCounts.set(onlyPage, (pageLeadCounts.get(onlyPage) || 0) + leftover)
+    } else {
+      unmatchedByTable.set(source.table_name, leftover)
+    }
+  }
+
+  return { pageLeadCounts, unmatchedByTable }
 }
 
 async function inspectProblemPages(
@@ -490,21 +681,21 @@ function landingStatus(
       why: 'No Search Console traffic. The site may not be added, or Google is not showing it.',
     }
   }
-  if (clicks >= 5 && leads === 0) {
+  if (clicks >= 3 && leads === 0) {
     return {
       status: 'not_converting',
       statusLabel: 'Clicks, no leads',
       why: `${formatPlainNumber(clicks)} Google clicks, but 0 landing-page leads.`,
     }
   }
-  if (impressions >= 50 && clicks === 0) {
+  if (impressions >= 20 && clicks === 0) {
     return {
       status: 'improve',
       statusLabel: 'Shown, no clicks',
       why: `Google showed this ${formatPlainNumber(impressions)} times, and nobody clicked.`,
     }
   }
-  if (impressions >= 80 && impressions > 0 && clicks / impressions < 0.02) {
+  if (impressions >= 30 && impressions > 0 && clicks / impressions < 0.02) {
     return {
       status: 'improve',
       statusLabel: 'Could get more clicks',
@@ -525,71 +716,126 @@ function landingStatus(
   }
 }
 
+function comparisonRow(
+  source: LandingPageSource,
+  page: SearchConsolePageInsight | null,
+  leads: number,
+  clicks: number,
+  impressions: number,
+  googlePages: number,
+  hasIndexIssue: boolean
+): SearchConsoleLandingComparison {
+  const pathLabel = page ? pathLabelOf(page.page) : 'other pages'
+  const name =
+    page && googlePages > 0
+      ? sourcePagesLabel(source.display_name, pathLabel, true)
+      : source.display_name
+  const verdict = landingStatus(clicks, impressions, leads, googlePages, hasIndexIssue)
+  return {
+    name,
+    projectName: source.display_name,
+    table: source.table_name,
+    siteUrl: page?.page || source.site_url,
+    page: page?.page || null,
+    pathLabel,
+    leads,
+    clicks,
+    impressions,
+    ctr: impressions ? clicks / impressions : 0,
+    googlePages,
+    ...verdict,
+  }
+}
+
+function sourcePagesLabel(projectName: string, pathLabel: string, splitByPage: boolean) {
+  if (!splitByPage) return projectName
+  return pathLabel === 'home' ? `${projectName} · home` : `${projectName} · ${pathLabel}`
+}
+
 function buildLandingComparison(
   sources: LandingPageSource[],
   pages: SearchConsolePageInsight[],
-  leadCounts: Map<string, number>
+  unmatchedByTable: Map<string, number>
 ): SearchConsoleLandingComparison[] {
-  return sources
-    .map((source) => {
-      const matched = pages.filter((page) => page.landingPageTable === source.table_name)
-      const clicks = matched.reduce((sum, page) => sum + page.clicks, 0)
-      const impressions = matched.reduce((sum, page) => sum + page.impressions, 0)
-      const leads = leadCounts.get(source.table_name) || 0
-      const hasIndexIssue = matched.some((page) => page.status === 'hidden')
-      const verdict = landingStatus(clicks, impressions, leads, matched.length, hasIndexIssue)
-      return {
-        name: source.display_name,
-        table: source.table_name,
-        siteUrl: source.site_url,
-        leads,
-        clicks,
-        impressions,
-        ctr: impressions ? clicks / impressions : 0,
-        googlePages: matched.length,
-        ...verdict,
-      }
-    })
-    .sort((a, b) => b.leads - a.leads || b.clicks - a.clicks || b.impressions - a.impressions)
+  const rows: SearchConsoleLandingComparison[] = []
+
+  for (const source of sources) {
+    const matched = pages
+      .filter((page) => page.landingPageTable === source.table_name)
+      .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)
+    const leftover = unmatchedByTable.get(source.table_name) || 0
+
+    if (matched.length === 0) {
+      rows.push(comparisonRow(source, null, leftover, 0, 0, 0, false))
+      continue
+    }
+
+    const splitByPage = matched.length > 1
+    for (const page of matched) {
+      const row = comparisonRow(
+        source,
+        page,
+        page.leads,
+        page.clicks,
+        page.impressions,
+        1,
+        page.status === 'hidden'
+      )
+      row.name = sourcePagesLabel(source.display_name, row.pathLabel, splitByPage)
+      rows.push(row)
+    }
+
+    if (leftover > 0 && splitByPage) {
+      const extra = comparisonRow(source, null, leftover, 0, 0, 0, false)
+      extra.name = `${source.display_name} · other pages`
+      extra.why = `${leftover} leads in the last 7 days that could not be tied to a specific Google page.`
+      extra.status = 'improve'
+      extra.statusLabel = 'Leads not tied to a page'
+      rows.push(extra)
+    }
+  }
+
+  return rows.sort((a, b) => b.leads - a.leads || b.clicks - a.clicks || b.impressions - a.impressions)
 }
 
 function buildPageInsight(
   row: { page: string; clicks: number; impressions: number; ctr: number; position: number },
   sources: LandingPageSource[],
-  leadCounts: Map<string, number>,
+  leads: number,
+  unmatchedByTable: Map<string, number>,
   indexIssue: string | null
 ): SearchConsolePageInsight {
   const source = matchLandingSource(row.page, sources)
-  const leads = source ? leadCounts.get(source.table_name) || 0 : 0
   const title = pageTitle(row.page, source?.display_name || null)
+  const unmatched = source ? unmatchedByTable.get(source.table_name) || 0 : 0
 
   let status: SearchConsolePageInsight['status'] = 'working'
   let statusLabel = 'Working'
   let why = source
-    ? `${formatPlainNumber(row.clicks)} Google clicks. This landing page had ${leads} leads.`
+    ? `${formatPlainNumber(row.clicks)} Google clicks. This page had ${leads} leads in the last 7 days.`
     : `${formatPlainNumber(row.clicks)} Google clicks.`
 
   if (indexIssue) {
     status = 'hidden'
     statusLabel = 'Indexing issue'
     why = `Google says: ${indexIssue}.`
-  } else if (row.clicks >= 5 && source && leads === 0) {
+  } else if (row.clicks >= 3 && source && leads === 0 && unmatched === 0) {
     status = 'not_converting'
     statusLabel = 'Clicks, no leads'
-    why = `${formatPlainNumber(row.clicks)} Google clicks, but 0 landing-page leads.`
-  } else if (row.impressions >= 50 && row.clicks === 0) {
+    why = `${formatPlainNumber(row.clicks)} Google clicks, but 0 leads from this page.`
+  } else if (row.impressions >= 20 && row.clicks === 0) {
     status = 'improve'
     statusLabel = 'Shown, no clicks'
     why = `Shown ${formatPlainNumber(row.impressions)} times, nobody clicked.`
-  } else if (row.impressions >= 80 && row.ctr < 0.02) {
+  } else if (row.impressions >= 30 && row.ctr < 0.02) {
     status = 'improve'
     statusLabel = 'Could rank/click better'
     why = `Shown a lot (${formatPlainNumber(row.impressions)}) but only ${(row.ctr * 100).toFixed(1)}% click through.`
-  } else if (row.position >= 15 && row.impressions >= 20) {
+  } else if (row.position >= 15 && row.impressions >= 10) {
     status = 'improve'
     statusLabel = 'Buried in Google'
     why = `Average Google rank is ${row.position.toFixed(1)} — usually below the first page.`
-  } else if (row.clicks >= 3 && leads > 0) {
+  } else if (row.clicks >= 2 && leads > 0) {
     why = `${formatPlainNumber(row.clicks)} clicks turned into ${leads} leads.`
   }
 
