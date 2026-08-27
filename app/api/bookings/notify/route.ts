@@ -25,6 +25,7 @@ import {
 } from '@/lib/interviewManageUrl'
 import { interviewAlreadyNotified, markInterviewNotified } from '@/lib/markInterviewNotified'
 import { formatInterviewCandidateId } from '@/lib/interviewCandidateNumber'
+import { SALES_CALENDAR_EMAIL } from '@/lib/bookingCalendar'
 import {
   buildInterviewResumeEmailHtml,
   buildInterviewResumeSmsLine,
@@ -345,8 +346,11 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
         <div class="footer"><p>Automated notification from Property Dashboard</p><p>&copy; ${new Date().getFullYear()} Property Dashboard</p></div>
       </div></body></html>`
 
+      const adminEmails = isInterview
+        ? notificationEmails
+        : [...notificationEmails, SALES_CALENDAR_EMAIL]
       const adminMailResults = await Promise.allSettled(
-        notificationEmails.map(async email => {
+        adminEmails.map(async email => {
           const result = await emailTransporter.sendMail({
             from: `"Property Dashboard" <${process.env.GMAIL_USER || 'info@qikfill.com'}>`,
             to: email,
@@ -358,7 +362,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
         })
       )
       for (let i = 0; i < adminMailResults.length; i++) {
-        const email = notificationEmails[i]
+        const email = adminEmails[i]
         const r = adminMailResults[i]
         if (r.status === 'fulfilled') adminEmailResults.push(r.value)
         else adminEmailResults.push({ email, error: r.reason instanceof Error ? r.reason.message : String(r.reason) })

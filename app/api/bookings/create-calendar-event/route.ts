@@ -5,6 +5,7 @@ import {
   INTERVIEW_OFFICE_ADDRESS,
   isFahadSellsInterviewBooking,
 } from '@/lib/interviewBookingConstants'
+import { getCalendarTeamEmails } from '@/lib/bookingCalendar'
 import {
   normalizeBookingPayload,
   resolveBookingFirstName,
@@ -23,17 +24,6 @@ const CALENDAR_IDS = {
 }
 
 const OFFICE_ADDRESS = '600 Matheson Blvd W, Mississauga, ON L5R 4C1'
-
-/** Internal calendar guests per brand (customer is added separately). */
-function getCalendarTeamEmails(tableName: string): string[] {
-  if (tableName.includes('precon')) {
-    return ['fahad@fahadsold.com', 'info@preconfactory.com']
-  }
-  if (tableName.includes('gta_lowrise') || tableName.includes('gtalowrise')) {
-    return ['fahad@fahadsold.com']
-  }
-  return ['fahad@fahadsold.com']
-}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!

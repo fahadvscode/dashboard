@@ -3,6 +3,7 @@ import type { calendar_v3 } from 'googleapis'
 import {
   FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE,
   INTERVIEW_BOOKING_STATUS_CANCELLED,
+  isFahadSellsInterviewBooking,
 } from '@/lib/interviewBookingConstants'
 import {
   BOOKING_TIMEZONE,
@@ -27,6 +28,8 @@ export {
   isBookingStatusCanceled,
 } from '@/lib/bookingTimes'
 
+export const SALES_CALENDAR_EMAIL = 'sales@fahadsold.com'
+
 export const CALENDAR_IDS = {
   fj: 'c_c0a660e131ad53344fa1d41404b0beafcde60bc4ea44e19020ad14eb84bcd46d@group.calendar.google.com',
   precon:
@@ -49,13 +52,16 @@ export function getCalendarIdForTable(tableName: string): string {
 }
 
 export function getCalendarTeamEmails(tableName: string): string[] {
-  if (tableName.includes('precon')) {
-    return ['fahad@fahadsold.com', 'info@preconfactory.com']
-  }
-  if (tableName.includes('gta_lowrise') || tableName.includes('gtalowrise')) {
+  if (isFahadSellsInterviewBooking(tableName)) {
     return ['fahad@fahadsold.com']
   }
-  return ['fahad@fahadsold.com']
+
+  const emails = ['fahad@fahadsold.com']
+  if (tableName.includes('precon')) {
+    emails.push('info@preconfactory.com')
+  }
+  emails.push(SALES_CALENDAR_EMAIL)
+  return emails
 }
 
 function getDayBounds(dateStr: string) {
