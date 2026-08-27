@@ -17,6 +17,7 @@ import { getFirstPropertyImage } from '@/lib/propertyImages'
 import {
   HOME_SCREEN_PROJECTS_EVENT,
   fetchHomeScreenProjects,
+  getHomeScreenProjects,
   unpinHomeScreenProject,
   type HomeScreenProject,
 } from '@/lib/homeScreenProjects'
@@ -391,11 +392,12 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
   const [todayBookings, setTodayBookings] = useState<(Booking & { brand: string })[]>([])
   const [hotLeads, setHotLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
-  const [pinnedProjects, setPinnedProjects] = useState<HomeScreenProject[]>([])
+  const [pinnedProjects, setPinnedProjects] = useState<HomeScreenProject[]>(() => getHomeScreenProjects())
   const [selectedPinned, setSelectedPinned] = useState<Record<string, string> | null>(null)
 
   useEffect(() => {
     const loadPins = () => {
+      setPinnedProjects(getHomeScreenProjects())
       void fetchHomeScreenProjects().then(setPinnedProjects)
     }
     loadPins()
@@ -475,7 +477,9 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
     <div>
       <NavBar title="Today" subtitle={`${todayBookings.length} appointments · ${dateStr}`} rightIcon={Plus} onRight={openAdd} />
       <div style={{ padding: '0 16px 110px', maxWidth: 700, margin: '0 auto' }}>
-        <SectionHeader>Quick Projects</SectionHeader>
+        <SectionHeader>
+          {pinnedProjects.length > 0 ? `Quick Projects · ${pinnedProjects.length}` : 'Quick Projects'}
+        </SectionHeader>
         {pinnedProjects.length === 0 ? (
           <div style={{ ...font, fontSize: 13.5, color: SECONDARY, padding: '4px 2px 16px' }}>
             Open a project in Canada Properties and tap Add to home screen. It will show up here on every phone and computer.
