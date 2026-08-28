@@ -249,3 +249,13 @@ GOOGLE_REDIRECT_URI=
 
 See `UNIFIED_GOOGLE_CALENDAR_SETUP.md` for detailed migration guide.
 
+---
+
+## Follow Up Boss Embedded App
+
+```bash
+FUB_EMBEDDED_APP_SECRET=the_secret_key_from_the_fub_app_form
+```
+
+Paste the Secret Key from Follow Up Boss → Admin → Integrations → Bookings Integration. The iframe URL is `https://property-dashboard-three.vercel.app/fub/bookings`.
+

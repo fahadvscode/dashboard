@@ -6,6 +6,19 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  async headers() {
+    return [
+      {
+        source: '/fub/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'self' https://*.followupboss.com https://followupboss.com",
+          },
+        ],
+      },
+    ]
+  },
 };
 
 export default nextConfig;

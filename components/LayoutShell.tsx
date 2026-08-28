@@ -7,7 +7,7 @@ import MobileBottomNav, { InnerTopBar } from '@/components/MobileBottomNav'
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isPublicRoute = pathname.startsWith('/present')
+  const isPublicRoute = pathname.startsWith('/present') || pathname.startsWith('/fub')
   const isHome = pathname === '/'
 
   if (isPublicRoute) {

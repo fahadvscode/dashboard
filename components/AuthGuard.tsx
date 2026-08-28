@@ -12,7 +12,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
   useEffect(() => {
-    if (pathname.startsWith('/present')) {
+    if (pathname.startsWith('/present') || pathname.startsWith('/fub')) {
       setIsAuth(true)
       setLoading(false)
       return
