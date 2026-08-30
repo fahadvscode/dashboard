@@ -175,21 +175,41 @@ export async function updateCalendarEventTime(
   calendarId: string,
   eventId: string,
   appointmentDate: string,
-  appointmentTime: string
+  appointmentTime: string,
+  extras?: {
+    summary?: string
+    location?: string
+    description?: string
+    createGoogleMeet?: boolean
+  }
 ) {
   const { startDateTimeLocal, endDateTimeLocal } = buildAppointmentDateTimes(
     appointmentDate,
     appointmentTime
   )
 
+  const requestBody: Record<string, unknown> = {
+    start: { dateTime: startDateTimeLocal, timeZone: BOOKING_TIMEZONE },
+    end: { dateTime: endDateTimeLocal, timeZone: BOOKING_TIMEZONE },
+  }
+  if (extras?.summary) requestBody.summary = extras.summary
+  if (extras?.location) requestBody.location = extras.location
+  if (extras?.description) requestBody.description = extras.description
+  if (extras?.createGoogleMeet) {
+    requestBody.conferenceData = {
+      createRequest: {
+        requestId: `reschedule-${eventId}-${Date.now()}`,
+        conferenceSolutionKey: { type: 'hangoutsMeet' },
+      },
+    }
+  }
+
   return calendar.events.patch({
     calendarId,
     eventId,
     sendUpdates: 'all',
-    requestBody: {
-      start: { dateTime: startDateTimeLocal, timeZone: BOOKING_TIMEZONE },
-      end: { dateTime: endDateTimeLocal, timeZone: BOOKING_TIMEZONE },
-    },
+    ...(extras?.createGoogleMeet ? { conferenceDataVersion: 1 } : {}),
+    requestBody,
   })
 }
 
@@ -211,7 +231,12 @@ export async function updateBookingAppointment(
   bookingId: string,
   appointmentDate: string,
   appointmentTime: string,
-  calendarEventId: string | null
+  calendarEventId: string | null,
+  extras?: {
+    appointment_type?: string
+    meeting_format?: string
+    meet_link?: string | null
+  }
 ) {
   const minimalUpdate = {
     appointment_date: appointmentDate,
@@ -232,6 +257,15 @@ export async function updateBookingAppointment(
   const optionalPatches: Record<string, unknown>[] = [getReminderResetFields()]
   if (calendarEventId) {
     optionalPatches.push({ calendar_event_id: calendarEventId })
+  }
+  if (extras?.appointment_type) {
+    optionalPatches.push({ appointment_type: extras.appointment_type })
+  }
+  if (extras?.meeting_format) {
+    optionalPatches.push({ meeting_format: extras.meeting_format })
+  }
+  if (extras && 'meet_link' in extras) {
+    optionalPatches.push({ meet_link: extras.meet_link })
   }
 
   for (const patch of optionalPatches) {

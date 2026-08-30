@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
       bookingId: gated.bookingId,
       appointment_date: body.appointment_date,
       appointment_time: body.appointment_time,
+      appointment_type: body.appointment_type,
       sendSms: true,
     }),
   })

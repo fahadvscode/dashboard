@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'crypto'
+import { MEETING_TYPES } from '@/lib/meetingTypes'
 
 export const FUB_BOOKING_BRANDS = [
   { id: 'fj', label: 'Fahad Javed', table: 'fj_bookings' },
@@ -6,12 +7,7 @@ export const FUB_BOOKING_BRANDS = [
   { id: 'gta', label: 'GTA Lowrise', table: 'gta_lowrise_bookings' },
 ] as const
 
-export const FUB_MEETING_TYPES = [
-  { id: 'phone_call', label: 'Phone Call' },
-  { id: 'google_meet', label: 'Google Meet' },
-  { id: 'visit_office', label: 'Office Visit' },
-  { id: 'builder_site_visit', label: 'Builder Site Visit' },
-] as const
+export const FUB_MEETING_TYPES = MEETING_TYPES
 
 export type FubDebugState =
   | 'working'

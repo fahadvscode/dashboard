@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { CalendarClock, Ban } from 'lucide-react'
 import { APPOINTMENT_TIME_SLOTS, normalizeAppointmentTime, isBookingStatusCanceled, formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
+import { MEETING_TYPES, parseMeetingType, type MeetingTypeId } from '@/lib/meetingTypes'
 import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
 
 type BookingTable =
@@ -17,6 +18,8 @@ interface ManageBooking {
   lastname: string
   appointment_date: string
   appointment_time: string
+  appointment_type?: string | null
+  meeting_format?: string | null
   phone?: string | null
   status?: string
 }
@@ -24,7 +27,11 @@ interface ManageBooking {
 interface BookingReschedulePanelProps {
   booking: ManageBooking
   table: BookingTable
-  onRescheduled: (updated: { appointment_date: string; appointment_time: string }) => void
+  onRescheduled: (updated: {
+    appointment_date: string
+    appointment_time: string
+    appointment_type?: string
+  }) => void
   onCancelled?: (updated: { status: string }) => void
   /** Interview bookings: cancel only (no reschedule — uses slot_start in DB). */
   cancelOnly?: boolean
@@ -40,10 +47,12 @@ export default function BookingReschedulePanel({
   cancelOnly = false,
   candidateManageUrl = null,
 }: BookingReschedulePanelProps) {
+  const currentType = parseMeetingType(booking.meeting_format || booking.appointment_type) || 'phone_call'
   const [appointmentDate, setAppointmentDate] = useState(booking.appointment_date)
   const [appointmentTime, setAppointmentTime] = useState(
     normalizeAppointmentTime(booking.appointment_time)
   )
+  const [appointmentType, setAppointmentType] = useState<MeetingTypeId>(currentType)
   const [sendSms, setSendSms] = useState(true)
   const [rescheduling, setRescheduling] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -56,11 +65,12 @@ export default function BookingReschedulePanel({
   useEffect(() => {
     setAppointmentDate(booking.appointment_date)
     setAppointmentTime(normalizeAppointmentTime(booking.appointment_time))
+    setAppointmentType(parseMeetingType(booking.meeting_format || booking.appointment_type) || 'phone_call')
     setError('')
     setSuccess('')
     setWarning('')
     setSendSms(true)
-  }, [booking.id, booking.appointment_date, booking.appointment_time, booking.status])
+  }, [booking.id, booking.appointment_date, booking.appointment_time, booking.appointment_type, booking.meeting_format, booking.status])
 
   const handleReschedule = async () => {
     if (!appointmentDate || !appointmentTime) {
@@ -82,6 +92,7 @@ export default function BookingReschedulePanel({
           bookingId: booking.id,
           appointment_date: appointmentDate,
           appointment_time: appointmentTime,
+          appointment_type: appointmentType,
           sendSms: sendSms && !!booking.phone,
         }),
       })
@@ -94,9 +105,10 @@ export default function BookingReschedulePanel({
       onRescheduled({
         appointment_date: data.booking.appointment_date,
         appointment_time: data.booking.appointment_time,
+        appointment_type: data.booking.appointment_type || appointmentType,
       })
 
-      const messages: string[] = ['Appointment rescheduled.']
+      const messages: string[] = ['Appointment updated.']
       if (data.smsSent) messages.push('Confirmation SMS sent.')
       else if (data.smsError) messages.push(`SMS not sent: ${data.smsError}`)
       else if (sendSms && !booking.phone) messages.push('No phone number on file for SMS.')
@@ -165,7 +177,8 @@ export default function BookingReschedulePanel({
 
   const hasChanges =
     appointmentDate !== booking.appointment_date ||
-    appointmentTime !== normalizeAppointmentTime(booking.appointment_time)
+    appointmentTime !== normalizeAppointmentTime(booking.appointment_time) ||
+    appointmentType !== currentType
 
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
@@ -248,6 +261,20 @@ export default function BookingReschedulePanel({
                 ))}
               </select>
             </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-gray-600">Appointment type</label>
+              <select
+                value={appointmentType}
+                onChange={(event) => setAppointmentType((parseMeetingType(event.target.value) || 'phone_call'))}
+                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-100"
+              >
+                {MEETING_TYPES.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
@@ -269,7 +296,7 @@ export default function BookingReschedulePanel({
             disabled={rescheduling || cancelling || !hasChanges}
             className="mt-4 w-full rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {rescheduling ? 'Rescheduling…' : 'Save New Date & Time'}
+            {rescheduling ? 'Saving…' : 'Save Date, Time & Type'}
           </button>
 
           <button

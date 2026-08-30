@@ -18,6 +18,7 @@ import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingCons
 import { prepareInterviewBooking, syncInterviewReschedule } from '@/lib/interviewBookingSync'
 import { appointmentToSlotIso } from '@/lib/interviewSlotTimes'
 import { normalizeBookingPayload } from '@/lib/normalizeBookingPayload'
+import { meetingCalendarLocation, meetingTypeLabel, parseMeetingType } from '@/lib/meetingTypes'
 
 function toE164NorthAmerica(phone: string): string {
   const digits = phone.replace(/\D/g, '')
@@ -42,11 +43,15 @@ function buildRescheduleSms(
     .trim()
     .toLowerCase()
 
-  let typeLine = ''
+  let typeLine = `\n🎯 Type: ${meetingTypeLabel(meetingFormat)}`
   if (meetingFormat === 'google_meet' && booking.meet_link) {
-    typeLine = `\n💻 Join here: ${booking.meet_link}`
+    typeLine += `\n💻 Join here: ${booking.meet_link}`
   } else if (meetingFormat === 'visit_office') {
-    typeLine = '\n🏢 Office visit — see your calendar invite for the address.'
+    typeLine += '\n🏢 Office visit — see your calendar invite for the address.'
+  } else if (meetingFormat === 'builder_site_visit') {
+    typeLine += '\n🏗️ Site visit — we will send the location before the appointment.'
+  } else if (meetingFormat === 'phone_call') {
+    typeLine += '\n📞 Phone call — we will call you at this number.'
   }
 
   return `Hi ${booking.firstname}, your appointment has been rescheduled.
@@ -62,7 +67,7 @@ Questions? Call ${brandContact.phoneFormatted}
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { table, bookingId, appointment_date, appointment_time, sendSms = true } = body
+    const { table, bookingId, appointment_date, appointment_time, appointment_type, sendSms = true } = body
 
     if (!table || !bookingId || !appointment_date || !appointment_time) {
       return NextResponse.json(
@@ -146,12 +151,21 @@ export async function POST(request: NextRequest) {
 
     normalizeBookingPayload(booking as Record<string, unknown>)
 
-    if (
-      booking.appointment_date === appointment_date &&
-      normalizeAppointmentTime(booking.appointment_time) === normalizedTime
-    ) {
+    const currentType = parseMeetingType(booking.meeting_format || booking.appointment_type)
+    const typeWasSent = appointment_type !== undefined && appointment_type !== null && String(appointment_type).trim() !== ''
+    const nextType = typeWasSent ? parseMeetingType(appointment_type) : currentType
+    if (typeWasSent && !nextType) {
+      return NextResponse.json({ error: 'Choose a valid appointment type.' }, { status: 400 })
+    }
+
+    const timeChanged =
+      booking.appointment_date !== appointment_date ||
+      normalizeAppointmentTime(booking.appointment_time) !== normalizedTime
+    const typeChanged = Boolean(nextType && nextType !== currentType)
+
+    if (!timeChanged && !typeChanged) {
       return NextResponse.json(
-        { error: 'The selected date and time are the same as the current appointment.' },
+        { error: 'The selected date, time, and type are the same as the current appointment.' },
         { status: 400 }
       )
     }
@@ -160,10 +174,12 @@ export async function POST(request: NextRequest) {
     const calendarId = getCalendarIdForTable(table)
     const previousDate = booking.appointment_date
     const previousTime = booking.appointment_time
+    const brandPhone = getBrandContact(brandName).phoneFormatted
 
     let calendarUpdated = false
     let calendarEventId: string | null = booking.calendar_event_id || null
     let calendarWarning: string | null = null
+    let createdMeetLink: string | null | undefined
 
     try {
       const calendar = await getCalendarClient()
@@ -179,14 +195,28 @@ export async function POST(request: NextRequest) {
       }
 
       if (calendarEventId) {
-        await updateCalendarEventTime(
+        const displayType = meetingTypeLabel(nextType)
+        const patched = await updateCalendarEventTime(
           calendar,
           calendarId,
           calendarEventId,
           appointment_date,
-          normalizedTime
+          normalizedTime,
+          typeChanged && nextType
+            ? {
+                summary: `${brandName} - Booking: ${booking.firstname} ${booking.lastname || ''}`.trim() +
+                  (booking.project_name ? ` - ${booking.project_name}` : '') +
+                  ` - ${displayType}`,
+                location: meetingCalendarLocation(nextType, brandPhone),
+                description: `Appointment type: ${displayType}\nCustomer: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}`,
+                createGoogleMeet: nextType === 'google_meet',
+              }
+            : undefined
         )
         calendarUpdated = true
+        if (typeChanged && nextType === 'google_meet') {
+          createdMeetLink = patched.data.hangoutLink || null
+        }
       } else {
         calendarWarning =
           'Booking updated in dashboard, but no matching Google Calendar event was found. Please update the calendar manually.'
@@ -203,7 +233,13 @@ export async function POST(request: NextRequest) {
       bookingId,
       appointment_date,
       normalizedTime,
-      calendarEventId
+      calendarEventId,
+      {
+        ...(nextType ? { appointment_type: nextType, meeting_format: nextType } : {}),
+        ...(typeChanged
+          ? { meet_link: nextType === 'google_meet' ? createdMeetLink ?? null : null }
+          : {}),
+      }
     )
 
     let smsSent = false
@@ -222,9 +258,9 @@ export async function POST(request: NextRequest) {
               firstname: updatedBooking.firstname,
               appointment_date,
               appointment_time: normalizedTime,
-              meet_link: updatedBooking.meet_link,
-              appointment_type: updatedBooking.appointment_type,
-              meeting_format: updatedBooking.meeting_format,
+              meet_link: createdMeetLink || updatedBooking.meet_link,
+              appointment_type: nextType || updatedBooking.appointment_type,
+              meeting_format: nextType || updatedBooking.meeting_format,
             },
             brandName
           )
@@ -263,7 +299,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      booking: updatedBooking,
+      booking: {
+        ...updatedBooking,
+        appointment_date,
+        appointment_time: normalizedTime,
+        appointment_type: nextType || updatedBooking.appointment_type,
+        meeting_format: nextType || updatedBooking.meeting_format,
+      },
       calendarUpdated,
       calendarEventId,
       calendarWarning,

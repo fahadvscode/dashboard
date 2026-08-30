@@ -221,7 +221,7 @@ export default function FJBookings() {
     }
   }
 
-  const handleRescheduled = (updated: { appointment_date: string; appointment_time: string }) => {
+  const handleRescheduled = (updated: { appointment_date: string; appointment_time: string; appointment_type?: string }) => {
     setBookings((prev) =>
       prev.map((booking) =>
         booking.id === selectedBooking?.id
