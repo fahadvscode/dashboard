@@ -21,7 +21,8 @@ import {
   unpinHomeScreenProject,
   type HomeScreenProject,
 } from '@/lib/homeScreenProjects'
-import { formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
+import { formatAppointmentTimeDisplay, isBookingStatusCanceled, parseAppointmentTime } from '@/lib/bookingTimes'
+import { normalizeBookingPayload, resolveBookingFirstName, resolveBookingLastName } from '@/lib/normalizeBookingPayload'
 
 const BG = '#F2F2F7'
 const CARD = '#FFFFFF'
@@ -168,6 +169,28 @@ function typeIcon(type: string) {
   return found ? found.icon : Calendar
 }
 
+function torontoYmd(offsetDays = 0) {
+  const base = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
+  const date = new Date(`${base}T12:00:00`)
+  date.setDate(date.getDate() + offsetDays)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function appointmentMinutes(time: string) {
+  const { hours, minutes } = parseAppointmentTime(time || '')
+  return hours * 60 + minutes
+}
+
+function dayPeriod(time: string) {
+  const { hours } = parseAppointmentTime(time || '')
+  if (hours < 12) return 'Morning'
+  if (hours < 17) return 'Afternoon'
+  return 'Evening'
+}
+
 function getBrandForBooking(table: string): string {
   if (table.includes('precon')) return 'Precon Factory'
   if (table.includes('lowrise')) return 'GTA Lowrise'
@@ -175,23 +198,125 @@ function getBrandForBooking(table: string): string {
   return 'FJ'
 }
 
-function BrandTag({ brand }: { brand: string }) {
-  const isFJ = brand === 'FJ'
+function mapBookingRow(row: Record<string, unknown>, table: string): Booking & { brand: string } {
+  const copy = { ...row }
+  normalizeBookingPayload(copy)
+  return {
+    ...(copy as unknown as Booking),
+    firstname: resolveBookingFirstName(copy),
+    lastname: resolveBookingLastName(copy),
+    brand: getBrandForBooking(table),
+  }
+}
+
+type DateFilterKey = 'today' | 'tomorrow' | 'yesterday' | 'past' | 'custom'
+type BookingWithBrand = Booking & { brand: string }
+
+const DATE_FILTERS: { key: DateFilterKey; label: string }[] = [
+  { key: 'today', label: 'Today' },
+  { key: 'tomorrow', label: 'Tomorrow' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: 'past', label: 'Past' },
+  { key: 'custom', label: 'Custom' },
+]
+
+const DAY_PERIODS = ['Morning', 'Afternoon', 'Evening'] as const
+
+function sortBookings(list: BookingWithBrand[], dateDesc = false) {
+  return [...list].sort((a, b) => {
+    const dateCmp = dateDesc
+      ? (b.appointment_date || '').localeCompare(a.appointment_date || '')
+      : (a.appointment_date || '').localeCompare(b.appointment_date || '')
+    if (dateCmp !== 0) return dateCmp
+    return appointmentMinutes(a.appointment_time) - appointmentMinutes(b.appointment_time)
+  })
+}
+
+function formatBookingDay(dateStr: string) {
+  if (!dateStr) return 'Undated'
+  if (dateStr === torontoYmd()) return 'Today'
+  if (dateStr === torontoYmd(1)) return 'Tomorrow'
+  if (dateStr === torontoYmd(-1)) return 'Yesterday'
+  return new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+async function fetchBookings(opts: {
+  brandKey: string
+  from?: string
+  to?: string
+  before?: string
+  limit?: number
+}): Promise<BookingWithBrand[]> {
+  const tables =
+    opts.brandKey === 'All'
+      ? Object.values(BOOKING_TABLES)
+      : [BOOKING_TABLES[opts.brandKey as keyof typeof BOOKING_TABLES]]
+
+  const rows = await Promise.all(
+    tables.map(async (table) => {
+      let query = supabase.from(table).select('*')
+      if (opts.from && opts.to) {
+        query = opts.from === opts.to
+          ? query.eq('appointment_date', opts.from)
+          : query.gte('appointment_date', opts.from).lte('appointment_date', opts.to)
+      } else if (opts.before) {
+        query = query.lt('appointment_date', opts.before)
+      }
+      query = query.order('appointment_date', { ascending: !opts.before })
+      if (opts.limit) query = query.limit(opts.limit)
+      const { data } = await query
+      return (data || []).map((row: Record<string, unknown>) => mapBookingRow(row, table))
+    })
+  )
+
+  return rows.flat().filter((booking) => !isBookingStatusCanceled(booking.status))
+}
+
+function AppointmentRow({
+  booking,
+  last,
+  showDate,
+}: {
+  booking: BookingWithBrand
+  last: boolean
+  showDate?: boolean
+}) {
+  const Icon = typeIcon(booking.appointment_type || '')
+  const isFJ = booking.brand === 'FJ'
+  const name = `${booking.firstname || ''} ${booking.lastname || ''}`.trim() || 'Unknown'
   return (
-    <span
-      style={{
-        ...font,
-        fontSize: 11,
-        fontWeight: 600,
-        letterSpacing: 0.2,
-        padding: '3px 9px',
-        borderRadius: 999,
-        color: isFJ ? TINT : '#8a6d1f',
-        background: isFJ ? TINT_SOFT : GOLD_SOFT,
-      }}
-    >
-      {brand}
-    </span>
+    <Row
+      last={last}
+      leading={<IconChip Icon={Icon} tint={isFJ ? TINT : GOLD} />}
+      title={name}
+      subtitle={`${booking.project_name || 'No project'} · ${booking.brand}`}
+      trailing={
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ textAlign: 'right' }}>
+            {showDate && (
+              <div style={{ ...font, fontWeight: 600, fontSize: 13.5, color: LABEL }}>
+                {formatBookingDay(booking.appointment_date)}
+              </div>
+            )}
+            <div
+              style={{
+                ...font,
+                fontWeight: showDate ? 400 : 600,
+                fontSize: showDate ? 12 : 13.5,
+                color: showDate ? SECONDARY : LABEL,
+              }}
+            >
+              {formatAppointmentTimeDisplay(booking.appointment_time)}
+            </div>
+          </div>
+          {booking.phone && <CircleIconBtn Icon={Phone} href={`tel:${booking.phone}`} filled />}
+        </div>
+      }
+    />
   )
 }
 
@@ -409,20 +534,9 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
     async function loadData() {
       setLoading(true)
       try {
-        const today = new Date().toISOString().split('T')[0]
-
-        // Fetch today's bookings from all tables
-        const bookingPromises = Object.entries(BOOKING_TABLES).map(async ([brand, table]) => {
-          const { data } = await supabase
-            .from(table)
-            .select('*')
-            .eq('appointment_date', today)
-            .order('appointment_time', { ascending: true })
-          return (data || []).map((b: Booking) => ({ ...b, brand: getBrandForBooking(table) }))
-        })
-
-        const allBookings = (await Promise.all(bookingPromises)).flat()
-        setTodayBookings(allBookings)
+        const today = torontoYmd()
+        const allBookings = await fetchBookings({ brandKey: 'All', from: today, to: today })
+        setTodayBookings(sortBookings(allBookings))
 
         // Fetch hot leads
         const res = await fetch('/api/hot-leads')
@@ -439,8 +553,18 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
     loadData()
   }, [])
 
-  const now = new Date()
-  const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  const dateStr = new Date().toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'America/Toronto',
+  })
+  const scheduleGroups = DAY_PERIODS
+    .map((period) => ({
+      period,
+      items: todayBookings.filter((booking) => dayPeriod(booking.appointment_time) === period),
+    }))
+    .filter((group) => group.items.length > 0)
 
   async function openPinnedProject(project: HomeScreenProject) {
     const { data } = await supabase
@@ -477,6 +601,34 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
     <div>
       <NavBar title="Today" subtitle={`${todayBookings.length} appointments · ${dateStr}`} rightIcon={Plus} onRight={openAdd} />
       <div style={{ padding: '0 16px 110px', maxWidth: 700, margin: '0 auto' }}>
+        {loading ? (
+          <LoadingSpinner />
+        ) : todayBookings.length === 0 ? (
+          <>
+            <SectionHeader>Today’s appointments</SectionHeader>
+            <GroupedList>
+              <div style={{ padding: '26px 14px', textAlign: 'center', ...font, fontSize: 13.5, color: SECONDARY }}>
+                No appointments scheduled for today.
+              </div>
+            </GroupedList>
+          </>
+        ) : (
+          scheduleGroups.map((group) => (
+            <div key={group.period}>
+              <SectionHeader>{`${group.period} · ${group.items.length}`}</SectionHeader>
+              <GroupedList>
+                {group.items.map((booking, i) => (
+                  <AppointmentRow
+                    key={booking.id}
+                    booking={booking}
+                    last={i === group.items.length - 1}
+                  />
+                ))}
+              </GroupedList>
+            </div>
+          ))
+        )}
+
         <SectionHeader>
           {pinnedProjects.length > 0 ? `Quick Projects · ${pinnedProjects.length}` : 'Quick Projects'}
         </SectionHeader>
@@ -556,73 +708,38 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
             })}
           </div>
         )}
-        {loading ? (
-          <LoadingSpinner />
-        ) : (
+        {!loading && hotLeads.length > 0 && (
           <>
-            <SectionHeader>Schedule</SectionHeader>
+            <SectionHeader>Hot Leads</SectionHeader>
             <GroupedList>
-              {todayBookings.length === 0 ? (
-                <div style={{ padding: '26px 14px', textAlign: 'center', ...font, fontSize: 13.5, color: SECONDARY }}>
-                  No appointments scheduled for today.
+              {hotLeads.map((lead, i) => (
+                <div key={lead.id || i} style={{ padding: '14px 14px 16px', borderBottom: i < hotLeads.length - 1 ? `0.5px solid ${SEPARATOR}` : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: 999, background: DESTRUCTIVE }} />
+                    <span style={{ ...font, fontSize: 16, fontWeight: 600, color: LABEL }}>
+                      {(lead as any).display_name || `${lead.firstname || ''} ${lead.lastname || ''}`.trim() || 'Unknown'}
+                    </span>
+                  </div>
+                  <div style={{ ...font, fontSize: 13, color: SECONDARY, marginBottom: 14, marginLeft: 16 }}>
+                    {(lead as any).project_name || lead.project_name || 'No project assigned'}
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    {((lead as any).phone || lead.phone) && (
+                      <a href={`tel:${(lead as any).phone || lead.phone}`} style={{ flex: 1, background: TINT, borderRadius: 10, padding: '11px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, textDecoration: 'none' }}>
+                        <Phone size={15} color="#fff" strokeWidth={2.2} />
+                        <span style={{ ...font, color: '#fff', fontWeight: 600, fontSize: 14.5 }}>Call</span>
+                      </a>
+                    )}
+                    {((lead as any).email || lead.email) && (
+                      <a href={`mailto:${(lead as any).email || lead.email}`} style={{ flex: 1, background: TINT_SOFT, borderRadius: 10, padding: '11px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, textDecoration: 'none' }}>
+                        <Mail size={15} color={TINT} strokeWidth={2.2} />
+                        <span style={{ ...font, color: TINT, fontWeight: 600, fontSize: 14.5 }}>Email</span>
+                      </a>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                todayBookings.map((a, i) => {
-                  const Icon = typeIcon(a.appointment_type || '')
-                  const isFJ = a.brand === 'FJ'
-                  return (
-                    <Row
-                      key={a.id}
-                      last={i === todayBookings.length - 1}
-                      leading={<IconChip Icon={Icon} tint={isFJ ? TINT : GOLD} />}
-                      title={`${a.firstname} ${a.lastname}`}
-                      subtitle={`${a.project_name || 'No project'} · ${formatAppointmentTimeDisplay(a.appointment_time)}`}
-                      trailing={
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <BrandTag brand={a.brand} />
-                          {a.phone && <CircleIconBtn Icon={Phone} href={`tel:${a.phone}`} filled />}
-                        </div>
-                      }
-                    />
-                  )
-                })
-              )}
+              ))}
             </GroupedList>
-
-            {hotLeads.length > 0 && (
-              <>
-                <SectionHeader>Hot Leads</SectionHeader>
-                <GroupedList>
-                  {hotLeads.map((lead, i) => (
-                    <div key={lead.id || i} style={{ padding: '14px 14px 16px', borderBottom: i < hotLeads.length - 1 ? `0.5px solid ${SEPARATOR}` : 'none' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 999, background: DESTRUCTIVE }} />
-                        <span style={{ ...font, fontSize: 16, fontWeight: 600, color: LABEL }}>
-                          {(lead as any).display_name || `${lead.firstname || ''} ${lead.lastname || ''}`.trim() || 'Unknown'}
-                        </span>
-                      </div>
-                      <div style={{ ...font, fontSize: 13, color: SECONDARY, marginBottom: 14, marginLeft: 16 }}>
-                        {(lead as any).project_name || lead.project_name || 'No project assigned'}
-                      </div>
-                      <div style={{ display: 'flex', gap: 10 }}>
-                        {((lead as any).phone || lead.phone) && (
-                          <a href={`tel:${(lead as any).phone || lead.phone}`} style={{ flex: 1, background: TINT, borderRadius: 10, padding: '11px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, textDecoration: 'none' }}>
-                            <Phone size={15} color="#fff" strokeWidth={2.2} />
-                            <span style={{ ...font, color: '#fff', fontWeight: 600, fontSize: 14.5 }}>Call</span>
-                          </a>
-                        )}
-                        {((lead as any).email || lead.email) && (
-                          <a href={`mailto:${(lead as any).email || lead.email}`} style={{ flex: 1, background: TINT_SOFT, borderRadius: 10, padding: '11px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, textDecoration: 'none' }}>
-                            <Mail size={15} color={TINT} strokeWidth={2.2} />
-                            <span style={{ ...font, color: TINT, fontWeight: 600, fontSize: 14.5 }}>Email</span>
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </GroupedList>
-              </>
-            )}
           </>
         )}
       </div>
@@ -643,7 +760,7 @@ function SegmentedControl({ options, value, onChange }: {
   onChange: (key: string) => void
 }) {
   return (
-    <div style={{ display: 'flex', background: '#E4E4E8', borderRadius: 9, padding: 2, margin: '4px 16px 18px', maxWidth: 700, marginLeft: 'auto', marginRight: 'auto' }}>
+    <div style={{ display: 'flex', background: '#E4E4E8', borderRadius: 9, padding: 2, margin: '4px 16px 10px', maxWidth: 700, marginLeft: 'auto', marginRight: 'auto' }}>
       {options.map((o) => {
         const active = value === o.key
         return (
@@ -674,11 +791,15 @@ function SegmentedControl({ options, value, onChange }: {
 }
 
 function BookingsTab() {
-  const [brand, setBrand] = useState('FJ')
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const [brand, setBrand] = useState('All')
+  const [dateFilter, setDateFilter] = useState<DateFilterKey>('today')
+  const [customFrom, setCustomFrom] = useState(torontoYmd())
+  const [customTo, setCustomTo] = useState(torontoYmd())
+  const [bookings, setBookings] = useState<BookingWithBrand[]>([])
   const [loading, setLoading] = useState(true)
 
   const options = [
+    { key: 'All', label: 'All' },
     { key: 'FJ', label: 'FJ' },
     { key: 'Precon', label: 'Precon' },
     { key: 'Lowrise', label: 'Lowrise' },
@@ -688,61 +809,194 @@ function BookingsTab() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const table = BOOKING_TABLES[brand as keyof typeof BOOKING_TABLES]
-      const { data } = await supabase
-        .from(table)
-        .select('*')
-        .order('appointment_date', { ascending: false })
-        .limit(20)
-      setBookings(data || [])
-      setLoading(false)
+      try {
+        const today = torontoYmd()
+        let fetched: BookingWithBrand[] = []
+
+        if (dateFilter === 'past') {
+          fetched = await fetchBookings({ brandKey: brand, before: today, limit: 50 })
+          fetched = sortBookings(fetched, true)
+        } else {
+          let from =
+            dateFilter === 'today' ? today
+              : dateFilter === 'tomorrow' ? torontoYmd(1)
+              : dateFilter === 'yesterday' ? torontoYmd(-1)
+              : customFrom || today
+          let to =
+            dateFilter === 'custom' ? (customTo || customFrom || today) : from
+          if (from > to) {
+            const swapped = from
+            from = to
+            to = swapped
+          }
+          fetched = await fetchBookings({ brandKey: brand, from, to, limit: 80 })
+          fetched = sortBookings(fetched)
+        }
+
+        setBookings(fetched)
+      } catch (e) {
+        console.error('Error loading bookings:', e)
+        setBookings([])
+      } finally {
+        setLoading(false)
+      }
     }
     load()
-  }, [brand])
+  }, [brand, dateFilter, customFrom, customTo])
 
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return ''
-    const today = new Date().toISOString().split('T')[0]
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
-    if (dateStr === today) return 'Today'
-    if (dateStr === tomorrow) return 'Tomorrow'
-    return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const singleDay = dateFilter === 'today' || dateFilter === 'tomorrow' || dateFilter === 'yesterday'
+  const groupedByPeriod = DAY_PERIODS
+    .map((period) => ({
+      period,
+      items: bookings.filter((booking) => dayPeriod(booking.appointment_time) === period),
+    }))
+    .filter((group) => group.items.length > 0)
+
+  const groupedByDate: { date: string; items: BookingWithBrand[] }[] = []
+  if (!singleDay) {
+    const byDate = new Map<string, BookingWithBrand[]>()
+    for (const booking of bookings) {
+      const key = booking.appointment_date || 'Undated'
+      const list = byDate.get(key) || []
+      list.push(booking)
+      byDate.set(key, list)
+    }
+    for (const [date, items] of byDate) {
+      groupedByDate.push({ date, items })
+    }
   }
+
+  const emptyCopy =
+    dateFilter === 'today' ? 'No appointments today.'
+      : dateFilter === 'tomorrow' ? 'Nothing booked tomorrow.'
+      : dateFilter === 'yesterday' ? 'No appointments yesterday.'
+      : dateFilter === 'past' ? 'No past appointments.'
+      : 'No appointments in this date range.'
+
+  const subtitle =
+    dateFilter === 'today' ? `${bookings.length} today`
+      : dateFilter === 'tomorrow' ? `${bookings.length} tomorrow`
+      : dateFilter === 'yesterday' ? `${bookings.length} yesterday`
+      : dateFilter === 'past' ? `${bookings.length} past`
+      : `${bookings.length} in range`
 
   return (
     <div>
-      <NavBar title="Bookings" subtitle="Every calendar, one screen" />
+      <NavBar title="Bookings" subtitle={subtitle} />
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          overflowX: 'auto',
+          padding: '10px 16px 8px',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {DATE_FILTERS.map((chip) => {
+          const active = dateFilter === chip.key
+          return (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => setDateFilter(chip.key)}
+              style={{
+                flexShrink: 0,
+                border: active ? 'none' : `0.5px solid ${SEPARATOR}`,
+                background: active ? TINT : CARD,
+                color: active ? '#fff' : LABEL,
+                borderRadius: 999,
+                padding: '7px 14px',
+                ...font,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {chip.label}
+            </button>
+          )
+        })}
+      </div>
+      {dateFilter === 'custom' && (
+        <div style={{ display: 'flex', gap: 8, padding: '0 16px 10px', maxWidth: 700, margin: '0 auto' }}>
+          <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ ...font, fontSize: 11, fontWeight: 600, color: SECONDARY }}>From</span>
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              style={{
+                ...font,
+                fontSize: 14,
+                padding: '8px 10px',
+                borderRadius: 10,
+                border: `0.5px solid ${SEPARATOR}`,
+                background: CARD,
+                color: LABEL,
+                width: '100%',
+              }}
+            />
+          </label>
+          <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ ...font, fontSize: 11, fontWeight: 600, color: SECONDARY }}>To</span>
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+              style={{
+                ...font,
+                fontSize: 14,
+                padding: '8px 10px',
+                borderRadius: 10,
+                border: `0.5px solid ${SEPARATOR}`,
+                background: CARD,
+                color: LABEL,
+                width: '100%',
+              }}
+            />
+          </label>
+        </div>
+      )}
       <SegmentedControl options={options} value={brand} onChange={setBrand} />
       <div style={{ padding: '0 16px 110px', maxWidth: 700, margin: '0 auto' }}>
         {loading ? (
           <LoadingSpinner />
-        ) : (
+        ) : bookings.length === 0 ? (
           <GroupedList>
-            {bookings.length === 0 ? (
-              <div style={{ padding: '26px 14px', textAlign: 'center', ...font, fontSize: 13.5, color: SECONDARY }}>
-                Nothing booked here yet.
-              </div>
-            ) : (
-              bookings.map((b, i) => {
-                const Icon = typeIcon(b.appointment_type || '')
-                return (
-                  <Row
-                    key={b.id}
-                    last={i === bookings.length - 1}
-                    leading={<IconChip Icon={Icon} tint={TINT} />}
-                    title={`${b.firstname} ${b.lastname}`}
-                    subtitle={b.project_name || 'No project'}
-                    trailing={
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ ...font, fontWeight: 600, fontSize: 13.5, color: LABEL }}>{formatDate(b.appointment_date)}</div>
-                        <div style={{ ...font, fontSize: 12, color: SECONDARY }}>{formatAppointmentTimeDisplay(b.appointment_time)}</div>
-                      </div>
-                    }
-                  />
-                )
-              })
-            )}
+            <div style={{ padding: '26px 14px', textAlign: 'center', ...font, fontSize: 13.5, color: SECONDARY }}>
+              {emptyCopy}
+            </div>
           </GroupedList>
+        ) : singleDay ? (
+          groupedByPeriod.map((group) => (
+            <div key={group.period}>
+              <SectionHeader>{`${group.period} · ${group.items.length}`}</SectionHeader>
+              <GroupedList>
+                {group.items.map((booking, i) => (
+                  <AppointmentRow
+                    key={booking.id}
+                    booking={booking}
+                    last={i === group.items.length - 1}
+                  />
+                ))}
+              </GroupedList>
+            </div>
+          ))
+        ) : (
+          groupedByDate.map((group) => (
+            <div key={group.date}>
+              <SectionHeader>{`${formatBookingDay(group.date)} · ${group.items.length}`}</SectionHeader>
+              <GroupedList>
+                {group.items.map((booking, i) => (
+                  <AppointmentRow
+                    key={booking.id}
+                    booking={booking}
+                    last={i === group.items.length - 1}
+                  />
+                ))}
+              </GroupedList>
+            </div>
+          ))
         )}
       </div>
     </div>
