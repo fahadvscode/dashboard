@@ -37,8 +37,17 @@ export type FubContext = {
   user?: { id?: number; name?: string; email?: string }
 }
 
+function readRuntimeEnv(name: string) {
+  // Bracket access so Next.js does not bake an empty value into the build.
+  return String((process.env as Record<string, string | undefined>)[name] || '').trim()
+}
+
 export function getFubEmbeddedAppSecret() {
-  return process.env.FUB_EMBEDDED_APP_SECRET?.trim() || ''
+  return (
+    readRuntimeEnv('FUB_EMBEDDED_APP_SECRET') ||
+    readRuntimeEnv('FUB_SECRET_KEY') ||
+    readRuntimeEnv('FOLLOWUPBOSS_EMBEDDED_APP_SECRET')
+  )
 }
 
 export function verifyFubSignature(context: string, signature: string, secret = getFubEmbeddedAppSecret()) {

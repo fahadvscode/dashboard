@@ -1,3 +1,4 @@
+import { connection } from 'next/server'
 import FubBookingForm from '@/components/FubBookingForm'
 import {
   pickFubEmail,
@@ -6,6 +7,7 @@ import {
 } from '@/lib/fubEmbeddedApp'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 function Message({ title, body }: { title: string; body: string }) {
   return (
@@ -28,6 +30,7 @@ export default async function FubBookingsPage({
 }: {
   searchParams: Promise<{ context?: string; signature?: string }>
 }) {
+  await connection()
   const params = await searchParams
   const context = typeof params.context === 'string' ? params.context : ''
   const signature = typeof params.signature === 'string' ? params.signature : ''
