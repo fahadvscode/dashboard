@@ -47,6 +47,7 @@ export default function FubBookingForm({
   const [notice, setNotice] = useState('')
   const [appointments, setAppointments] = useState(initialAppointments)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [editDate, setEditDate] = useState(minDate)
   const [editTime, setEditTime] = useState('10:00 AM')
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -125,9 +126,6 @@ export default function FubBookingForm({
   }
 
   async function cancelAppointment(item: FubAppointment) {
-    if (!confirm(`Cancel ${item.project_name} on ${item.appointment_date} at ${formatAppointmentTimeDisplay(item.appointment_time)}?`)) {
-      return
-    }
     setBusyId(item.id)
     setError('')
     try {
@@ -140,6 +138,7 @@ export default function FubBookingForm({
       if (!response.ok) throw new Error(payload.error || 'Could not cancel.')
       setNotice(payload.calendarWarning || 'Appointment cancelled. Calendar invite was updated.')
       setEditingId(null)
+      setConfirmingId(null)
       await reloadAppointments()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not cancel.')
@@ -209,6 +208,15 @@ export default function FubBookingForm({
                     </button>
                   </div>
                 </>
+              ) : confirmingId === item.id ? (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button type="button" disabled={busyId === item.id} onClick={() => void cancelAppointment(item)} style={smallDanger}>
+                    {busyId === item.id ? 'Cancelling…' : 'Confirm cancel'}
+                  </button>
+                  <button type="button" onClick={() => setConfirmingId(null)} style={smallGhost}>
+                    Back
+                  </button>
+                </div>
               ) : (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
@@ -216,6 +224,7 @@ export default function FubBookingForm({
                     disabled={busyId === item.id}
                     onClick={() => {
                       setEditingId(item.id)
+                      setConfirmingId(null)
                       setEditDate(item.appointment_date)
                       setEditTime(item.appointment_time)
                     }}
@@ -223,7 +232,15 @@ export default function FubBookingForm({
                   >
                     Reschedule
                   </button>
-                  <button type="button" disabled={busyId === item.id} onClick={() => void cancelAppointment(item)} style={smallDanger}>
+                  <button
+                    type="button"
+                    disabled={busyId === item.id}
+                    onClick={() => {
+                      setConfirmingId(item.id)
+                      setEditingId(null)
+                    }}
+                    style={smallDanger}
+                  >
                     Cancel
                   </button>
                 </div>

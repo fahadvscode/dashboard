@@ -148,14 +148,16 @@ function lastTenDigits(phone: string) {
 export function bookingMatchesContact(
   booking: { email?: string | null; phone?: string | null },
   email: string,
-  phone: string
+  phone: string,
+  extraEmails: string[] = [],
+  extraPhones: string[] = []
 ) {
-  const emailNorm = email.trim().toLowerCase()
-  const phoneKey = lastTenDigits(phone)
+  const emails = [email, ...extraEmails].map((item) => item.trim().toLowerCase()).filter(Boolean)
+  const phones = [phone, ...extraPhones].map(lastTenDigits).filter((item) => item.length >= 10)
   const bookingEmail = String(booking.email || '').trim().toLowerCase()
   const bookingPhone = lastTenDigits(String(booking.phone || ''))
-  if (emailNorm && bookingEmail && bookingEmail === emailNorm) return true
-  if (phoneKey.length >= 10 && bookingPhone && bookingPhone === phoneKey) return true
+  if (bookingEmail && emails.includes(bookingEmail)) return true
+  if (bookingPhone.length >= 10 && phones.includes(bookingPhone)) return true
   return false
 }
 

@@ -25,7 +25,9 @@ export async function requireFubBooking(request: NextRequest, body: Record<strin
   }
 
   const person = resolved.context.person
-  if (!bookingMatchesContact(booking, pickFubEmail(person), pickFubPhone(person))) {
+  const extraEmails = (person.emails || []).map((item) => String(item.value || ''))
+  const extraPhones = (person.phones || []).map((item) => String(item.normalized || item.value || ''))
+  if (!bookingMatchesContact(booking, pickFubEmail(person), pickFubPhone(person), extraEmails, extraPhones)) {
     return { error: NextResponse.json({ error: 'Not authorized.' }, { status: 401 }) }
   }
 
