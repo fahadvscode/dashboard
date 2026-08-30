@@ -26,6 +26,7 @@ export type FubPerson = {
   lastName?: string
   emails?: Array<{ value?: string; isPrimary?: number | boolean }>
   phones?: Array<{ value?: string; normalized?: string; isPrimary?: number | boolean }>
+  tags?: unknown
 }
 
 export type FubContext = {

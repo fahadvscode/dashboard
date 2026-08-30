@@ -62,6 +62,9 @@ export async function POST(request: NextRequest) {
       appointment_time: time,
       appointment_type: meeting.id,
       project_name: project,
+      ...(typeof body.projectId === 'string' && body.projectId.trim()
+        ? { project_id: String(body.projectId).trim() }
+        : {}),
       status: 'confirmed',
       message: personId
         ? `Booked from Follow Up Boss (person ${personId})`

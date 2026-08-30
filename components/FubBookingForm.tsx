@@ -1,9 +1,10 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { APPOINTMENT_TIME_SLOTS } from '@/lib/bookingTimes'
 import { FUB_BOOKING_BRANDS, FUB_MEETING_TYPES } from '@/lib/fubEmbeddedApp'
+import type { FubProjectOption } from '@/lib/fubProjects'
 
 type Props = {
   context: string
@@ -12,6 +13,7 @@ type Props = {
   lastName: string
   email: string
   phone: string
+  taggedProjects: FubProjectOption[]
 }
 
 function todayToronto() {
@@ -25,13 +27,16 @@ export default function FubBookingForm({
   lastName,
   email,
   phone,
+  taggedProjects,
 }: Props) {
   const minDate = useMemo(() => todayToronto(), [])
   const [brand, setBrand] = useState('fj')
   const [type, setType] = useState('phone_call')
   const [date, setDate] = useState(minDate)
   const [time, setTime] = useState('10:00 AM')
-  const [project, setProject] = useState('')
+  const [selected, setSelected] = useState<FubProjectOption | null>(taggedProjects[0] ?? null)
+  const [search, setSearch] = useState('')
+  const [suggestions, setSuggestions] = useState<FubProjectOption[]>([])
   const [contactEmail, setContactEmail] = useState(email)
   const [contactPhone, setContactPhone] = useState(phone)
   const [saving, setSaving] = useState(false)
@@ -39,6 +44,26 @@ export default function FubBookingForm({
   const [done, setDone] = useState('')
 
   const name = `${firstName} ${lastName}`.trim() || 'this lead'
+
+  useEffect(() => {
+    const q = search.trim()
+    if (q.length < 1) {
+      setSuggestions([])
+      return
+    }
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const response = await fetch('/api/fub/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ context, signature, q }),
+        })
+        const payload = await response.json()
+        setSuggestions(Array.isArray(payload.projects) ? payload.projects : [])
+      })()
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [search, context, signature])
 
   async function book() {
     setSaving(true)
@@ -54,7 +79,8 @@ export default function FubBookingForm({
           type,
           date,
           time,
-          project,
+          project: selected?.project_name || search.trim(),
+          projectId: selected?.id || '',
           email: contactEmail,
           phone: contactPhone,
         }),
@@ -115,13 +141,84 @@ export default function FubBookingForm({
         ))}
       </select>
 
-      <label style={label}>Project (optional)</label>
+      <label style={label}>Project</label>
+      {taggedProjects.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+          {taggedProjects.map((project) => {
+            const active = selected?.id === project.id
+            return (
+              <button
+                key={project.id}
+                type="button"
+                onClick={() => {
+                  setSelected(project)
+                  setSearch('')
+                  setSuggestions([])
+                }}
+                style={{
+                  ...input,
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  borderColor: active ? '#2563eb' : '#d0d5dd',
+                  background: active ? '#eff6ff' : '#fff',
+                }}
+              >
+                <div style={{ fontWeight: 600 }}>{project.project_name}</div>
+                <div style={{ fontSize: 11, color: '#667085', marginTop: 2 }}>
+                  {project.id}
+                  {project.city ? ` · ${project.city}` : ''}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
+
       <input
-        value={project}
-        onChange={(e) => setProject(e.target.value)}
-        placeholder="Project name"
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value)
+          if (e.target.value.trim()) setSelected(null)
+        }}
+        placeholder="Search by project name or ID"
         style={input}
       />
+      {suggestions.length > 0 ? (
+        <div style={{ border: '1px solid #d0d5dd', borderRadius: 8, marginTop: 6, overflow: 'hidden' }}>
+          {suggestions.map((project) => (
+            <button
+              key={project.id}
+              type="button"
+              onClick={() => {
+                setSelected(project)
+                setSearch(project.project_name)
+                setSuggestions([])
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                border: 'none',
+                borderBottom: '1px solid #eef0f3',
+                background: '#fff',
+                padding: '8px 10px',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{project.project_name}</div>
+              <div style={{ fontSize: 11, color: '#667085' }}>
+                {project.id}
+                {project.city ? ` · ${project.city}` : ''}
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {selected ? (
+        <div style={{ fontSize: 11, color: '#2563eb', marginTop: 6 }}>
+          Using {selected.project_name}
+        </div>
+      ) : null}
 
       <label style={label}>Email</label>
       <input

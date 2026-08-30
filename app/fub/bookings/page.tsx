@@ -5,6 +5,11 @@ import {
   pickFubPhone,
   resolveFubBookingState,
 } from '@/lib/fubEmbeddedApp'
+import {
+  extractFubTags,
+  fetchFollowUpBossPersonTags,
+  matchProjectsFromTags,
+} from '@/lib/fubProjects'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -91,6 +96,14 @@ export default async function FubBookingsPage({
   }
 
   const person = resolved.context?.person
+  const contextTags = extractFubTags(person)
+  const apiTags =
+    contextTags.length === 0 && person?.id != null
+      ? await fetchFollowUpBossPersonTags(String(person.id))
+      : []
+  const tags = contextTags.length > 0 ? contextTags : apiTags
+  const taggedProjects = await matchProjectsFromTags(tags)
+
   return (
     <FubBookingForm
       context={context}
@@ -99,6 +112,7 @@ export default async function FubBookingsPage({
       lastName={person?.lastName || ''}
       email={pickFubEmail(person)}
       phone={pickFubPhone(person)}
+      taggedProjects={taggedProjects}
     />
   )
 }
