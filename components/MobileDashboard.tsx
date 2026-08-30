@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Home, Calendar, Flame, Plus, Phone, Mail, Building2, Video,
-  PhoneCall, Check, ChevronRight, User, X,
+  PhoneCall, Check, ChevronRight, User, X, MapPin,
   Search, CheckSquare, UploadCloud, Users, FolderOpen, Sparkles, TrendingUp, ClipboardList, BarChart3,
   Image, MessageSquare, Link2, LogOut, MoreHorizontal,
   Radio, Shuffle, MousePointerClick, Zap, MessageCircle, Loader2,
@@ -171,15 +171,30 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
 
 const APPT_TYPES = [
   { key: 'office visit', label: 'Office Visit', icon: Building2 },
-  { key: 'builder visit', label: 'Builder Visit', icon: Building2 },
+  { key: 'builder visit', label: 'Site Visit', icon: MapPin },
   { key: 'phone call', label: 'Phone Call', icon: PhoneCall },
-  { key: 'zoom/google meet', label: 'Zoom / Meet', icon: Video },
+  { key: 'zoom/google meet', label: 'Google Meet', icon: Video },
 ]
 
+function appointmentTypeMeta(type: string) {
+  const normalized = (type || '').toLowerCase().replace(/[_-]+/g, ' ').trim()
+  if (normalized.includes('google meet') || normalized.includes('zoom')) {
+    return { icon: Video, label: 'Google Meet', tint: '#1A73E8' }
+  }
+  if (normalized.includes('site visit') || normalized.includes('builder visit')) {
+    return { icon: MapPin, label: 'Site Visit', tint: '#FF9500' }
+  }
+  if (normalized.includes('office')) {
+    return { icon: Building2, label: 'Office Visit', tint: TINT }
+  }
+  if (normalized.includes('phone')) {
+    return { icon: PhoneCall, label: 'Phone Call', tint: TINT }
+  }
+  return { icon: Calendar, label: type || 'Appointment', tint: GOLD }
+}
+
 function typeIcon(type: string) {
-  const normalized = type?.toLowerCase() || ''
-  const found = APPT_TYPES.find((t) => normalized.includes(t.key))
-  return found ? found.icon : Calendar
+  return appointmentTypeMeta(type).icon
 }
 
 function dayPeriod(time: string) {
@@ -247,13 +262,14 @@ function AppointmentRow({
   last: boolean
   showDate?: boolean
 }) {
-  const Icon = typeIcon(booking.appointment_type || '')
+  const typeMeta = appointmentTypeMeta(booking.appointment_type || '')
+  const TypeIcon = typeMeta.icon
   const isFJ = booking.brand === 'FJ'
   const name = `${booking.firstname || ''} ${booking.lastname || ''}`.trim() || 'Unknown'
   return (
     <Row
       last={last}
-      leading={<IconChip Icon={Icon} tint={isFJ ? TINT : GOLD} />}
+      leading={<IconChip Icon={User} tint={isFJ ? TINT : GOLD} />}
       title={name}
       subtitle={`${booking.project_name || 'No project'} · ${booking.brand}`}
       trailing={
@@ -275,7 +291,9 @@ function AppointmentRow({
               {formatAppointmentTimeDisplay(booking.appointment_time)}
             </div>
           </div>
-          {booking.phone && <CircleIconBtn Icon={Phone} href={`tel:${booking.phone}`} filled />}
+          <div title={typeMeta.label} aria-label={typeMeta.label}>
+            <IconChip Icon={TypeIcon} tint={typeMeta.tint} />
+          </div>
         </div>
       }
     />
