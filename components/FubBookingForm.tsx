@@ -2,9 +2,9 @@
 
 import type { CSSProperties } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { APPOINTMENT_TIME_SLOTS } from '@/lib/bookingTimes'
+import { APPOINTMENT_TIME_SLOTS, formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
 import { FUB_BOOKING_BRANDS, FUB_MEETING_TYPES } from '@/lib/fubEmbeddedApp'
-import type { FubProjectOption } from '@/lib/fubProjects'
+import type { FubAppointment, FubProjectOption } from '@/lib/fubProjects'
 
 type Props = {
   context: string
@@ -14,6 +14,7 @@ type Props = {
   email: string
   phone: string
   taggedProjects: FubProjectOption[]
+  appointments: FubAppointment[]
 }
 
 function todayToronto() {
@@ -28,6 +29,7 @@ export default function FubBookingForm({
   email,
   phone,
   taggedProjects,
+  appointments: initialAppointments,
 }: Props) {
   const minDate = useMemo(() => todayToronto(), [])
   const [brand, setBrand] = useState('fj')
@@ -35,15 +37,31 @@ export default function FubBookingForm({
   const [date, setDate] = useState(minDate)
   const [time, setTime] = useState('10:00 AM')
   const [selected, setSelected] = useState<FubProjectOption | null>(taggedProjects[0] ?? null)
+  const [changingProject, setChangingProject] = useState(taggedProjects.length === 0)
   const [search, setSearch] = useState('')
   const [suggestions, setSuggestions] = useState<FubProjectOption[]>([])
   const [contactEmail, setContactEmail] = useState(email)
   const [contactPhone, setContactPhone] = useState(phone)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [done, setDone] = useState('')
+  const [notice, setNotice] = useState('')
+  const [appointments, setAppointments] = useState(initialAppointments)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDate, setEditDate] = useState(minDate)
+  const [editTime, setEditTime] = useState('10:00 AM')
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   const name = `${firstName} ${lastName}`.trim() || 'this lead'
+
+  async function reloadAppointments() {
+    const response = await fetch('/api/fub/appointments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context, signature }),
+    })
+    const payload = await response.json()
+    if (Array.isArray(payload.appointments)) setAppointments(payload.appointments)
+  }
 
   useEffect(() => {
     const q = search.trim()
@@ -65,9 +83,17 @@ export default function FubBookingForm({
     return () => window.clearTimeout(timer)
   }, [search, context, signature])
 
+  function chooseProject(project: FubProjectOption) {
+    setSelected(project)
+    setSearch('')
+    setSuggestions([])
+    setChangingProject(false)
+  }
+
   async function book() {
     setSaving(true)
     setError('')
+    setNotice('')
     try {
       const response = await fetch('/api/fub/bookings', {
         method: 'POST',
@@ -89,7 +115,8 @@ export default function FubBookingForm({
       if (!response.ok) {
         throw new Error(payload.error || 'Could not book this meeting.')
       }
-      setDone(payload.message || 'Meeting booked.')
+      setNotice(payload.message || 'Meeting booked.')
+      await reloadAppointments()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not book this meeting.')
     } finally {
@@ -97,19 +124,116 @@ export default function FubBookingForm({
     }
   }
 
-  if (done) {
-    return (
-      <div style={card}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#163a2a', marginBottom: 6 }}>Booked</div>
-        <p style={{ margin: 0, fontSize: 13, color: '#3f5b4e', lineHeight: 1.45 }}>{done}</p>
-      </div>
-    )
+  async function cancelAppointment(item: FubAppointment) {
+    if (!confirm(`Cancel ${item.project_name} on ${item.appointment_date} at ${formatAppointmentTimeDisplay(item.appointment_time)}?`)) {
+      return
+    }
+    setBusyId(item.id)
+    setError('')
+    try {
+      const response = await fetch('/api/fub/appointments/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context, signature, table: item.table, bookingId: item.id }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Could not cancel.')
+      setNotice(payload.calendarWarning || 'Appointment cancelled. Calendar invite was updated.')
+      setEditingId(null)
+      await reloadAppointments()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not cancel.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function rescheduleAppointment(item: FubAppointment) {
+    setBusyId(item.id)
+    setError('')
+    try {
+      const response = await fetch('/api/fub/appointments/reschedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context,
+          signature,
+          table: item.table,
+          bookingId: item.id,
+          appointment_date: editDate,
+          appointment_time: editTime,
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Could not reschedule.')
+      setNotice(payload.calendarWarning || 'Appointment rescheduled. Calendar invite was updated.')
+      setEditingId(null)
+      await reloadAppointments()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not reschedule.')
+    } finally {
+      setBusyId(null)
+    }
   }
 
   return (
     <div style={wrap}>
-      <div style={{ fontSize: 15, fontWeight: 700, color: '#1f2933', marginBottom: 2 }}>Book a meeting</div>
-      <div style={{ fontSize: 12, color: '#667085', marginBottom: 12 }}>{name}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: '#1f2933', marginBottom: 2 }}>{name}</div>
+      <div style={{ fontSize: 12, color: '#667085', marginBottom: 12 }}>Book, reschedule, or cancel</div>
+
+      {appointments.length > 0 ? (
+        <>
+          <div style={label}>Upcoming</div>
+          {appointments.map((item) => (
+            <div key={`${item.table}-${item.id}`} style={apptCard}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{item.project_name}</div>
+              <div style={{ fontSize: 12, color: '#667085', margin: '4px 0 8px' }}>
+                {item.appointment_date} · {formatAppointmentTimeDisplay(item.appointment_time)} · {item.brand}
+              </div>
+              {editingId === item.id ? (
+                <>
+                  <input type="date" min={minDate} value={editDate} onChange={(e) => setEditDate(e.target.value)} style={input} />
+                  <select value={editTime} onChange={(e) => setEditTime(e.target.value)} style={{ ...input, marginTop: 6 }}>
+                    {APPOINTMENT_TIME_SLOTS.map((slot) => (
+                      <option key={slot} value={slot}>
+                        {slot}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                    <button type="button" disabled={busyId === item.id} onClick={() => void rescheduleAppointment(item)} style={smallPrimary}>
+                      {busyId === item.id ? 'Saving…' : 'Save'}
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)} style={smallGhost}>
+                      Back
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    disabled={busyId === item.id}
+                    onClick={() => {
+                      setEditingId(item.id)
+                      setEditDate(item.appointment_date)
+                      setEditTime(item.appointment_time)
+                    }}
+                    style={smallPrimary}
+                  >
+                    Reschedule
+                  </button>
+                  <button type="button" disabled={busyId === item.id} onClick={() => void cancelAppointment(item)} style={smallDanger}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </>
+      ) : null}
+
+      <div style={{ ...label, marginTop: appointments.length > 0 ? 16 : 8 }}>New meeting</div>
 
       <label style={label}>Brand</label>
       <select value={brand} onChange={(e) => setBrand(e.target.value)} style={input}>
@@ -142,95 +266,65 @@ export default function FubBookingForm({
       </select>
 
       <label style={label}>Project</label>
-      {taggedProjects.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
-          {taggedProjects.map((project) => {
-            const active = selected?.id === project.id
-            return (
-              <button
-                key={project.id}
-                type="button"
-                onClick={() => {
-                  setSelected(project)
-                  setSearch('')
-                  setSuggestions([])
-                }}
-                style={{
-                  ...input,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  borderColor: active ? '#2563eb' : '#d0d5dd',
-                  background: active ? '#eff6ff' : '#fff',
-                }}
-              >
-                <div style={{ fontWeight: 600 }}>{project.project_name}</div>
-                <div style={{ fontSize: 11, color: '#667085', marginTop: 2 }}>
-                  {project.id}
-                  {project.city ? ` · ${project.city}` : ''}
-                </div>
-              </button>
-            )
-          })}
+      {selected && !changingProject ? (
+        <div style={{ ...input, background: '#eff6ff', borderColor: '#2563eb' }}>
+          <div style={{ fontWeight: 600 }}>{selected.project_name}</div>
+          <div style={{ fontSize: 11, color: '#667085', marginTop: 2 }}>
+            {selected.id}
+            {selected.city ? ` · ${selected.city}` : ''}
+          </div>
+          <button type="button" onClick={() => setChangingProject(true)} style={linkButton}>
+            Change project
+          </button>
         </div>
-      ) : null}
-
-      <input
-        value={search}
-        onChange={(e) => {
-          setSearch(e.target.value)
-          if (e.target.value.trim()) setSelected(null)
-        }}
-        placeholder="Search by project name or ID"
-        style={input}
-      />
-      {suggestions.length > 0 ? (
-        <div style={{ border: '1px solid #d0d5dd', borderRadius: 8, marginTop: 6, overflow: 'hidden' }}>
-          {suggestions.map((project) => (
-            <button
-              key={project.id}
-              type="button"
-              onClick={() => {
-                setSelected(project)
-                setSearch(project.project_name)
-                setSuggestions([])
-              }}
-              style={{
-                display: 'block',
-                width: '100%',
-                textAlign: 'left',
-                border: 'none',
-                borderBottom: '1px solid #eef0f3',
-                background: '#fff',
-                padding: '8px 10px',
-                cursor: 'pointer',
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{project.project_name}</div>
-              <div style={{ fontSize: 11, color: '#667085' }}>
-                {project.id}
-                {project.city ? ` · ${project.city}` : ''}
-              </div>
+      ) : (
+        <>
+          {taggedProjects.length > 1 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+              {taggedProjects.map((project) => (
+                <button key={project.id} type="button" onClick={() => chooseProject(project)} style={input}>
+                  <div style={{ fontWeight: 600, textAlign: 'left' }}>{project.project_name}</div>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              if (e.target.value.trim()) setSelected(null)
+            }}
+            placeholder="Search by project name or ID"
+            style={input}
+          />
+          {suggestions.length > 0 ? (
+            <div style={{ border: '1px solid #d0d5dd', borderRadius: 8, marginTop: 6, overflow: 'hidden' }}>
+              {suggestions.map((project) => (
+                <button key={project.id} type="button" onClick={() => chooseProject(project)} style={suggestionBtn}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{project.project_name}</div>
+                  <div style={{ fontSize: 11, color: '#667085' }}>
+                    {project.id}
+                    {project.city ? ` · ${project.city}` : ''}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {selected ? (
+            <button type="button" onClick={() => setChangingProject(false)} style={linkButton}>
+              Use {selected.project_name}
             </button>
-          ))}
-        </div>
-      ) : null}
-      {selected ? (
-        <div style={{ fontSize: 11, color: '#2563eb', marginTop: 6 }}>
-          Using {selected.project_name}
-        </div>
-      ) : null}
+          ) : null}
+        </>
+      )}
 
       <label style={label}>Email</label>
-      <input
-        type="email"
-        value={contactEmail}
-        onChange={(e) => setContactEmail(e.target.value)}
-        style={input}
-      />
+      <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} style={input} />
 
       <label style={label}>Phone</label>
       <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} style={input} />
 
+      {notice ? <div style={noticeText}>{notice}</div> : null}
       {error ? <div style={errorText}>{error}</div> : null}
 
       <button type="button" onClick={() => void book()} disabled={saving || !date || !time} style={button}>
@@ -245,11 +339,6 @@ const wrap: CSSProperties = {
   padding: '12px 12px 16px',
   background: '#fff',
   color: '#1f2933',
-}
-
-const card: CSSProperties = {
-  ...wrap,
-  padding: 16,
 }
 
 const label: CSSProperties = {
@@ -283,9 +372,68 @@ const button: CSSProperties = {
   cursor: 'pointer',
 }
 
+const apptCard: CSSProperties = {
+  border: '1px solid #e5e7eb',
+  borderRadius: 8,
+  padding: 10,
+  marginBottom: 8,
+}
+
+const smallPrimary: CSSProperties = {
+  flex: 1,
+  border: 'none',
+  borderRadius: 8,
+  padding: '8px 10px',
+  background: '#2563eb',
+  color: '#fff',
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
+
+const smallDanger: CSSProperties = {
+  ...smallPrimary,
+  background: '#b42318',
+}
+
+const smallGhost: CSSProperties = {
+  ...smallPrimary,
+  background: '#f2f4f7',
+  color: '#344054',
+}
+
+const linkButton: CSSProperties = {
+  marginTop: 6,
+  border: 'none',
+  background: 'none',
+  color: '#2563eb',
+  fontSize: 12,
+  fontWeight: 600,
+  padding: 0,
+  cursor: 'pointer',
+}
+
+const suggestionBtn: CSSProperties = {
+  display: 'block',
+  width: '100%',
+  textAlign: 'left',
+  border: 'none',
+  borderBottom: '1px solid #eef0f3',
+  background: '#fff',
+  padding: '8px 10px',
+  cursor: 'pointer',
+}
+
 const errorText: CSSProperties = {
   marginTop: 8,
   fontSize: 12,
   color: '#b42318',
+  lineHeight: 1.4,
+}
+
+const noticeText: CSSProperties = {
+  marginTop: 8,
+  fontSize: 12,
+  color: '#026e56',
   lineHeight: 1.4,
 }

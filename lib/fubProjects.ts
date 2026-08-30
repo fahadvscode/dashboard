@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { getFubEmbeddedAppSecret } from '@/lib/fubEmbeddedApp'
+import { FUB_BOOKING_BRANDS } from '@/lib/fubEmbeddedApp'
+import { isBookingStatusCanceled } from '@/lib/bookingTimes'
 
 export type FubProjectOption = {
   id: string
@@ -129,22 +130,104 @@ export async function searchCanadaProjects(query: string): Promise<FubProjectOpt
   return mapRows([...(byId ?? []), ...(byName ?? [])]).slice(0, 8)
 }
 
+export type FubAppointment = {
+  id: string
+  table: string
+  brand: string
+  project_name: string
+  appointment_date: string
+  appointment_time: string
+  status: string
+}
+
+function lastTenDigits(phone: string) {
+  const digits = phone.replace(/\D/g, '')
+  return digits.length >= 10 ? digits.slice(-10) : digits
+}
+
+export function bookingMatchesContact(
+  booking: { email?: string | null; phone?: string | null },
+  email: string,
+  phone: string
+) {
+  const emailNorm = email.trim().toLowerCase()
+  const phoneKey = lastTenDigits(phone)
+  const bookingEmail = String(booking.email || '').trim().toLowerCase()
+  const bookingPhone = lastTenDigits(String(booking.phone || ''))
+  if (emailNorm && bookingEmail && bookingEmail === emailNorm) return true
+  if (phoneKey.length >= 10 && bookingPhone && bookingPhone === phoneKey) return true
+  return false
+}
+
+export async function listUpcomingFubAppointments(email: string, phone: string): Promise<FubAppointment[]> {
+  const supabase = getSupabaseAdmin()
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
+  const emailNorm = email.trim().toLowerCase()
+  const phoneKey = lastTenDigits(phone)
+  const collected: FubAppointment[] = []
+
+  for (const brand of FUB_BOOKING_BRANDS) {
+    const { data } = await supabase
+      .from(brand.table)
+      .select('id, email, phone, appointment_date, appointment_time, status, project_name')
+      .gte('appointment_date', today)
+      .order('appointment_date', { ascending: true })
+      .limit(40)
+
+    for (const row of data ?? []) {
+      const item = row as {
+        id: string
+        email?: string | null
+        phone?: string | null
+        appointment_date: string
+        appointment_time: string
+        status?: string
+        project_name?: string | null
+      }
+      if (isBookingStatusCanceled(item.status)) continue
+      const emailMatch = emailNorm && String(item.email || '').trim().toLowerCase() === emailNorm
+      const phoneMatch = phoneKey.length >= 10 && lastTenDigits(String(item.phone || '')) === phoneKey
+      if (!emailMatch && !phoneMatch) continue
+      collected.push({
+        id: String(item.id),
+        table: brand.table,
+        brand: brand.label,
+        project_name: String(item.project_name || 'Meeting'),
+        appointment_date: String(item.appointment_date || ''),
+        appointment_time: String(item.appointment_time || ''),
+        status: String(item.status || ''),
+      })
+    }
+  }
+
+  return collected.slice(0, 8)
+}
+
 export async function fetchFollowUpBossPersonTags(personId: string): Promise<string[]> {
   const apiKey =
     String((process.env as Record<string, string | undefined>).FUB_API_KEY || '').trim() ||
     String((process.env as Record<string, string | undefined>).FOLLOW_UP_BOSS_API_KEY || '').trim()
-  if (!apiKey || !personId || !getFubEmbeddedAppSecret()) return []
+  if (!apiKey || !personId) return []
 
   try {
+    const headers: Record<string, string> = {
+      Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString('base64')}`,
+      Accept: 'application/json',
+    }
+    const system = String((process.env as Record<string, string | undefined>).FUB_X_SYSTEM || '').trim()
+    if (system) headers['X-System'] = system
+
     const response = await fetch(`https://api.followupboss.com/v1/people/${encodeURIComponent(personId)}`, {
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString('base64')}`,
-        Accept: 'application/json',
-      },
+      headers,
     })
     if (!response.ok) return []
-    const payload = (await response.json()) as { tags?: unknown }
-    return extractFubTags({ tags: payload.tags })
+    const payload = (await response.json()) as Record<string, unknown>
+    const tags = extractFubTags(payload)
+    const extras: string[] = []
+    for (const [key, value] of Object.entries(payload)) {
+      if (typeof value === 'string' && /project/i.test(key) && value.trim()) extras.push(value.trim())
+    }
+    return [...new Set([...tags, ...extras])]
   } catch {
     return []
   }

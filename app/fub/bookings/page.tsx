@@ -8,6 +8,7 @@ import {
 import {
   extractFubTags,
   fetchFollowUpBossPersonTags,
+  listUpcomingFubAppointments,
   matchProjectsFromTags,
 } from '@/lib/fubProjects'
 
@@ -97,12 +98,10 @@ export default async function FubBookingsPage({
 
   const person = resolved.context?.person
   const contextTags = extractFubTags(person)
-  const apiTags =
-    contextTags.length === 0 && person?.id != null
-      ? await fetchFollowUpBossPersonTags(String(person.id))
-      : []
-  const tags = contextTags.length > 0 ? contextTags : apiTags
+  const apiTags = person?.id != null ? await fetchFollowUpBossPersonTags(String(person.id)) : []
+  const tags = [...new Set([...contextTags, ...apiTags])]
   const taggedProjects = await matchProjectsFromTags(tags)
+  const appointments = await listUpcomingFubAppointments(pickFubEmail(person), pickFubPhone(person))
 
   return (
     <FubBookingForm
@@ -113,6 +112,7 @@ export default async function FubBookingsPage({
       email={pickFubEmail(person)}
       phone={pickFubPhone(person)}
       taggedProjects={taggedProjects}
+      appointments={appointments}
     />
   )
 }
