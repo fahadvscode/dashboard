@@ -23,6 +23,19 @@ import {
 } from '@/lib/homeScreenProjects'
 import { formatAppointmentTimeDisplay, isBookingStatusCanceled, parseAppointmentTime } from '@/lib/bookingTimes'
 import { normalizeBookingPayload, resolveBookingFirstName, resolveBookingLastName } from '@/lib/normalizeBookingPayload'
+import {
+  applyAppointmentDateFilter,
+  BOOKING_DATE_FILTERS,
+  bookingDateFilterCountLabel,
+  bookingDateFilterEmptyCopy,
+  bookingDateFilterIsDateDesc,
+  formatBookingDay,
+  getBookingDateRange,
+  groupBookingsByDate,
+  sortBookingsByAppointment,
+  torontoYmd,
+  type BookingDateFilter,
+} from '@/lib/bookingDateFilter'
 
 const BG = '#F2F2F7'
 const CARD = '#FFFFFF'
@@ -169,21 +182,6 @@ function typeIcon(type: string) {
   return found ? found.icon : Calendar
 }
 
-function torontoYmd(offsetDays = 0) {
-  const base = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
-  const date = new Date(`${base}T12:00:00`)
-  date.setDate(date.getDate() + offsetDays)
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function appointmentMinutes(time: string) {
-  const { hours, minutes } = parseAppointmentTime(time || '')
-  return hours * 60 + minutes
-}
-
 function dayPeriod(time: string) {
   const { hours } = parseAppointmentTime(time || '')
   if (hours < 12) return 'Morning'
@@ -209,46 +207,14 @@ function mapBookingRow(row: Record<string, unknown>, table: string): Booking & {
   }
 }
 
-type DateFilterKey = 'today' | 'tomorrow' | 'yesterday' | 'past' | 'custom'
 type BookingWithBrand = Booking & { brand: string }
 
-const DATE_FILTERS: { key: DateFilterKey; label: string }[] = [
-  { key: 'today', label: 'Today' },
-  { key: 'tomorrow', label: 'Tomorrow' },
-  { key: 'yesterday', label: 'Yesterday' },
-  { key: 'past', label: 'Past' },
-  { key: 'custom', label: 'Custom' },
-]
-
 const DAY_PERIODS = ['Morning', 'Afternoon', 'Evening'] as const
-
-function sortBookings(list: BookingWithBrand[], dateDesc = false) {
-  return [...list].sort((a, b) => {
-    const dateCmp = dateDesc
-      ? (b.appointment_date || '').localeCompare(a.appointment_date || '')
-      : (a.appointment_date || '').localeCompare(b.appointment_date || '')
-    if (dateCmp !== 0) return dateCmp
-    return appointmentMinutes(a.appointment_time) - appointmentMinutes(b.appointment_time)
-  })
-}
-
-function formatBookingDay(dateStr: string) {
-  if (!dateStr) return 'Undated'
-  if (dateStr === torontoYmd()) return 'Today'
-  if (dateStr === torontoYmd(1)) return 'Tomorrow'
-  if (dateStr === torontoYmd(-1)) return 'Yesterday'
-  return new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 
 async function fetchBookings(opts: {
   brandKey: string
   from?: string
   to?: string
-  before?: string
   limit?: number
 }): Promise<BookingWithBrand[]> {
   const tables =
@@ -258,15 +224,11 @@ async function fetchBookings(opts: {
 
   const rows = await Promise.all(
     tables.map(async (table) => {
-      let query = supabase.from(table).select('*')
-      if (opts.from && opts.to) {
-        query = opts.from === opts.to
-          ? query.eq('appointment_date', opts.from)
-          : query.gte('appointment_date', opts.from).lte('appointment_date', opts.to)
-      } else if (opts.before) {
-        query = query.lt('appointment_date', opts.before)
-      }
-      query = query.order('appointment_date', { ascending: !opts.before })
+      let query = applyAppointmentDateFilter(supabase.from(table).select('*'), {
+        from: opts.from,
+        to: opts.to,
+      })
+      query = query.order('appointment_date', { ascending: true })
       if (opts.limit) query = query.limit(opts.limit)
       const { data } = await query
       return (data || []).map((row: Record<string, unknown>) => mapBookingRow(row, table))
@@ -536,7 +498,7 @@ function HomeTab({ openAdd }: { openAdd: () => void }) {
       try {
         const today = torontoYmd()
         const allBookings = await fetchBookings({ brandKey: 'All', from: today, to: today })
-        setTodayBookings(sortBookings(allBookings))
+        setTodayBookings(sortBookingsByAppointment(allBookings))
 
         // Fetch hot leads
         const res = await fetch('/api/hot-leads')
@@ -792,7 +754,7 @@ function SegmentedControl({ options, value, onChange }: {
 
 function BookingsTab() {
   const [brand, setBrand] = useState('All')
-  const [dateFilter, setDateFilter] = useState<DateFilterKey>('today')
+  const [dateFilter, setDateFilter] = useState<BookingDateFilter>('all')
   const [customFrom, setCustomFrom] = useState(torontoYmd())
   const [customTo, setCustomTo] = useState(torontoYmd())
   const [bookings, setBookings] = useState<BookingWithBrand[]>([])
@@ -810,30 +772,15 @@ function BookingsTab() {
     async function load() {
       setLoading(true)
       try {
-        const today = torontoYmd()
-        let fetched: BookingWithBrand[] = []
-
-        if (dateFilter === 'past') {
-          fetched = await fetchBookings({ brandKey: brand, before: today, limit: 50 })
-          fetched = sortBookings(fetched, true)
-        } else {
-          let from =
-            dateFilter === 'today' ? today
-              : dateFilter === 'tomorrow' ? torontoYmd(1)
-              : dateFilter === 'yesterday' ? torontoYmd(-1)
-              : customFrom || today
-          let to =
-            dateFilter === 'custom' ? (customTo || customFrom || today) : from
-          if (from > to) {
-            const swapped = from
-            from = to
-            to = swapped
-          }
-          fetched = await fetchBookings({ brandKey: brand, from, to, limit: 80 })
-          fetched = sortBookings(fetched)
-        }
-
-        setBookings(fetched)
+        const range = getBookingDateRange(dateFilter, customFrom, customTo)
+        const dateDesc = bookingDateFilterIsDateDesc(dateFilter)
+        const fetched = await fetchBookings({
+          brandKey: brand,
+          from: range.from,
+          to: range.to,
+          limit: dateFilter === 'all' ? 200 : 80,
+        })
+        setBookings(sortBookingsByAppointment(fetched, dateDesc))
       } catch (e) {
         console.error('Error loading bookings:', e)
         setBookings([])
@@ -844,45 +791,18 @@ function BookingsTab() {
     load()
   }, [brand, dateFilter, customFrom, customTo])
 
-  const singleDay = dateFilter === 'today' || dateFilter === 'tomorrow' || dateFilter === 'yesterday'
+  const singleDay = dateFilter === 'today'
   const groupedByPeriod = DAY_PERIODS
     .map((period) => ({
       period,
       items: bookings.filter((booking) => dayPeriod(booking.appointment_time) === period),
     }))
     .filter((group) => group.items.length > 0)
-
-  const groupedByDate: { date: string; items: BookingWithBrand[] }[] = []
-  if (!singleDay) {
-    const byDate = new Map<string, BookingWithBrand[]>()
-    for (const booking of bookings) {
-      const key = booking.appointment_date || 'Undated'
-      const list = byDate.get(key) || []
-      list.push(booking)
-      byDate.set(key, list)
-    }
-    for (const [date, items] of byDate) {
-      groupedByDate.push({ date, items })
-    }
-  }
-
-  const emptyCopy =
-    dateFilter === 'today' ? 'No appointments today.'
-      : dateFilter === 'tomorrow' ? 'Nothing booked tomorrow.'
-      : dateFilter === 'yesterday' ? 'No appointments yesterday.'
-      : dateFilter === 'past' ? 'No past appointments.'
-      : 'No appointments in this date range.'
-
-  const subtitle =
-    dateFilter === 'today' ? `${bookings.length} today`
-      : dateFilter === 'tomorrow' ? `${bookings.length} tomorrow`
-      : dateFilter === 'yesterday' ? `${bookings.length} yesterday`
-      : dateFilter === 'past' ? `${bookings.length} past`
-      : `${bookings.length} in range`
+  const groupedByDate = groupBookingsByDate(bookings)
 
   return (
     <div>
-      <NavBar title="Bookings" subtitle={subtitle} />
+      <NavBar title="Bookings" subtitle={bookingDateFilterCountLabel(dateFilter, bookings.length)} />
       <div
         style={{
           display: 'flex',
@@ -892,7 +812,7 @@ function BookingsTab() {
           WebkitOverflowScrolling: 'touch',
         }}
       >
-        {DATE_FILTERS.map((chip) => {
+        {BOOKING_DATE_FILTERS.map((chip) => {
           const active = dateFilter === chip.key
           return (
             <button
@@ -964,7 +884,7 @@ function BookingsTab() {
         ) : bookings.length === 0 ? (
           <GroupedList>
             <div style={{ padding: '26px 14px', textAlign: 'center', ...font, fontSize: 13.5, color: SECONDARY }}>
-              {emptyCopy}
+              {bookingDateFilterEmptyCopy(dateFilter)}
             </div>
           </GroupedList>
         ) : singleDay ? (

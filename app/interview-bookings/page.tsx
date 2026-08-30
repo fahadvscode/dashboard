@@ -5,8 +5,20 @@ import { supabase } from '@/lib/supabase'
 import { Calendar, Download, Mail, Phone, User, Trash2, X, Clock, Tag, MessageSquare, FileText } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 import BookingReschedulePanel from '@/components/BookingReschedulePanel'
+import BookingDateFilterBar from '@/components/BookingDateFilterBar'
+import BookingDateSections from '@/components/BookingDateSections'
 import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
 import { formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
+import {
+  applyAppointmentDateFilter,
+  bookingDateFilterCountLabel,
+  bookingDateFilterEmptyCopy,
+  bookingDateFilterIsDateDesc,
+  getBookingDateRange,
+  sortBookingsByAppointment,
+  torontoYmd,
+  type BookingDateFilter,
+} from '@/lib/bookingDateFilter'
 import {
   normalizeBookingPayload,
   resolveBookingFirstName,
@@ -93,20 +105,32 @@ export default function InterviewBookings() {
   const [sendingSms, setSendingSms] = useState(false)
   const [smsError, setSmsError] = useState('')
   const [smsSuccess, setSmsSuccess] = useState('')
+  const [dateFilter, setDateFilter] = useState<BookingDateFilter>('all')
+  const [customFrom, setCustomFrom] = useState(() => torontoYmd())
+  const [customTo, setCustomTo] = useState(() => torontoYmd())
 
   useEffect(() => {
     fetchBookings()
-  }, [])
+  }, [dateFilter, customFrom, customTo])
 
   async function fetchBookings() {
+    setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from(BOOKING_TABLE)
-        .select('*')
-        .order('created_at', { ascending: false })
+      const range = getBookingDateRange(dateFilter, customFrom, customTo)
+      const dateDesc = bookingDateFilterIsDateDesc(dateFilter)
+      const query = applyAppointmentDateFilter(
+        supabase.from(BOOKING_TABLE).select('*'),
+        range
+      ).order('appointment_date', { ascending: !dateDesc })
+
+      const { data, error } = await query
 
       if (error) throw error
-      setBookings((data || []).map((row) => mapRowToBooking(row as Record<string, unknown>)))
+      setBookings(sortBookingsByAppointment(
+        (data || []).map((row) => mapRowToBooking(row as Record<string, unknown>)),
+        dateDesc
+      ))
+      setSelectedBookingIds(new Set())
     } catch (error) {
       console.error('Error fetching bookings:', error)
     } finally {
@@ -304,10 +328,6 @@ export default function InterviewBookings() {
     setSelectedBooking((prev) => (prev ? { ...prev, ...updated } : prev))
   }
 
-  if (loading) {
-    return <div className="p-8"><div className="animate-pulse">Loading...</div></div>
-  }
-
   const selectedResume = selectedBooking
     ? resolveInterviewResume(selectedBooking.details)
     : null
@@ -320,7 +340,7 @@ export default function InterviewBookings() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Fahad Sells Interview Bookings</h1>
-          <p className="text-gray-600 mt-2">{bookings.length} total interviews</p>
+          <p className="text-gray-600 mt-2">{bookingDateFilterCountLabel(dateFilter, bookings.length)}</p>
         </div>
         <div className="flex gap-2">
           {selectedBookingIds.size > 0 && (
@@ -343,6 +363,24 @@ export default function InterviewBookings() {
         </div>
       </div>
 
+      <BookingDateFilterBar
+        filter={dateFilter}
+        onFilterChange={setDateFilter}
+        customFrom={customFrom}
+        customTo={customTo}
+        onCustomFromChange={setCustomFrom}
+        onCustomToChange={setCustomTo}
+      />
+
+      {loading ? (
+        <div className="animate-pulse">Loading...</div>
+      ) : bookings.length === 0 ? (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+          <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">{bookingDateFilterEmptyCopy(dateFilter)}</p>
+        </div>
+      ) : (
+        <>
       {bookings.length > 0 && (
         <div className="mb-4 flex items-center gap-2">
           <input
@@ -357,10 +395,11 @@ export default function InterviewBookings() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {bookings.map((booking) => (
+      <BookingDateSections
+        bookings={bookings}
+        renderCard={(booking) => (
           <div 
-            key={booking.id} 
+            key={booking.id}  
             onClick={() => setSelectedBooking(booking)}
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 relative cursor-pointer hover:shadow-md transition-shadow"
           >
@@ -442,8 +481,10 @@ export default function InterviewBookings() {
               )}
             </div>
           </div>
-        ))}
-      </div>
+        )}
+      />
+        </>
+      )}
 
       {/* Booking Detail Modal */}
       {selectedBooking && (
