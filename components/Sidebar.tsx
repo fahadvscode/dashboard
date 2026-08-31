@@ -42,6 +42,7 @@ const navigationSections: { heading: string; items: NavItem[] }[] = [
       { name: 'Fahad Sells Interview Bookings', href: '/interview-bookings', icon: Calendar },
       { name: 'Precon Factory Bookings', href: '/precon-bookings', icon: Calendar },
       { name: 'GTA Lowrise Bookings', href: '/gta-lowrise-bookings', icon: Calendar },
+      { name: 'Venture X Booking', href: 'https://venturexheartland.spaces.nexudus.com/bookings?tab=Resources&view=card', icon: Link2, external: true },
     ],
   },
   {

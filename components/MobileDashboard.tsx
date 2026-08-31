@@ -119,6 +119,7 @@ const MORE_SECTIONS = [
       { label: 'Fahad Sells Interview Bookings', icon: Calendar, tint: TINT, href: '/interview-bookings' },
       { label: 'Precon Factory Bookings', icon: Calendar, tint: GOLD, href: '/precon-bookings' },
       { label: 'GTA Lowrise Bookings', icon: Calendar, tint: GOLD, href: '/gta-lowrise-bookings' },
+      { label: 'Venture X Booking', icon: Link2, tint: '#007AFF', href: 'https://venturexheartland.spaces.nexudus.com/bookings?tab=Resources&view=card', external: true },
     ],
   },
   {

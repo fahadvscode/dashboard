@@ -149,9 +149,15 @@ export default function FubBookingForm({
     }
   }
 
-  async function rescheduleAppointment(item: FubAppointment) {
+  async function rescheduleAppointment(
+    item: FubAppointment,
+    next?: { date?: string; time?: string; type?: string }
+  ) {
     setBusyId(item.id)
     setError('')
+    const appointment_date = next?.date ?? editDate
+    const appointment_time = next?.time ?? editTime
+    const appointment_type = next?.type ?? editType
     try {
       const response = await fetch('/api/fub/appointments/reschedule', {
         method: 'POST',
@@ -161,18 +167,18 @@ export default function FubBookingForm({
           signature,
           table: item.table,
           bookingId: item.id,
-          appointment_date: editDate,
-          appointment_time: editTime,
-          appointment_type: editType,
+          appointment_date,
+          appointment_time,
+          appointment_type,
         }),
       })
       const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Could not reschedule.')
-      setNotice(payload.calendarWarning || 'Appointment rescheduled. Calendar invite was updated.')
+      if (!response.ok) throw new Error(payload.error || 'Could not update appointment.')
+      setNotice(payload.calendarWarning || 'Appointment updated. Calendar invite was updated.')
       setEditingId(null)
       await reloadAppointments()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not reschedule.')
+      setError(err instanceof Error ? err.message : 'Could not update appointment.')
     } finally {
       setBusyId(null)
     }
@@ -181,7 +187,9 @@ export default function FubBookingForm({
   return (
     <div style={wrap}>
       <div style={{ fontSize: 15, fontWeight: 700, color: '#1f2933', marginBottom: 2 }}>{name}</div>
-      <div style={{ fontSize: 12, color: '#667085', marginBottom: 12 }}>Book, reschedule, or cancel</div>
+      <div style={{ fontSize: 12, color: '#667085', marginBottom: 12 }}>
+        Book a meeting, or change type, date, or cancel below
+      </div>
 
       {appointments.length > 0 ? (
         <>
@@ -190,22 +198,25 @@ export default function FubBookingForm({
             <div key={`${item.table}-${item.id}`} style={apptCard}>
               <div style={{ fontWeight: 600, fontSize: 13 }}>{item.project_name}</div>
               <div style={{ fontSize: 12, color: '#667085', margin: '4px 0 8px' }}>
-                {item.appointment_date} · {formatAppointmentTimeDisplay(item.appointment_time)} · {meetingTypeLabel(item.appointment_type)} · {item.brand}
+                {item.appointment_date} · {formatAppointmentTimeDisplay(item.appointment_time)} · {item.brand}
               </div>
               {editingId === item.id ? (
                 <>
-                  <input type="date" min={minDate} value={editDate} onChange={(e) => setEditDate(e.target.value)} style={input} />
-                  <select value={editTime} onChange={(e) => setEditTime(e.target.value)} style={{ ...input, marginTop: 6 }}>
-                    {APPOINTMENT_TIME_SLOTS.map((slot) => (
-                      <option key={slot} value={slot}>
-                        {slot}
-                      </option>
-                    ))}
-                  </select>
-                  <select value={editType} onChange={(e) => setEditType(e.target.value)} style={{ ...input, marginTop: 6 }}>
+                  <label style={label}>Type</label>
+                  <select value={editType} onChange={(e) => setEditType(e.target.value)} style={input}>
                     {FUB_MEETING_TYPES.map((meeting) => (
                       <option key={meeting.id} value={meeting.id}>
                         {meeting.label}
+                      </option>
+                    ))}
+                  </select>
+                  <label style={label}>Date</label>
+                  <input type="date" min={minDate} value={editDate} onChange={(e) => setEditDate(e.target.value)} style={input} />
+                  <label style={label}>Time</label>
+                  <select value={editTime} onChange={(e) => setEditTime(e.target.value)} style={input}>
+                    {APPOINTMENT_TIME_SLOTS.map((slot) => (
+                      <option key={slot} value={slot}>
+                        {slot}
                       </option>
                     ))}
                   </select>
@@ -238,33 +249,54 @@ export default function FubBookingForm({
                   </button>
                 </div>
               ) : (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    type="button"
+                <>
+                  <label style={label}>Type</label>
+                  <select
+                    value={parseMeetingType(item.appointment_type) || 'phone_call'}
                     disabled={busyId === item.id}
-                    onClick={() => {
-                      setEditingId(item.id)
-                      setConfirmingId(null)
-                      setEditDate(item.appointment_date)
-                      setEditTime(item.appointment_time)
-                      setEditType(parseMeetingType(item.appointment_type) || 'phone_call')
+                    onChange={(e) => {
+                      void rescheduleAppointment(item, {
+                        date: item.appointment_date,
+                        time: item.appointment_time,
+                        type: e.target.value,
+                      })
                     }}
-                    style={smallPrimary}
+                    style={input}
                   >
-                    Reschedule
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busyId === item.id}
-                    onClick={() => {
-                      setConfirmingId(item.id)
-                      setEditingId(null)
-                    }}
-                    style={smallDanger}
-                  >
-                    Cancel
-                  </button>
-                </div>
+                    {FUB_MEETING_TYPES.map((meeting) => (
+                      <option key={meeting.id} value={meeting.id}>
+                        {meeting.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                    <button
+                      type="button"
+                      disabled={busyId === item.id}
+                      onClick={() => {
+                        setEditingId(item.id)
+                        setConfirmingId(null)
+                        setEditDate(item.appointment_date)
+                        setEditTime(item.appointment_time)
+                        setEditType(parseMeetingType(item.appointment_type) || 'phone_call')
+                      }}
+                      style={smallPrimary}
+                    >
+                      Change date / time
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId === item.id}
+                      onClick={() => {
+                        setConfirmingId(item.id)
+                        setEditingId(null)
+                      }}
+                      style={smallDanger}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           ))}
