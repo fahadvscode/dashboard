@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Home, Calendar, Flame, Plus, Phone, Mail, Building2, Video,
   PhoneCall, Check, ChevronRight, User, X, MapPin,
-  Search, CheckSquare, UploadCloud, Users, FolderOpen, Sparkles, TrendingUp, ClipboardList, BarChart3,
+  Search, CheckSquare, UploadCloud, Users, FolderOpen, Sparkles, TrendingUp, ClipboardList, BarChart3, ThumbsDown,
   Image, MessageSquare, Link2, LogOut, MoreHorizontal,
   Radio, Shuffle, MousePointerClick, Zap, MessageCircle, Loader2,
   FileText, Edit, Mailbox,
@@ -108,6 +108,7 @@ const MORE_SECTIONS = [
       { label: 'Search Console', icon: BarChart3, tint: '#34C759', href: '/insights#search-console' },
       { label: 'Task Manager', icon: CheckSquare, tint: '#FF9500', href: 'https://task-management-app-flame-seven.vercel.app/', external: true },
       { label: 'Daily Report', icon: ClipboardList, tint: '#30B0C7', href: 'https://fahadsells.com/internal/timecard', external: true },
+      { label: 'Projects said NO', icon: ThumbsDown, tint: '#FF3B30', href: 'https://fahadsells.com/internal/no-log', external: true },
       { label: 'AI Lead Insights', icon: Sparkles, tint: '#5856D6', href: '/ai-insights' },
       { label: 'SMS Conversations', icon: MessageSquare, tint: '#34C759', href: '/conversations' },
     ],
