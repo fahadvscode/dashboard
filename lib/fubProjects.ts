@@ -138,6 +138,7 @@ export type FubAppointment = {
   appointment_date: string
   appointment_time: string
   appointment_type: string
+  booked_by?: string | null
   status: string
 }
 
@@ -172,7 +173,7 @@ export async function listUpcomingFubAppointments(email: string, phone: string):
   for (const brand of FUB_BOOKING_BRANDS) {
     const { data } = await supabase
       .from(brand.table)
-      .select('id, email, phone, appointment_date, appointment_time, appointment_type, status, project_name')
+      .select('id, email, phone, appointment_date, appointment_time, appointment_type, booked_by, status, project_name')
       .gte('appointment_date', today)
       .order('appointment_date', { ascending: true })
       .limit(40)
@@ -185,6 +186,7 @@ export async function listUpcomingFubAppointments(email: string, phone: string):
         appointment_date: string
         appointment_time: string
         appointment_type?: string | null
+        booked_by?: string | null
         status?: string
         project_name?: string | null
       }
@@ -200,6 +202,7 @@ export async function listUpcomingFubAppointments(email: string, phone: string):
         appointment_date: String(item.appointment_date || ''),
         appointment_time: String(item.appointment_time || ''),
         appointment_type: String(item.appointment_type || ''),
+        booked_by: String(item.booked_by || ''),
         status: String(item.status || ''),
       })
     }

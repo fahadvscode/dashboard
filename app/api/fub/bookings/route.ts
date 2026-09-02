@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { normalizeAppointmentTime } from '@/lib/bookingTimes'
+import { parseBookedBy } from '@/lib/bookedBy'
 import {
   FUB_BOOKING_BRANDS,
   FUB_MEETING_TYPES,
@@ -40,6 +41,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Choose a date and time.' }, { status: 400 })
     }
 
+    const bookedBy = parseBookedBy(body.bookedBy ?? body.booked_by)
+    if (!bookedBy) {
+      return NextResponse.json({ error: 'Choose who booked this appointment.' }, { status: 400 })
+    }
+
     const person = resolved.context.person
     const firstname = String(person.firstName || '').trim() || 'Lead'
     const lastname = String(person.lastName || '').trim()
@@ -66,6 +72,7 @@ export async function POST(request: NextRequest) {
         ? { project_id: String(body.projectId).trim() }
         : {}),
       status: 'confirmed',
+      booked_by: bookedBy,
       message: personId
         ? `Booked from Follow Up Boss (person ${personId})`
         : 'Booked from Follow Up Boss',

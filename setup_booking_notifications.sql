@@ -38,6 +38,7 @@ BEGIN
       'project_id', NEW.project_id,
       'project_url', NEW.project_url,
       'project_brand', NEW.project_brand,
+      'booked_by', NEW.booked_by,
       'table_name', TG_TABLE_NAME
     )
   ) INTO request_id;

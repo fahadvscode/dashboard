@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { APPOINTMENT_TIME_SLOTS, formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
 import { FUB_BOOKING_BRANDS, FUB_MEETING_TYPES } from '@/lib/fubEmbeddedApp'
 import { meetingTypeLabel, parseMeetingType } from '@/lib/meetingTypes'
+import { BOOKED_BY_OPTIONS } from '@/lib/bookedBy'
 import type { FubAppointment, FubProjectOption } from '@/lib/fubProjects'
 
 type Props = {
@@ -35,6 +36,7 @@ export default function FubBookingForm({
   const minDate = useMemo(() => todayToronto(), [])
   const [brand, setBrand] = useState('fj')
   const [type, setType] = useState('phone_call')
+  const [bookedBy, setBookedBy] = useState('')
   const [date, setDate] = useState(minDate)
   const [time, setTime] = useState('10:00 AM')
   const [selected, setSelected] = useState<FubProjectOption | null>(taggedProjects[0] ?? null)
@@ -106,6 +108,7 @@ export default function FubBookingForm({
           signature,
           brand,
           type,
+          bookedBy,
           date,
           time,
           project: selected?.project_name || search.trim(),
@@ -199,6 +202,7 @@ export default function FubBookingForm({
               <div style={{ fontWeight: 600, fontSize: 13 }}>{item.project_name}</div>
               <div style={{ fontSize: 12, color: '#667085', margin: '4px 0 8px' }}>
                 {item.appointment_date} · {formatAppointmentTimeDisplay(item.appointment_time)} · {item.brand}
+                {item.booked_by ? ` · Booked by ${item.booked_by}` : ''}
               </div>
               {editingId === item.id ? (
                 <>
@@ -323,6 +327,16 @@ export default function FubBookingForm({
         ))}
       </select>
 
+      <label style={label}>Booked by (internal)</label>
+      <select value={bookedBy} onChange={(e) => setBookedBy(e.target.value)} style={input}>
+        <option value="">Select who booked this</option>
+        {BOOKED_BY_OPTIONS.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </select>
+
       <label style={label}>Date</label>
       <input type="date" min={minDate} value={date} onChange={(e) => setDate(e.target.value)} style={input} />
 
@@ -397,7 +411,7 @@ export default function FubBookingForm({
       {notice ? <div style={noticeText}>{notice}</div> : null}
       {error ? <div style={errorText}>{error}</div> : null}
 
-      <button type="button" onClick={() => void book()} disabled={saving || !date || !time} style={button}>
+      <button type="button" onClick={() => void book()} disabled={saving || !date || !time || !bookedBy} style={button}>
         {saving ? 'Booking…' : 'Book meeting'}
       </button>
     </div>

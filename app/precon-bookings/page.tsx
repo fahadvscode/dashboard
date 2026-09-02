@@ -37,6 +37,7 @@ interface Booking {
   redirect_link?: string | null
   project_url?: string | null
   url?: string | null
+  booked_by?: string | null
 }
 
 export default function PreconFactoryBookings() {
@@ -80,7 +81,7 @@ export default function PreconFactoryBookings() {
   }
 
   const exportToCSV = () => {
-    const headers = ['Name', 'Email', 'Phone', 'Date', 'Time', 'Type', 'Status']
+    const headers = ['Name', 'Email', 'Phone', 'Date', 'Time', 'Type', 'Booked by', 'Status']
     const csvData = bookings.map(b => [
       `${b.firstname} ${b.lastname}`,
       b.email,
@@ -88,6 +89,7 @@ export default function PreconFactoryBookings() {
       b.appointment_date,
       b.appointment_time,
       b.appointment_type,
+      b.booked_by || '',
       b.status
     ])
 
@@ -360,6 +362,11 @@ export default function PreconFactoryBookings() {
                 <div className="text-xs text-gray-500">
                   <span className="font-medium">Type:</span> {booking.appointment_type}
                 </div>
+                {booking.booked_by && (
+                  <div className="text-xs text-gray-500 mt-2">
+                    <span className="font-medium">Booked by:</span> {booking.booked_by}
+                  </div>
+                )}
                 {booking.message && (
                   <div className="text-xs text-gray-500 mt-2">
                     <span className="font-medium">Message:</span> {booking.message.substring(0, 100)}
@@ -472,6 +479,15 @@ export default function PreconFactoryBookings() {
                     <span>{selectedBooking.appointment_type || '—'}</span>
                   </div>
                 </div>
+                {selectedBooking.booked_by && (
+                  <div>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Booked by</span>
+                    <div className="mt-2 flex items-center text-gray-700">
+                      <User className="mr-2 h-4 w-4 text-gray-400" />
+                      <span>{selectedBooking.booked_by}</span>
+                    </div>
+                  </div>
+                )}
                 {selectedBooking.priority && (
                   <div>
                     <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Priority</span>

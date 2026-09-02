@@ -25,6 +25,7 @@ import {
 } from '@/lib/interviewManageUrl'
 import { interviewAlreadyNotified, markInterviewNotified } from '@/lib/markInterviewNotified'
 import { formatInterviewCandidateId } from '@/lib/interviewCandidateNumber'
+import { bookedByAdminEmailRow, bookedByAdminSmsLine } from '@/lib/bookedBy'
 import { SALES_CALENDAR_EMAIL } from '@/lib/bookingCalendar'
 import {
   buildInterviewResumeEmailHtml,
@@ -245,7 +246,7 @@ export async function POST(request: NextRequest) {
 
     message += `\n📅 Date: ${booking.appointment_date || 'Not specified'}
 🕐 Time: ${booking.appointment_time || 'Not specified'}
-🎯 Type: ${displayType}
+🎯 Type: ${displayType}${isInterview ? '' : bookedByAdminSmsLine(booking.booked_by)}
 ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meetingFormat)}`
 
     if (isInterview) {
@@ -329,6 +330,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
             <div class="detail-row"><div class="detail-label">📅 Date:</div><div class="detail-value">${booking.appointment_date || 'Not specified'}</div></div>
             <div class="detail-row"><div class="detail-label">🕐 Time:</div><div class="detail-value">${booking.appointment_time || 'Not specified'}</div></div>
             <div class="detail-row"><div class="detail-label">🎯 Type:</div><div class="detail-value">${displayType}</div></div>
+            ${isInterview ? '' : bookedByAdminEmailRow(booking.booked_by)}
             ${booking.project_name ? `<div class="detail-row"><div class="detail-label">🏢 Project:</div><div class="detail-value">${booking.project_name}</div></div>` : ''}
             ${booking.project_id ? `<div class="detail-row"><div class="detail-label">🆔 Project ID:</div><div class="detail-value">${booking.project_id}</div></div>` : ''}
             ${booking.project_url ? `<div class="detail-row"><div class="detail-label">🌐 Project Link:</div><div class="detail-value"><a href="${booking.project_url}" target="_blank" style="color: #3b82f6;">View Project</a></div></div>` : ''}

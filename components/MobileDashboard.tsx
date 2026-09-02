@@ -22,6 +22,7 @@ import {
   type HomeScreenProject,
 } from '@/lib/homeScreenProjects'
 import { formatAppointmentTimeDisplay, isBookingStatusCanceled, parseAppointmentTime } from '@/lib/bookingTimes'
+import { BOOKED_BY_OPTIONS, parseBookedBy } from '@/lib/bookedBy'
 import { normalizeBookingPayload, resolveBookingFirstName, resolveBookingLastName } from '@/lib/normalizeBookingPayload'
 import {
   applyAppointmentDateFilter,
@@ -75,6 +76,7 @@ interface Booking {
   appointment_date: string
   appointment_time: string
   appointment_type: string
+  booked_by?: string | null
   status: string
   project_name?: string | null
   created_at: string
@@ -273,7 +275,7 @@ function AppointmentRow({
       last={last}
       leading={<IconChip Icon={User} tint={isFJ ? TINT : GOLD} />}
       title={name}
-      subtitle={`${booking.project_name || 'No project'} · ${booking.brand}`}
+      subtitle={`${booking.project_name || 'No project'} · ${booking.brand}${booking.booked_by ? ` · ${booking.booked_by}` : ''}`}
       trailing={
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <div style={{ textAlign: 'right' }}>
@@ -1440,7 +1442,7 @@ function AddBookingSheet({ close }: { close: () => void }) {
   const [step, setStep] = useState(1)
   const [confirmed, setConfirmed] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [data, setData] = useState({ brand: '', type: '', firstname: '', lastname: '', email: '', phone: '', project: '', date: '', time: '' })
+  const [data, setData] = useState({ brand: '', type: '', bookedBy: '', firstname: '', lastname: '', email: '', phone: '', project: '', date: '', time: '' })
   const totalSteps = 5
   const update = (k: string, v: string) => setData((d) => ({ ...d, [k]: v }))
 
@@ -1448,7 +1450,7 @@ function AddBookingSheet({ close }: { close: () => void }) {
 
   const canNext: Record<number, boolean> = {
     1: !!data.brand,
-    2: !!data.type,
+    2: !!data.type && !!parseBookedBy(data.bookedBy),
     3: !!(data.firstname && data.lastname && data.phone),
     4: !!(data.project && data.date && data.time),
     5: true,
@@ -1467,6 +1469,7 @@ function AddBookingSheet({ close }: { close: () => void }) {
           appointment_date: data.date,
           appointment_time: data.time,
           appointment_type: data.type,
+          booked_by: parseBookedBy(data.bookedBy) || null,
           project_name: data.project,
           status: 'confirmed',
         })
@@ -1525,6 +1528,13 @@ function AddBookingSheet({ close }: { close: () => void }) {
                       <IconChoice key={t.key} Icon={t.icon} label={t.label} selected={data.type === t.key} onClick={() => update('type', t.key)} />
                     ))}
                   </div>
+                  <div style={{ height: 18 }} />
+                  <SectionHeader>Who booked this? (admins only)</SectionHeader>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {BOOKED_BY_OPTIONS.map((name) => (
+                      <BigChoice key={name} label={name} sub="" selected={data.bookedBy === name} onClick={() => update('bookedBy', name)} />
+                    ))}
+                  </div>
                 </>
               )}
 
@@ -1561,7 +1571,7 @@ function AddBookingSheet({ close }: { close: () => void }) {
                       last
                       leading={<IconChip Icon={typeIcon(data.type)} tint={TINT} />}
                       title={APPT_TYPES.find((t) => t.key === data.type)?.label || ''}
-                      subtitle={data.brand}
+                      subtitle={`${data.brand}${data.bookedBy ? ` · Booked by ${data.bookedBy}` : ''}`}
                     />
                   </GroupedList>
                 </>
@@ -1610,7 +1620,9 @@ function BigChoice({ label, sub, selected, onClick }: { label: string; sub: stri
     >
       <div>
         <div style={{ ...font, fontWeight: 600, fontSize: 16, color: LABEL }}>{label}</div>
-        <div style={{ ...font, fontSize: 12.5, color: SECONDARY, marginTop: 1 }}>{sub}</div>
+        {sub ? (
+          <div style={{ ...font, fontSize: 12.5, color: SECONDARY, marginTop: 1 }}>{sub}</div>
+        ) : null}
       </div>
       {selected ? (
         <div style={{ width: 22, height: 22, borderRadius: 999, background: TINT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
