@@ -10,7 +10,7 @@ import BookingDateSections from '@/components/BookingDateSections'
 import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
 import { formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
 import {
-  applyAppointmentDateFilter,
+  applySlotStartDateFilter,
   bookingDateFilterCountLabel,
   bookingDateFilterEmptyCopy,
   bookingDateFilterIsDateDesc,
@@ -118,10 +118,10 @@ export default function InterviewBookings() {
     try {
       const range = getBookingDateRange(dateFilter, customFrom, customTo)
       const dateDesc = bookingDateFilterIsDateDesc(dateFilter)
-      const query = applyAppointmentDateFilter(
+      const query = applySlotStartDateFilter(
         supabase.from(BOOKING_TABLE).select('*'),
         range
-      ).order('appointment_date', { ascending: !dateDesc })
+      ).order('slot_start', { ascending: !dateDesc })
 
       const { data, error } = await query
 

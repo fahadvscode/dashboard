@@ -25,7 +25,8 @@ import { formatAppointmentTimeDisplay, isBookingStatusCanceled, parseAppointment
 import { BOOKED_BY_OPTIONS, parseBookedBy } from '@/lib/bookedBy'
 import { normalizeBookingPayload, resolveBookingFirstName, resolveBookingLastName } from '@/lib/normalizeBookingPayload'
 import {
-  applyAppointmentDateFilter,
+  applyBookingScheduleFilter,
+  bookingScheduleColumn,
   BOOKING_DATE_FILTERS,
   bookingDateFilterCountLabel,
   bookingDateFilterEmptyCopy,
@@ -222,6 +223,7 @@ function mapBookingRow(row: Record<string, unknown>, table: string): Booking & {
     ...(copy as unknown as Booking),
     firstname: resolveBookingFirstName(copy),
     lastname: resolveBookingLastName(copy),
+    appointment_type: String(copy.appointment_type || (table.includes('interview') ? 'In-Person Interview' : '')),
     brand: getBrandForBooking(table),
   }
 }
@@ -243,13 +245,18 @@ async function fetchBookings(opts: {
 
   const rows = await Promise.all(
     tables.map(async (table) => {
-      let query = applyAppointmentDateFilter(supabase.from(table).select('*'), {
-        from: opts.from,
-        to: opts.to,
-      })
-      query = query.order('appointment_date', { ascending: true })
+      let query = applyBookingScheduleFilter(
+        supabase.from(table).select('*'),
+        { from: opts.from, to: opts.to },
+        table
+      )
+      query = query.order(bookingScheduleColumn(table), { ascending: true })
       if (opts.limit) query = query.limit(opts.limit)
-      const { data } = await query
+      const { data, error } = await query
+      if (error) {
+        console.error(`Error fetching ${table}:`, error)
+        return []
+      }
       return (data || []).map((row: Record<string, unknown>) => mapBookingRow(row, table))
     })
   )
