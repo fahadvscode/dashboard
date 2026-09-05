@@ -1488,6 +1488,18 @@ function AddBookingSheet({ close }: { close: () => void }) {
       setSaving(true)
       try {
         const table = data.brand === 'FJ' ? 'fj_bookings' : 'precon_factory_bookings'
+        const limitResponse = await fetch('/api/bookings/limit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: data.email, phone: data.phone }),
+        })
+        const limit = await limitResponse.json().catch(() => ({}))
+        if (limitResponse.ok && limit.allowed === false) {
+          const proceed = window.confirm(
+            `This person already has ${limit.count || 3} bookings.\n\n${limit.message || 'Contact +1 4163994289 to book an appointment'}\n\nBook anyway from the dashboard?`
+          )
+          if (!proceed) return
+        }
         await supabase.from(table).insert({
           firstname: data.firstname,
           lastname: data.lastname,

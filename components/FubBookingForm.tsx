@@ -119,6 +119,35 @@ export default function FubBookingForm({
       })
       const payload = await response.json()
       if (!response.ok) {
+        if (payload.needsOverride) {
+          const proceed = window.confirm(
+            `This person already has ${payload.count || 3} bookings.\n\n${payload.error || 'Contact +1 4163994289 to book an appointment'}\n\nBook anyway from the dashboard?`
+          )
+          if (!proceed) return
+          const retry = await fetch('/api/fub/bookings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              context,
+              signature,
+              brand,
+              type,
+              bookedBy,
+              date,
+              time,
+              project: selected?.project_name || search.trim(),
+              projectId: selected?.id || '',
+              email: contactEmail,
+              phone: contactPhone,
+              override: true,
+            }),
+          })
+          const retryPayload = await retry.json()
+          if (!retry.ok) throw new Error(retryPayload.error || 'Could not book this meeting.')
+          setNotice(retryPayload.message || 'Meeting booked.')
+          await reloadAppointments()
+          return
+        }
         throw new Error(payload.error || 'Could not book this meeting.')
       }
       setNotice(payload.message || 'Meeting booked.')
