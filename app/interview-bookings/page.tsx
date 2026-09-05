@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import { Calendar, Download, Mail, Phone, User, Trash2, X, Clock, Tag, MessageSquare, FileText } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 import BookingReschedulePanel from '@/components/BookingReschedulePanel'
@@ -10,10 +9,10 @@ import BookingDateSections from '@/components/BookingDateSections'
 import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
 import { formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
 import {
-  applySlotStartDateFilter,
   bookingDateFilterCountLabel,
   bookingDateFilterEmptyCopy,
   bookingDateFilterIsDateDesc,
+  bookingMatchesDateRange,
   getBookingDateRange,
   sortBookingsByAppointment,
   torontoYmd,
@@ -108,6 +107,7 @@ export default function InterviewBookings() {
   const [dateFilter, setDateFilter] = useState<BookingDateFilter>('all')
   const [customFrom, setCustomFrom] = useState(() => torontoYmd())
   const [customTo, setCustomTo] = useState(() => torontoYmd())
+  const [fetchError, setFetchError] = useState('')
 
   useEffect(() => {
     fetchBookings()
@@ -115,24 +115,28 @@ export default function InterviewBookings() {
 
   async function fetchBookings() {
     setLoading(true)
+    setFetchError('')
     try {
-      const range = getBookingDateRange(dateFilter, customFrom, customTo)
-      const dateDesc = bookingDateFilterIsDateDesc(dateFilter)
-      const query = applySlotStartDateFilter(
-        supabase.from(BOOKING_TABLE).select('*'),
-        range
-      ).order('slot_start', { ascending: !dateDesc })
+      const response = await fetch('/api/bookings/interview')
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to load interview bookings')
+      }
 
-      const { data, error } = await query
-
-      if (error) throw error
-      setBookings(sortBookingsByAppointment(
-        (data || []).map((row) => mapRowToBooking(row as Record<string, unknown>)),
-        dateDesc
-      ))
+      const mapped = ((payload.bookings || []) as Record<string, unknown>[]).map(mapRowToBooking)
+      const range = dateFilter === 'all' ? {} : getBookingDateRange(dateFilter, customFrom, customTo)
+      const filtered = mapped.filter((booking) => bookingMatchesDateRange(booking.appointment_date, range))
+      const dateDesc = dateFilter === 'all' || bookingDateFilterIsDateDesc(dateFilter)
+      setBookings(
+        dateFilter === 'all'
+          ? [...filtered].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+          : sortBookingsByAppointment(filtered, dateDesc)
+      )
       setSelectedBookingIds(new Set())
     } catch (error) {
       console.error('Error fetching bookings:', error)
+      setFetchError(error instanceof Error ? error.message : 'Failed to load interview bookings')
+      setBookings([])
     } finally {
       setLoading(false)
     }
@@ -340,7 +344,7 @@ export default function InterviewBookings() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Fahad Sells Interview Bookings</h1>
-          <p className="text-gray-600 mt-2">{bookingDateFilterCountLabel(dateFilter, bookings.length)}</p>
+          <p className="text-gray-600 mt-2">{bookingDateFilterCountLabel(dateFilter, bookings.length, { allMeansEvery: true })}</p>
         </div>
         <div className="flex gap-2">
           {selectedBookingIds.size > 0 && (
@@ -374,10 +378,15 @@ export default function InterviewBookings() {
 
       {loading ? (
         <div className="animate-pulse">Loading...</div>
+      ) : fetchError ? (
+        <div className="bg-white rounded-lg shadow-sm border border-red-200 p-12 text-center">
+          <Calendar className="h-16 w-16 text-red-200 mx-auto mb-4" />
+          <p className="text-red-600">{fetchError}</p>
+        </div>
       ) : bookings.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
           <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">{bookingDateFilterEmptyCopy(dateFilter)}</p>
+          <p className="text-gray-500">{bookingDateFilterEmptyCopy(dateFilter, { allMeansEvery: true })}</p>
         </div>
       ) : (
         <>

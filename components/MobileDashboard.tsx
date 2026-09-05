@@ -24,9 +24,11 @@ import {
 import { formatAppointmentTimeDisplay, isBookingStatusCanceled, parseAppointmentTime } from '@/lib/bookingTimes'
 import { BOOKED_BY_OPTIONS, parseBookedBy } from '@/lib/bookedBy'
 import { normalizeBookingPayload, resolveBookingFirstName, resolveBookingLastName } from '@/lib/normalizeBookingPayload'
+import { isFahadSellsInterviewBooking } from '@/lib/interviewBookingConstants'
 import {
   applyBookingScheduleFilter,
   bookingScheduleColumn,
+  bookingMatchesDateRange,
   BOOKING_DATE_FILTERS,
   bookingDateFilterCountLabel,
   bookingDateFilterEmptyCopy,
@@ -245,6 +247,23 @@ async function fetchBookings(opts: {
 
   const rows = await Promise.all(
     tables.map(async (table) => {
+      if (isFahadSellsInterviewBooking(table)) {
+        const response = await fetch('/api/bookings/interview')
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          console.error(`Error fetching ${table}:`, payload?.error || response.status)
+          return []
+        }
+        const mapped = ((payload.bookings || []) as Record<string, unknown>[]).map((row) =>
+          mapBookingRow(row, table)
+        )
+        const showEveryInterview = opts.brandKey === 'Interview' && !opts.to
+        if (showEveryInterview) return mapped
+        return mapped.filter((booking) =>
+          bookingMatchesDateRange(booking.appointment_date, { from: opts.from, to: opts.to })
+        )
+      }
+
       let query = applyBookingScheduleFilter(
         supabase.from(table).select('*'),
         { from: opts.from, to: opts.to },
@@ -796,13 +815,14 @@ function BookingsTab() {
     { key: 'Lowrise', label: 'Lowrise' },
     { key: 'Interview', label: 'Interview' },
   ]
+  const allMeansEvery = brand === 'Interview'
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
         const range = getBookingDateRange(dateFilter, customFrom, customTo)
-        const dateDesc = bookingDateFilterIsDateDesc(dateFilter)
+        const dateDesc = allMeansEvery && dateFilter === 'all' ? true : bookingDateFilterIsDateDesc(dateFilter)
         const fetched = await fetchBookings({
           brandKey: brand,
           from: range.from,
@@ -831,7 +851,7 @@ function BookingsTab() {
 
   return (
     <div>
-      <NavBar title="Bookings" subtitle={bookingDateFilterCountLabel(dateFilter, bookings.length)} />
+      <NavBar title="Bookings" subtitle={bookingDateFilterCountLabel(dateFilter, bookings.length, { allMeansEvery })} />
       <div
         style={{
           display: 'flex',
@@ -913,7 +933,7 @@ function BookingsTab() {
         ) : bookings.length === 0 ? (
           <GroupedList>
             <div style={{ padding: '26px 14px', textAlign: 'center', ...font, fontSize: 13.5, color: SECONDARY }}>
-              {bookingDateFilterEmptyCopy(dateFilter)}
+              {bookingDateFilterEmptyCopy(dateFilter, { allMeansEvery })}
             </div>
           </GroupedList>
         ) : singleDay ? (

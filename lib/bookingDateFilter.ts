@@ -139,15 +139,40 @@ export function bookingDateFilterIsDateDesc(filter: BookingDateFilter) {
   return filter === 'last7'
 }
 
-export function bookingDateFilterCountLabel(filter: BookingDateFilter, count: number) {
-  if (filter === 'all') return `${count} upcoming`
+export function bookingMatchesDateRange(
+  appointmentDate: string | null | undefined,
+  range: BookingDateRange
+) {
+  if (!range.from && !range.to) return true
+  const date = String(appointmentDate || '').trim()
+  if (!date) return false
+  if (range.from && date < range.from) return false
+  if (range.to && date > range.to) return false
+  return true
+}
+
+export function bookingDateFilterCountLabel(
+  filter: BookingDateFilter,
+  count: number,
+  options?: { allMeansEvery?: boolean }
+) {
+  if (filter === 'all') {
+    return options?.allMeansEvery
+      ? `${count} booking${count === 1 ? '' : 's'}`
+      : `${count} upcoming`
+  }
   if (filter === 'today') return `${count} today`
   if (filter === 'last7') return `${count} in the last 7 days`
   return `${count} in this range`
 }
 
-export function bookingDateFilterEmptyCopy(filter: BookingDateFilter) {
-  if (filter === 'all') return 'No upcoming appointments.'
+export function bookingDateFilterEmptyCopy(
+  filter: BookingDateFilter,
+  options?: { allMeansEvery?: boolean }
+) {
+  if (filter === 'all') {
+    return options?.allMeansEvery ? 'No bookings.' : 'No upcoming appointments.'
+  }
   if (filter === 'today') return 'No appointments today.'
   if (filter === 'last7') return 'No appointments in the last 7 days.'
   return 'No appointments in this date range.'
