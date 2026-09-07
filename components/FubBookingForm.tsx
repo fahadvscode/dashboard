@@ -7,6 +7,7 @@ import { FUB_BOOKING_BRANDS, FUB_MEETING_TYPES } from '@/lib/fubEmbeddedApp'
 import { meetingTypeLabel, parseMeetingType } from '@/lib/meetingTypes'
 import { BOOKED_BY_OPTIONS } from '@/lib/bookedBy'
 import type { FubAppointment, FubProjectOption } from '@/lib/fubProjects'
+import FubFollowUpPanel from '@/components/FubFollowUpPanel'
 
 type Props = {
   context: string
@@ -222,6 +223,8 @@ export default function FubBookingForm({
       <div style={{ fontSize: 12, color: '#667085', marginBottom: 12 }}>
         Book a meeting, or change type, date, or cancel below
       </div>
+
+      <FubFollowUpPanel context={context} signature={signature} />
 
       {appointments.length > 0 ? (
         <>
