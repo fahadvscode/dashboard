@@ -282,6 +282,7 @@ export async function updateBookingAppointment(
 export async function createEscalationCalendarEvent(opts: {
   leadName: string
   staff: string
+  from?: string
   date: string
   time: string
   email?: string
@@ -293,6 +294,7 @@ export async function createEscalationCalendarEvent(opts: {
   const description = [
     buildEscalationDescription({
       staff: opts.staff,
+      from: opts.from,
       leadName: opts.leadName,
       email: opts.email || '',
       phone: opts.phone || '',
@@ -303,10 +305,11 @@ export async function createEscalationCalendarEvent(opts: {
     .join('')
 
   const requestBody = {
-    summary: buildEscalationSummary(opts.staff, opts.leadName),
+    summary: buildEscalationSummary(opts.staff, opts.leadName, opts.from),
     description,
     start: { dateTime: startDateTimeLocal, timeZone: BOOKING_TIMEZONE },
     end: { dateTime: endDateTimeLocal, timeZone: BOOKING_TIMEZONE },
+    colorId: '6',
     reminders: {
       useDefault: false,
       overrides: [{ method: 'popup', minutes: 30 }],

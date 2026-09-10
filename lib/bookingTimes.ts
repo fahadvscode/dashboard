@@ -82,9 +82,9 @@ export function buildAppointmentDateTimes(appointmentDate: string, appointmentTi
 
 export function generateAppointmentTimeSlots(): string[] {
   const slots: string[] = []
-  for (let hour = 8; hour <= 19; hour++) {
+  for (let hour = 8; hour <= 23; hour++) {
     for (const minute of [0, 30]) {
-      if (hour === 19 && minute === 30) continue
+      if (hour === 23 && minute === 30) continue
       slots.push(formatAppointmentTime(hour, minute))
     }
   }

@@ -1,6 +1,7 @@
 import { connection } from 'next/server'
 import FubBookingForm from '@/components/FubBookingForm'
 import {
+  fubPersonName,
   pickFubEmail,
   pickFubPhone,
   resolveFubBookingState,
@@ -97,6 +98,7 @@ export default async function FubBookingsPage({
   }
 
   const person = resolved.context?.person
+  const leadName = fubPersonName(person)
   const contextTags = extractFubTags(person)
   const apiTags = person?.id != null ? await fetchFollowUpBossPersonTags(String(person.id)) : []
   const tags = [...new Set([...contextTags, ...apiTags])]
@@ -107,8 +109,8 @@ export default async function FubBookingsPage({
     <FubBookingForm
       context={context}
       signature={signature}
-      firstName={person?.firstName || ''}
-      lastName={person?.lastName || ''}
+      firstName={person?.firstName || person?.first_name || leadName}
+      lastName={person?.lastName || person?.last_name || ''}
       email={pickFubEmail(person)}
       phone={pickFubPhone(person)}
       taggedProjects={taggedProjects}

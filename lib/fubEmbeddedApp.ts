@@ -18,8 +18,11 @@ export type FubDebugState =
 
 export type FubPerson = {
   id?: number | string
+  name?: string
   firstName?: string
   lastName?: string
+  first_name?: string
+  last_name?: string
   emails?: Array<{ value?: string; isPrimary?: number | boolean }>
   phones?: Array<{ value?: string; normalized?: string; isPrimary?: number | boolean }>
   tags?: unknown
@@ -94,7 +97,9 @@ export function pickFubPhone(person?: FubPerson | null) {
 }
 
 export function fubPersonName(person?: FubPerson | null) {
-  return `${person?.firstName || ''} ${person?.lastName || ''}`.trim()
+  const first = String(person?.firstName || person?.first_name || '').trim()
+  const last = String(person?.lastName || person?.last_name || '').trim()
+  return `${first} ${last}`.trim() || String(person?.name || '').trim()
 }
 
 export function resolveFubBookingState(contextParam: string | null, signatureParam: string | null) {

@@ -5,6 +5,7 @@ import { createEscalationCalendarEvent, normalizeAppointmentTime, SALES_CALENDAR
 import {
   buildEscalationAdminEmailHtml,
   buildEscalationAdminSms,
+  parseEscalationFrom,
   parseEscalationStaff,
 } from '@/lib/escalations'
 import {
@@ -29,6 +30,7 @@ function toE164NorthAmerica(phone: string): string {
 
 async function notifyStaff(input: {
   staff: string
+  from: string
   leadName: string
   email: string
   phone: string
@@ -88,6 +90,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not authorized.' }, { status: 401 })
     }
 
+    const from = parseEscalationFrom(body.from)
+    if (!from) {
+      return NextResponse.json({ error: 'Choose who this is from.' }, { status: 400 })
+    }
+
     const staff = parseEscalationStaff(body.staff)
     if (!staff) {
       return NextResponse.json({ error: 'Choose who to escalate to.' }, { status: 400 })
@@ -108,6 +115,7 @@ export async function POST(request: NextRequest) {
     const event = await createEscalationCalendarEvent({
       leadName,
       staff,
+      from,
       date,
       time,
       email,
@@ -116,14 +124,14 @@ export async function POST(request: NextRequest) {
     })
 
     try {
-      await notifyStaff({ staff, leadName, email, phone, date, time })
+      await notifyStaff({ staff, from, leadName, email, phone, date, time })
     } catch (notifyError) {
       console.error('FUB escalation staff notify failed:', notifyError)
     }
 
     return NextResponse.json({
       eventId: event?.id,
-      message: `${staff} has to call ${leadName} on ${date} at ${time}. On the staff calendars and notifications — the lead was not contacted.`,
+      message: `${staff} has to call ${leadName} on ${date} at ${time} (from ${from}). On the staff calendars and notifications — the lead was not contacted.`,
     })
   } catch (error) {
     console.error('FUB escalation error:', error)

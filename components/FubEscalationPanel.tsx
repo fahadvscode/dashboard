@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react'
 import { useMemo, useState } from 'react'
 import { APPOINTMENT_TIME_SLOTS } from '@/lib/bookingTimes'
-import { ESCALATION_STAFF } from '@/lib/escalations'
+import { ESCALATION_FROM_STAFF, ESCALATION_TO_STAFF } from '@/lib/escalations'
 
 function todayToronto() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
@@ -12,17 +12,21 @@ function todayToronto() {
 export default function FubEscalationPanel({
   context,
   signature,
+  leadName,
 }: {
   context: string
   signature: string
+  leadName: string
 }) {
   const minDate = useMemo(() => todayToronto(), [])
+  const [from, setFrom] = useState('')
   const [staff, setStaff] = useState('')
   const [date, setDate] = useState(minDate)
   const [time, setTime] = useState('10:00 AM')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const displayName = leadName.trim() || 'this lead'
 
   async function escalate() {
     setSaving(true)
@@ -32,7 +36,7 @@ export default function FubEscalationPanel({
       const response = await fetch('/api/fub/escalations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context, signature, staff, date, time }),
+        body: JSON.stringify({ context, signature, from, staff, date, time }),
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Could not escalate.')
@@ -51,14 +55,27 @@ export default function FubEscalationPanel({
         Escalation
       </div>
       <div style={inner}>
-      <div style={hint}>Internal only. Pick who has to call this lead. No email or SMS to the lead.</div>
+      <div style={hint}>
+        Internal only. Escalating {displayName}. Pick who it is from and who has to call. No email or SMS to the
+        lead.
+      </div>
+
+      <label style={label}>From</label>
+      <select value={from} onChange={(e) => setFrom(e.target.value)} style={input}>
+        <option value="">Select a name</option>
+        {ESCALATION_FROM_STAFF.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </select>
 
       <label style={label}>Escalate to</label>
       <select value={staff} onChange={(e) => setStaff(e.target.value)} style={input}>
         <option value="">Select a name</option>
-        {ESCALATION_STAFF.map((name) => (
+        {ESCALATION_TO_STAFF.map((name, index) => (
           <option key={name} value={name}>
-            {name}
+            {index + 1}. {name}
           </option>
         ))}
       </select>
@@ -78,7 +95,7 @@ export default function FubEscalationPanel({
       {notice ? <div style={noticeText}>{notice}</div> : null}
       {error ? <div style={errorText}>{error}</div> : null}
 
-      <button type="button" onClick={() => void escalate()} disabled={saving || !staff || !date || !time} style={button}>
+      <button type="button" onClick={() => void escalate()} disabled={saving || !from || !staff || !date || !time} style={button}>
         {saving ? 'Escalating…' : 'Escalate'}
       </button>
       </div>

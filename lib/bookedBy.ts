@@ -1,4 +1,4 @@
-export const BOOKED_BY_OPTIONS = ['Nisha', 'Aman', 'Harjit', 'Jay', 'Fahad'] as const
+export const BOOKED_BY_OPTIONS = ['Nisha', 'Aman', 'Harjit', 'Jay', 'Fahad', 'Gigi'] as const
 
 export type BookedByName = (typeof BOOKED_BY_OPTIONS)[number]
 

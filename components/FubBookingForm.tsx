@@ -225,7 +225,7 @@ export default function FubBookingForm({
         Three separate actions: Escalation, Follow-up, then Booking
       </div>
 
-      <FubEscalationPanel context={context} signature={signature} />
+      <FubEscalationPanel context={context} signature={signature} leadName={name} />
       <FubFollowUpPanel context={context} signature={signature} />
 
       <div style={bookingBox}>
