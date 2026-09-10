@@ -7,6 +7,7 @@ import { FUB_BOOKING_BRANDS, FUB_MEETING_TYPES } from '@/lib/fubEmbeddedApp'
 import { meetingTypeLabel, parseMeetingType } from '@/lib/meetingTypes'
 import { BOOKED_BY_OPTIONS } from '@/lib/bookedBy'
 import type { FubAppointment, FubProjectOption } from '@/lib/fubProjects'
+import FubEscalationPanel from '@/components/FubEscalationPanel'
 import FubFollowUpPanel from '@/components/FubFollowUpPanel'
 
 type Props = {
@@ -221,11 +222,19 @@ export default function FubBookingForm({
     <div style={wrap}>
       <div style={{ fontSize: 15, fontWeight: 700, color: '#1f2933', marginBottom: 2 }}>{name}</div>
       <div style={{ fontSize: 12, color: '#667085', marginBottom: 12 }}>
-        Book a meeting, or change type, date, or cancel below
+        Three separate actions: Escalation, Follow-up, then Booking
       </div>
 
+      <FubEscalationPanel context={context} signature={signature} />
       <FubFollowUpPanel context={context} signature={signature} />
 
+      <div style={bookingBox}>
+      <div style={bookingHeaderBar}>
+        <span style={bookingStep}>3</span>
+        Booking
+      </div>
+      <div style={bookingInner}>
+      <div style={bookingHint}>Meeting with the lead. Calendar invite and messages go to them.</div>
       {appointments.length > 0 ? (
         <>
           <div style={label}>Upcoming</div>
@@ -446,6 +455,8 @@ export default function FubBookingForm({
       <button type="button" onClick={() => void book()} disabled={saving || !date || !time || !bookedBy} style={button}>
         {saving ? 'Booking…' : 'Book meeting'}
       </button>
+      </div>
+      </div>
     </div>
   )
 }
@@ -457,18 +468,64 @@ const wrap: CSSProperties = {
   color: '#1f2933',
 }
 
+const bookingBox: CSSProperties = {
+  border: '2px solid #2563eb',
+  borderRadius: 10,
+  padding: 0,
+  background: '#eff6ff',
+  overflow: 'hidden',
+}
+
+const bookingHeaderBar: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  background: '#2563eb',
+  color: '#fff',
+  fontSize: 14,
+  fontWeight: 800,
+  letterSpacing: 0.2,
+  padding: '10px 12px',
+}
+
+const bookingStep: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 22,
+  height: 22,
+  borderRadius: 999,
+  background: '#fff',
+  color: '#1d4ed8',
+  fontSize: 12,
+  fontWeight: 800,
+  flexShrink: 0,
+}
+
+const bookingInner: CSSProperties = {
+  padding: '10px 12px 14px',
+}
+
+const bookingHint: CSSProperties = {
+  fontSize: 12,
+  color: '#1e40af',
+  margin: '0 0 4px',
+  lineHeight: 1.4,
+  fontWeight: 600,
+}
+
 const label: CSSProperties = {
   display: 'block',
   fontSize: 11,
   fontWeight: 600,
-  color: '#667085',
+  color: '#1e40af',
   margin: '8px 0 4px',
 }
 
 const input: CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  border: '1px solid #d0d5dd',
+  border: '1px solid #93c5fd',
   borderRadius: 8,
   padding: '8px 10px',
   fontSize: 13,
@@ -481,7 +538,7 @@ const button: CSSProperties = {
   border: 'none',
   borderRadius: 8,
   padding: '10px 12px',
-  background: '#2563eb',
+  background: '#1d4ed8',
   color: '#fff',
   fontSize: 13,
   fontWeight: 700,

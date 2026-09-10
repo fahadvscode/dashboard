@@ -47,8 +47,12 @@ export default function FubFollowUpPanel({
 
   return (
     <div style={box}>
-      <div style={heading}>Follow-up</div>
-      <div style={hint}>12 PM, 4 PM, or 7 PM. You can add more than one in the same slot.</div>
+      <div style={headerBar}>
+        <span style={step}>2</span>
+        Follow-up
+      </div>
+      <div style={inner}>
+      <div style={hint}>Creates a Follow Up Boss task. 12 PM, 4 PM, or 7 PM — you can add more than one.</div>
 
       <label style={label}>Date</label>
       <input type="date" min={minDate} value={date} onChange={(e) => setDate(e.target.value)} style={input} />
@@ -64,9 +68,9 @@ export default function FubFollowUpPanel({
               onClick={() => setSlot(item)}
               style={{
                 ...slotBtn,
-                background: active ? '#111827' : '#fff',
-                color: active ? '#fff' : '#111827',
-                borderColor: active ? '#111827' : '#d0d5dd',
+                background: active ? '#6d28d9' : '#fff',
+                color: active ? '#fff' : '#5b21b6',
+                borderColor: active ? '#6d28d9' : '#c4b5fd',
               }}
             >
               {item}
@@ -100,43 +104,70 @@ export default function FubFollowUpPanel({
       <button type="button" onClick={() => void createTask()} disabled={saving || !date || !slot} style={button}>
         {saving ? 'Adding…' : 'Add follow-up'}
       </button>
+      </div>
     </div>
   )
 }
 
 const box: CSSProperties = {
-  border: '1px solid #e5e7eb',
+  border: '2px solid #7c3aed',
   borderRadius: 10,
-  padding: 12,
-  margin: '10px 0 14px',
-  background: '#f9fafb',
+  padding: 0,
+  margin: '0 0 14px',
+  background: '#f5f3ff',
+  overflow: 'hidden',
 }
 
-const heading: CSSProperties = {
-  fontSize: 13,
-  fontWeight: 700,
-  color: '#111827',
+const headerBar: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  background: '#7c3aed',
+  color: '#fff',
+  fontSize: 14,
+  fontWeight: 800,
+  letterSpacing: 0.2,
+  padding: '10px 12px',
+}
+
+const step: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 22,
+  height: 22,
+  borderRadius: 999,
+  background: '#fff',
+  color: '#6d28d9',
+  fontSize: 12,
+  fontWeight: 800,
+  flexShrink: 0,
+}
+
+const inner: CSSProperties = {
+  padding: '10px 12px 14px',
 }
 
 const hint: CSSProperties = {
-  fontSize: 11,
-  color: '#667085',
-  margin: '2px 0 8px',
+  fontSize: 12,
+  color: '#5b21b6',
+  margin: '0 0 4px',
   lineHeight: 1.4,
+  fontWeight: 600,
 }
 
 const label: CSSProperties = {
   display: 'block',
   fontSize: 11,
   fontWeight: 600,
-  color: '#667085',
+  color: '#5b21b6',
   margin: '8px 0 4px',
 }
 
 const input: CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  border: '1px solid #d0d5dd',
+  border: '1px solid #c4b5fd',
   borderRadius: 8,
   padding: '8px 10px',
   fontSize: 13,
@@ -164,7 +195,7 @@ const button: CSSProperties = {
   border: 'none',
   borderRadius: 8,
   padding: '10px 12px',
-  background: '#111827',
+  background: '#6d28d9',
   color: '#fff',
   fontSize: 13,
   fontWeight: 700,

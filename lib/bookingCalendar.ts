@@ -10,6 +10,7 @@ import {
   buildAppointmentDateTimes,
   getReminderResetFields,
 } from '@/lib/bookingTimes'
+import { buildEscalationDescription, buildEscalationSummary } from '@/lib/escalations'
 
 export {
   BOOKING_TIMEZONE,
@@ -276,6 +277,53 @@ export async function updateBookingAppointment(
   }
 
   return data
+}
+
+export async function createEscalationCalendarEvent(opts: {
+  leadName: string
+  staff: string
+  date: string
+  time: string
+  email?: string
+  phone?: string
+  personId?: string
+}) {
+  const calendar = await getCalendarClient()
+  const { startDateTimeLocal, endDateTimeLocal } = buildAppointmentDateTimes(opts.date, opts.time)
+  const description = [
+    buildEscalationDescription({
+      staff: opts.staff,
+      leadName: opts.leadName,
+      email: opts.email || '',
+      phone: opts.phone || '',
+    }),
+    opts.personId ? `\nFollow Up Boss person: ${opts.personId}` : '',
+  ]
+    .filter(Boolean)
+    .join('')
+
+  const requestBody = {
+    summary: buildEscalationSummary(opts.staff, opts.leadName),
+    description,
+    start: { dateTime: startDateTimeLocal, timeZone: BOOKING_TIMEZONE },
+    end: { dateTime: endDateTimeLocal, timeZone: BOOKING_TIMEZONE },
+    reminders: {
+      useDefault: false,
+      overrides: [{ method: 'popup', minutes: 30 }],
+    },
+  }
+
+  const results = []
+  for (const calendarId of Object.values(CALENDAR_IDS)) {
+    const response = await calendar.events.insert({
+      calendarId,
+      sendUpdates: 'none',
+      requestBody,
+    })
+    results.push(response.data)
+  }
+
+  return results[0]
 }
 
 export async function cancelBookingStatus(
