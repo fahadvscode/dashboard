@@ -14,6 +14,7 @@ import {
   pickFubPhone,
   resolveFubBookingState,
 } from '@/lib/fubEmbeddedApp'
+import { addFubPersonTags, getFubApiKey } from '@/lib/fubApi'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -129,9 +130,20 @@ export async function POST(request: NextRequest) {
       console.error('FUB escalation staff notify failed:', notifyError)
     }
 
+    if (personId && getFubApiKey()) {
+      try {
+        const tagged = await addFubPersonTags(personId, ['Escalation'])
+        if (!tagged.ok) {
+          console.error('FUB escalation tag failed:', tagged.status, tagged.json)
+        }
+      } catch (tagError) {
+        console.error('FUB escalation tag failed:', tagError)
+      }
+    }
+
     return NextResponse.json({
       eventId: event?.id,
-      message: `${staff} has to call ${leadName} on ${date} at ${time} (from ${from}). On the staff calendars and notifications — the lead was not contacted.`,
+      message: `${staff} has to call ${leadName} on ${date} at ${time} (from ${from}). Escalation tag added on the lead. On the staff calendars and notifications — the lead was not contacted.`,
     })
   } catch (error) {
     console.error('FUB escalation error:', error)

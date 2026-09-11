@@ -20,6 +20,18 @@ export function fubApiHeaders() {
   return headers
 }
 
+export async function addFubPersonTags(personId: string, tags: string[]) {
+  const id = String(personId || '').trim()
+  const next = tags.map((tag) => tag.trim()).filter(Boolean)
+  if (!id || next.length === 0) {
+    return { ok: false, status: 400, json: { error: 'Missing person or tags.' } }
+  }
+  return fubApiFetch(`/people/${encodeURIComponent(id)}?mergeTags=true`, {
+    method: 'PUT',
+    body: JSON.stringify({ tags: next }),
+  })
+}
+
 export async function fubApiFetch(path: string, init: RequestInit = {}) {
   const headers = fubApiHeaders()
   if (!headers) {

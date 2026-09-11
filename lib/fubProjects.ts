@@ -27,6 +27,7 @@ const SKIP_TAGS = new Set(
     'so i',
     'contacted',
     'unsubscribed',
+    'escalation',
   ].map((item) => item.toLowerCase())
 )
 
