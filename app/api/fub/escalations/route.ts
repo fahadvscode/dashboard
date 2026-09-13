@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createEscalationCalendarEvent } from '@/lib/bookingCalendar'
 import {
+  ESCALATION_CALENDAR_ATTENDEE,
   escalationDueAt,
   formatTorontoWall,
   parseEscalationFrom,
@@ -64,19 +65,25 @@ export async function POST(request: NextRequest) {
       time: wall.time,
     }
 
-    const event = await createEscalationCalendarEvent({
-      leadName,
-      staff,
-      from,
-      date: wall.date,
-      time: wall.time,
-      startDateTimeLocal: wall.startDateTimeLocal,
-      endDateTimeLocal: endWall.startDateTimeLocal,
-      reminderMinutes: when.reminderSms ? 2 : 0,
-      email,
-      phone,
-      personId,
-    })
+    let eventId: string | undefined
+    try {
+      const event = await createEscalationCalendarEvent({
+        leadName,
+        staff,
+        from,
+        date: wall.date,
+        time: wall.time,
+        startDateTimeLocal: wall.startDateTimeLocal,
+        endDateTimeLocal: endWall.startDateTimeLocal,
+        reminderMinutes: when.reminderSms ? 2 : 0,
+        email,
+        phone,
+        personId,
+      })
+      eventId = event?.id || undefined
+    } catch (calendarError) {
+      console.error('FUB escalation calendar failed:', calendarError)
+    }
 
     try {
       await notifyEscalationCreated(notice)
@@ -104,8 +111,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      eventId: event?.id,
-      message: `${staff} has to call ${leadName} ${when.label.toLowerCase()} (${wall.time}, from ${from}). On info@fahadsold.com — the lead was not contacted.`,
+      eventId,
+      message: `${staff} has to call ${leadName} ${when.label.toLowerCase()} (${wall.time}, from ${from}). Invited ${ESCALATION_CALENDAR_ATTENDEE} — the lead was not contacted.`,
     })
   } catch (error) {
     console.error('FUB escalation error:', error)

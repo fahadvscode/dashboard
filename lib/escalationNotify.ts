@@ -1,5 +1,6 @@
 import twilio from 'twilio'
 import nodemailer from 'nodemailer'
+import { ESCALATION_CALENDAR_ATTENDEE } from '@/lib/escalations'
 import { SALES_CALENDAR_EMAIL } from '@/lib/bookingCalendar'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import {
@@ -9,7 +10,7 @@ import {
 
 export const ESCALATION_SMS_TO = ['6478981739', '4168296121', '4163994289'] as const
 
-const notificationEmails = ['fahad@fahadsold.com', 'info@preconfactory.com', SALES_CALENDAR_EMAIL]
+const notificationEmails = [ESCALATION_CALENDAR_ATTENDEE, 'fahad@fahadsold.com', 'info@preconfactory.com', SALES_CALENDAR_EMAIL]
 
 type EscalationNotice = {
   staff: string

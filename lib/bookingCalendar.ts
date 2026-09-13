@@ -10,7 +10,7 @@ import {
   buildAppointmentDateTimes,
   getReminderResetFields,
 } from '@/lib/bookingTimes'
-import { buildEscalationDescription, buildEscalationSummary, ESCALATION_CALENDAR_ID } from '@/lib/escalations'
+import { buildEscalationDescription, buildEscalationSummary, ESCALATION_CALENDAR_ATTENDEE } from '@/lib/escalations'
 
 export {
   BOOKING_TIMEZONE,
@@ -316,6 +316,7 @@ export async function createEscalationCalendarEvent(opts: {
     start: { dateTime: startDateTimeLocal, timeZone: BOOKING_TIMEZONE },
     end: { dateTime: endDateTimeLocal, timeZone: BOOKING_TIMEZONE },
     colorId: '6',
+    attendees: [{ email: ESCALATION_CALENDAR_ATTENDEE }],
     reminders: {
       useDefault: false,
       overrides: reminderMinutes && reminderMinutes > 0 ? [{ method: 'popup' as const, minutes: reminderMinutes }] : [],
@@ -323,8 +324,8 @@ export async function createEscalationCalendarEvent(opts: {
   }
 
   const response = await calendar.events.insert({
-    calendarId: ESCALATION_CALENDAR_ID,
-    sendUpdates: 'none',
+    calendarId: CALENDAR_IDS.fj,
+    sendUpdates: 'all',
     requestBody,
   })
 
