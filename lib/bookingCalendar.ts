@@ -10,7 +10,7 @@ import {
   buildAppointmentDateTimes,
   getReminderResetFields,
 } from '@/lib/bookingTimes'
-import { buildEscalationDescription, buildEscalationSummary } from '@/lib/escalations'
+import { buildEscalationDescription, buildEscalationSummary, ESCALATION_CALENDAR_ID } from '@/lib/escalations'
 
 export {
   BOOKING_TIMEZONE,
@@ -285,12 +285,17 @@ export async function createEscalationCalendarEvent(opts: {
   from?: string
   date: string
   time: string
+  startDateTimeLocal?: string
+  endDateTimeLocal?: string
+  reminderMinutes?: number
   email?: string
   phone?: string
   personId?: string
 }) {
   const calendar = await getCalendarClient()
-  const { startDateTimeLocal, endDateTimeLocal } = buildAppointmentDateTimes(opts.date, opts.time)
+  const built = buildAppointmentDateTimes(opts.date, opts.time)
+  const startDateTimeLocal = opts.startDateTimeLocal || built.startDateTimeLocal
+  const endDateTimeLocal = opts.endDateTimeLocal || built.endDateTimeLocal
   const description = [
     buildEscalationDescription({
       staff: opts.staff,
@@ -304,6 +309,7 @@ export async function createEscalationCalendarEvent(opts: {
     .filter(Boolean)
     .join('')
 
+  const reminderMinutes = opts.reminderMinutes
   const requestBody = {
     summary: buildEscalationSummary(opts.staff, opts.leadName, opts.from),
     description,
@@ -312,21 +318,17 @@ export async function createEscalationCalendarEvent(opts: {
     colorId: '6',
     reminders: {
       useDefault: false,
-      overrides: [{ method: 'popup', minutes: 30 }],
+      overrides: reminderMinutes && reminderMinutes > 0 ? [{ method: 'popup' as const, minutes: reminderMinutes }] : [],
     },
   }
 
-  const results = []
-  for (const calendarId of Object.values(CALENDAR_IDS)) {
-    const response = await calendar.events.insert({
-      calendarId,
-      sendUpdates: 'none',
-      requestBody,
-    })
-    results.push(response.data)
-  }
+  const response = await calendar.events.insert({
+    calendarId: ESCALATION_CALENDAR_ID,
+    sendUpdates: 'none',
+    requestBody,
+  })
 
-  return results[0]
+  return response.data
 }
 
 export async function cancelBookingStatus(

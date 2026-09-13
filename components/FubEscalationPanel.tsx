@@ -1,13 +1,8 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { useMemo, useState } from 'react'
-import { APPOINTMENT_TIME_SLOTS } from '@/lib/bookingTimes'
-import { ESCALATION_FROM_STAFF, ESCALATION_TO_STAFF } from '@/lib/escalations'
-
-function todayToronto() {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
-}
+import { useState } from 'react'
+import { ESCALATION_FROM_STAFF, ESCALATION_TO_STAFF, ESCALATION_WHEN } from '@/lib/escalations'
 
 export default function FubEscalationPanel({
   context,
@@ -18,11 +13,9 @@ export default function FubEscalationPanel({
   signature: string
   leadName: string
 }) {
-  const minDate = useMemo(() => todayToronto(), [])
   const [from, setFrom] = useState('')
   const [staff, setStaff] = useState('')
-  const [date, setDate] = useState(minDate)
-  const [time, setTime] = useState('10:00 AM')
+  const [when, setWhen] = useState<(typeof ESCALATION_WHEN)[number]['id']>('15m')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -36,7 +29,7 @@ export default function FubEscalationPanel({
       const response = await fetch('/api/fub/escalations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context, signature, from, staff, date, time }),
+        body: JSON.stringify({ context, signature, from, staff, when }),
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Could not escalate.')
@@ -80,22 +73,37 @@ export default function FubEscalationPanel({
         ))}
       </select>
 
-      <label style={label}>Date</label>
-      <input type="date" min={minDate} value={date} onChange={(e) => setDate(e.target.value)} style={input} />
-
-      <label style={label}>Time</label>
-      <select value={time} onChange={(e) => setTime(e.target.value)} style={input}>
-        {APPOINTMENT_TIME_SLOTS.map((slot) => (
-          <option key={slot} value={slot}>
-            {slot}
-          </option>
-        ))}
-      </select>
+      <label style={label}>When</label>
+      <div style={whenRow}>
+        {ESCALATION_WHEN.map((item) => {
+          const active = when === item.id
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setWhen(item.id)}
+              style={{
+                ...whenBtn,
+                background: active ? '#c2410c' : '#fff',
+                color: active ? '#fff' : '#9a3412',
+                borderColor: active ? '#c2410c' : '#fdba74',
+              }}
+            >
+              {item.label}
+            </button>
+          )
+        })}
+      </div>
+      <div style={fieldHint}>
+        {when === '5m'
+          ? 'No extra reminder text for 5 minutes.'
+          : 'A reminder text goes out 2 minutes before.'}
+      </div>
 
       {notice ? <div style={noticeText}>{notice}</div> : null}
       {error ? <div style={errorText}>{error}</div> : null}
 
-      <button type="button" onClick={() => void escalate()} disabled={saving || !from || !staff || !date || !time} style={button}>
+      <button type="button" onClick={() => void escalate()} disabled={saving || !from || !staff || !when} style={button}>
         {saving ? 'Escalating…' : 'Escalate'}
       </button>
       </div>
@@ -158,6 +166,13 @@ const label: CSSProperties = {
   margin: '8px 0 4px',
 }
 
+const fieldHint: CSSProperties = {
+  fontSize: 11,
+  color: '#c2410c',
+  margin: '4px 0 0',
+  lineHeight: 1.35,
+}
+
 const input: CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
@@ -166,6 +181,21 @@ const input: CSSProperties = {
   padding: '8px 10px',
   fontSize: 13,
   background: '#fff',
+}
+
+const whenRow: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: 6,
+}
+
+const whenBtn: CSSProperties = {
+  border: '1px solid #fdba74',
+  borderRadius: 8,
+  padding: '8px 6px',
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: 'pointer',
 }
 
 const button: CSSProperties = {

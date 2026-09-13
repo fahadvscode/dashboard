@@ -1,4 +1,5 @@
 import { BOOKED_BY_OPTIONS } from '@/lib/bookedBy'
+import { BOOKING_TIMEZONE, formatAppointmentTime } from '@/lib/bookingTimes'
 
 export const ESCALATION_FROM_STAFF = BOOKED_BY_OPTIONS
 export type EscalationFromStaff = (typeof ESCALATION_FROM_STAFF)[number]
@@ -7,6 +8,18 @@ export const ESCALATION_TO_STAFF = ['Fahad', 'Gigi', 'Jay'] as const
 export type EscalationStaff = (typeof ESCALATION_TO_STAFF)[number]
 
 export const ESCALATION_STAFF = ESCALATION_FROM_STAFF
+
+export const ESCALATION_CALENDAR_ID = 'info@fahadsold.com'
+
+export const ESCALATION_WHEN = [
+  { id: '5m', label: 'In 5 minutes', minutes: 5, reminderSms: false },
+  { id: '15m', label: 'In 15 minutes', minutes: 15, reminderSms: true },
+  { id: '1h', label: 'In 1 hour', minutes: 60, reminderSms: true },
+  { id: '3h', label: 'In 3 hours', minutes: 180, reminderSms: true },
+] as const
+
+export type EscalationWhenId = (typeof ESCALATION_WHEN)[number]['id']
+export type EscalationWhen = (typeof ESCALATION_WHEN)[number]
 
 export function parseEscalationFrom(value: unknown): EscalationFromStaff | '' {
   const raw = String(value || '').trim()
@@ -18,6 +31,41 @@ export function parseEscalationStaff(value: unknown): EscalationStaff | '' {
   const raw = String(value || '').trim()
   if (!raw) return ''
   return ESCALATION_TO_STAFF.find((name) => name.toLowerCase() === raw.toLowerCase()) || ''
+}
+
+export function parseEscalationWhen(value: unknown): EscalationWhen | null {
+  const raw = String(value || '').trim()
+  return ESCALATION_WHEN.find((item) => item.id === raw) || null
+}
+
+export function escalationDueAt(when: EscalationWhen, from = new Date()) {
+  return new Date(from.getTime() + when.minutes * 60 * 1000)
+}
+
+export function formatTorontoWall(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BOOKING_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ''
+  const year = get('year')
+  const month = get('month')
+  const day = get('day')
+  let hour = Number(get('hour'))
+  if (hour === 24) hour = 0
+  const minute = Number(get('minute'))
+  const dateYmd = `${year}-${month}-${day}`
+  const startDateTimeLocal = `${dateYmd}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
+  return {
+    date: dateYmd,
+    time: formatAppointmentTime(hour, minute),
+    startDateTimeLocal,
+  }
 }
 
 export function whoHasToCallLine(staff: string) {
