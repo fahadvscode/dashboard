@@ -1,30 +1,85 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { useMemo, useState } from 'react'
-import { FOLLOW_UP_SLOTS, FOLLOW_UP_STAFF } from '@/lib/followUpTasks'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  FOLLOW_UP_ASSIGNEES,
+  FOLLOW_UP_SLOTS,
+  FOLLOW_UP_STAFF,
+  defaultFollowUpAssignee,
+  orderFollowUpAssignees,
+  type FollowUpFubUser,
+} from '@/lib/followUpTasks'
 
 function todayToronto() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
 }
 
+const FALLBACK_USERS: FollowUpFubUser[] = FOLLOW_UP_ASSIGNEES.map((name, index) => ({
+  id: -(index + 1),
+  name,
+}))
+
 export default function FubFollowUpPanel({
   context,
   signature,
+  currentUser,
 }: {
   context: string
   signature: string
+  currentUser?: { id?: number; name?: string }
 }) {
   const minDate = useMemo(() => todayToronto(), [])
   const [date, setDate] = useState(minDate)
   const [slot, setSlot] = useState<(typeof FOLLOW_UP_SLOTS)[number]>('12 PM')
   const [staff, setStaff] = useState('')
+  const [users, setUsers] = useState<FollowUpFubUser[]>(FALLBACK_USERS)
+  const [assigneeKey, setAssigneeKey] = useState(assigneeValue(defaultFollowUpAssignee(FALLBACK_USERS, currentUser)))
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const response = await fetch('/api/fub/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ context, signature }),
+        })
+        const payload = (await response.json()) as {
+          users?: FollowUpFubUser[]
+          currentUser?: { id?: number; name?: string }
+        }
+        const nextUsers = orderFollowUpAssignees(
+          Array.isArray(payload.users) && payload.users.length > 0 ? payload.users : FALLBACK_USERS
+        )
+        if (cancelled) return
+        setUsers(nextUsers)
+        setAssigneeKey(
+          assigneeValue(
+            defaultFollowUpAssignee(nextUsers, payload.currentUser || currentUser)
+          )
+        )
+      } catch {
+        if (cancelled) return
+        setUsers(FALLBACK_USERS)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [context, signature, currentUser])
+
+  const selected = users.find((user) => assigneeValue(user) === assigneeKey) || users[0] || null
+
   async function createTask() {
+    if (!selected) {
+      setError('Choose who this follow-up is assigned to.')
+      return
+    }
     setSaving(true)
     setError('')
     setNotice('')
@@ -32,7 +87,16 @@ export default function FubFollowUpPanel({
       const response = await fetch('/api/fub/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context, signature, date, slot, staff, note }),
+        body: JSON.stringify({
+          context,
+          signature,
+          date,
+          slot,
+          staff,
+          note,
+          assignedTo: selected.name,
+          assignedUserId: selected.id > 0 ? selected.id : undefined,
+        }),
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Could not create the follow-up.')
@@ -79,6 +143,16 @@ export default function FubFollowUpPanel({
         })}
       </div>
 
+      <label style={label}>Assign to</label>
+      <select value={assigneeKey} onChange={(e) => setAssigneeKey(e.target.value)} style={input}>
+        {users.map((user) => (
+          <option key={assigneeValue(user)} value={assigneeValue(user)}>
+            {user.name}
+          </option>
+        ))}
+      </select>
+      <div style={fieldHint}>This Follow Up Boss user gets the task.</div>
+
       <label style={label}>Name</label>
       <select value={staff} onChange={(e) => setStaff(e.target.value)} style={input}>
         <option value="">No name (Follow-up)</option>
@@ -88,6 +162,7 @@ export default function FubFollowUpPanel({
           </option>
         ))}
       </select>
+      <div style={fieldHint}>Optional label on the task title (Nisha, Aman, …).</div>
 
       <label style={label}>Note (optional)</label>
       <textarea
@@ -101,12 +176,22 @@ export default function FubFollowUpPanel({
       {notice ? <div style={noticeText}>{notice}</div> : null}
       {error ? <div style={errorText}>{error}</div> : null}
 
-      <button type="button" onClick={() => void createTask()} disabled={saving || !date || !slot} style={button}>
+      <button
+        type="button"
+        onClick={() => void createTask()}
+        disabled={saving || !date || !slot || !selected}
+        style={button}
+      >
         {saving ? 'Adding…' : 'Add follow-up'}
       </button>
       </div>
     </div>
   )
+}
+
+function assigneeValue(user: FollowUpFubUser | null) {
+  if (!user) return ''
+  return user.id > 0 ? `id:${user.id}` : `name:${user.name}`
 }
 
 const box: CSSProperties = {
@@ -162,6 +247,13 @@ const label: CSSProperties = {
   fontWeight: 600,
   color: '#5b21b6',
   margin: '8px 0 4px',
+}
+
+const fieldHint: CSSProperties = {
+  fontSize: 11,
+  color: '#6d28d9',
+  margin: '4px 0 0',
+  lineHeight: 1.35,
 }
 
 const input: CSSProperties = {

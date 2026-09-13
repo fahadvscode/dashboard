@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveFubBookingState } from '@/lib/fubEmbeddedApp'
-import { fubApiFetch, getFubApiKey } from '@/lib/fubApi'
+import { fubApiFetch, getFubApiKey, listFubUsers } from '@/lib/fubApi'
 import { torontoDayStartIso } from '@/lib/bookingDateFilter'
 import {
   buildFollowUpNoteBody,
   buildFollowUpTaskName,
   followUpDueDateTime,
   isFollowUpSlot,
+  matchFubAssignee,
+  parseFollowUpAssignee,
+  parseFollowUpAssigneeUserId,
   parseFollowUpStaff,
   type FollowUpSlot,
 } from '@/lib/followUpTasks'
@@ -62,7 +65,29 @@ export async function POST(request: NextRequest) {
     const taskName = buildFollowUpTaskName(staff, slot as FollowUpSlot, note)
     const noteBody = buildFollowUpNoteBody(staff, slot as FollowUpSlot, note)
     const dueDateTime = followUpDueDateTime(date, slot as FollowUpSlot, torontoDayStartIso(date))
-    const currentUser = String(resolved.context.user?.name || '').trim()
+    const requestedAssigneeName = parseFollowUpAssignee(body.assignedTo)
+    const requestedAssigneeId = parseFollowUpAssigneeUserId(body.assignedUserId)
+
+    let users: Awaited<ReturnType<typeof listFubUsers>> = []
+    try {
+      users = await listFubUsers()
+    } catch (error) {
+      console.error('FUB follow-up users lookup failed:', error)
+    }
+
+    const matched = matchFubAssignee(users, {
+      id: requestedAssigneeId,
+      name: requestedAssigneeName,
+    })
+    const assignedTo = matched?.name || requestedAssigneeName
+    const assignedUserId = matched?.id && matched.id > 0 ? matched.id : requestedAssigneeId
+
+    if (!assignedTo && !assignedUserId) {
+      return NextResponse.json(
+        { error: 'Choose who this follow-up is assigned to.' },
+        { status: 400 }
+      )
+    }
 
     const payload: Record<string, unknown> = {
       personId,
@@ -71,17 +96,19 @@ export async function POST(request: NextRequest) {
       dueDate: date,
       dueDateTime,
     }
-    if (staff) payload.assignedTo = staff
-    else if (currentUser) payload.assignedTo = currentUser
+    if (assignedUserId) payload.assignedUserId = assignedUserId
+    if (assignedTo) payload.assignedTo = assignedTo
 
     let created = await createFubTask(payload)
-    if (!created.ok && staff && currentUser && currentUser.toLowerCase() !== staff.toLowerCase()) {
-      created = await createFubTask({ ...payload, assignedTo: currentUser })
-    }
-    if (!created.ok && payload.assignedTo) {
-      const withoutAssignee = { ...payload }
-      delete withoutAssignee.assignedTo
-      created = await createFubTask(withoutAssignee)
+    if (!created.ok && assignedUserId && assignedTo) {
+      const byId = { ...payload }
+      delete byId.assignedTo
+      created = await createFubTask(byId)
+      if (!created.ok) {
+        const byName = { ...payload }
+        delete byName.assignedUserId
+        created = await createFubTask(byName)
+      }
     }
 
     if (!created.ok) {
@@ -104,9 +131,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    const assigneeLabel = assignedTo || 'the selected user'
+    const staffLabel = staff ? ` for ${staff}` : ''
     return NextResponse.json({
       task: created.json,
-      message: `Follow-up added${staff ? ` for ${staff}` : ''} at ${slot}.`,
+      message: `Follow-up added${staffLabel} at ${slot}, assigned to ${assigneeLabel}.`,
     })
   } catch (error) {
     console.error('FUB follow-up task error:', error)

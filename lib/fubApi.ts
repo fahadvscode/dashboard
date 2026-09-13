@@ -32,6 +32,36 @@ export async function addFubPersonTags(personId: string, tags: string[]) {
   })
 }
 
+export type FubApiUser = {
+  id: number
+  name: string
+  email?: string
+  status?: string
+}
+
+export async function listFubUsers(): Promise<FubApiUser[]> {
+  const result = await fubApiFetch('/users?fields=id,name,email,status&limit=100')
+  if (!result.ok) {
+    const details = result.json as { error?: string; message?: string }
+    throw new Error(details.error || details.message || 'Could not load Follow Up Boss users.')
+  }
+  const json = result.json as { users?: Array<{ id?: number; name?: string; email?: string; status?: string }> }
+  const rows = Array.isArray(json.users) ? json.users : []
+  const mapped = rows
+    .map((row) => {
+      const id = typeof row.id === 'number' ? row.id : Number(row.id)
+      const name = String(row.name || '').trim()
+      const status = String(row.status || '').trim()
+      const email = String(row.email || '').trim()
+      if (!Number.isFinite(id) || id <= 0 || !name) return null
+      return { id, name, ...(email ? { email } : {}), ...(status ? { status } : {}) }
+    })
+    .filter((row): row is FubApiUser => Boolean(row))
+  const active = mapped.filter((row) => !row.status || row.status.toLowerCase() === 'active')
+  const list = active.length > 0 ? active : mapped
+  return list.sort((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name))
+}
+
 export async function fubApiFetch(path: string, init: RequestInit = {}) {
   const headers = fubApiHeaders()
   if (!headers) {

@@ -19,6 +19,7 @@ type Props = {
   phone: string
   taggedProjects: FubProjectOption[]
   appointments: FubAppointment[]
+  currentUser?: { id?: number; name?: string }
 }
 
 function todayToronto() {
@@ -34,6 +35,7 @@ export default function FubBookingForm({
   phone,
   taggedProjects,
   appointments: initialAppointments,
+  currentUser,
 }: Props) {
   const minDate = useMemo(() => todayToronto(), [])
   const [brand, setBrand] = useState('fj')
@@ -226,7 +228,7 @@ export default function FubBookingForm({
       </div>
 
       <FubEscalationPanel context={context} signature={signature} leadName={name} />
-      <FubFollowUpPanel context={context} signature={signature} />
+      <FubFollowUpPanel context={context} signature={signature} currentUser={currentUser} />
 
       <div style={bookingBox}>
       <div style={bookingHeaderBar}>

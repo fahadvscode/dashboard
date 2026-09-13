@@ -115,6 +115,7 @@ export default async function FubBookingsPage({
       phone={pickFubPhone(person)}
       taggedProjects={taggedProjects}
       appointments={appointments}
+      currentUser={resolved.context?.user}
     />
   )
 }
