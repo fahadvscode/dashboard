@@ -1,8 +1,19 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { useState } from 'react'
-import { ESCALATION_FROM_STAFF, ESCALATION_TO_STAFF, ESCALATION_WHEN } from '@/lib/escalations'
+import { useMemo, useState } from 'react'
+import { APPOINTMENT_TIME_SLOTS } from '@/lib/bookingTimes'
+import {
+  ESCALATION_CUSTOM_WHEN_ID,
+  ESCALATION_FROM_STAFF,
+  ESCALATION_TO_STAFF,
+  ESCALATION_WHEN,
+  type EscalationWhenId,
+} from '@/lib/escalations'
+
+function todayToronto() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
+}
 
 export default function FubEscalationPanel({
   context,
@@ -13,13 +24,18 @@ export default function FubEscalationPanel({
   signature: string
   leadName: string
 }) {
+  const minDate = useMemo(() => todayToronto(), [])
   const [from, setFrom] = useState('')
   const [staff, setStaff] = useState('')
-  const [when, setWhen] = useState<(typeof ESCALATION_WHEN)[number]['id']>('15m')
+  const [when, setWhen] = useState<EscalationWhenId>('15m')
+  const [date, setDate] = useState(minDate)
+  const [time, setTime] = useState('10:00 AM')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const displayName = leadName.trim() || 'this lead'
+  const isCustom = when === ESCALATION_CUSTOM_WHEN_ID
+  const canSubmit = Boolean(from && staff && when && (!isCustom || (date && time)))
 
   async function escalate() {
     setSaving(true)
@@ -29,7 +45,14 @@ export default function FubEscalationPanel({
       const response = await fetch('/api/fub/escalations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context, signature, from, staff, when }),
+        body: JSON.stringify({
+          context,
+          signature,
+          from,
+          staff,
+          when,
+          ...(isCustom ? { date, time } : {}),
+        }),
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Could not escalate.')
@@ -93,17 +116,48 @@ export default function FubEscalationPanel({
             </button>
           )
         })}
+        <button
+          type="button"
+          onClick={() => setWhen(ESCALATION_CUSTOM_WHEN_ID)}
+          style={{
+            ...whenBtn,
+            gridColumn: '1 / -1',
+            background: isCustom ? '#c2410c' : '#fff',
+            color: isCustom ? '#fff' : '#9a3412',
+            borderColor: isCustom ? '#c2410c' : '#fdba74',
+          }}
+        >
+          Custom date & time
+        </button>
       </div>
+
+      {isCustom ? (
+        <>
+          <label style={label}>Date</label>
+          <input type="date" min={minDate} value={date} onChange={(e) => setDate(e.target.value)} style={input} />
+          <label style={label}>Time</label>
+          <select value={time} onChange={(e) => setTime(e.target.value)} style={input}>
+            {APPOINTMENT_TIME_SLOTS.map((slot) => (
+              <option key={slot} value={slot}>
+                {slot}
+              </option>
+            ))}
+          </select>
+        </>
+      ) : null}
+
       <div style={fieldHint}>
         {when === '5m'
           ? 'No extra reminder text for 5 minutes.'
-          : 'A reminder text goes out 2 minutes before.'}
+          : isCustom
+            ? 'If the time is more than a few minutes away, a reminder text goes out 2 minutes before.'
+            : 'A reminder text goes out 2 minutes before.'}
       </div>
 
       {notice ? <div style={noticeText}>{notice}</div> : null}
       {error ? <div style={errorText}>{error}</div> : null}
 
-      <button type="button" onClick={() => void escalate()} disabled={saving || !from || !staff || !when} style={button}>
+      <button type="button" onClick={() => void escalate()} disabled={saving || !canSubmit} style={button}>
         {saving ? 'Escalating…' : 'Escalate'}
       </button>
       </div>

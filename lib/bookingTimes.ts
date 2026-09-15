@@ -68,6 +68,42 @@ export function formatAppointmentTimeDisplay(appointmentTime: string | null | un
   return formatAppointmentTime(hours, minutes)
 }
 
+export function todayTorontoYmd() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: BOOKING_TIMEZONE })
+}
+
+/** Convert a Toronto wall date+time (e.g. 2026-09-14, 2:00 PM) to a real UTC Date, including DST. */
+export function torontoWallToDate(dateYmd: string, appointmentTime: string): Date | null {
+  const date = String(dateYmd || '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/\d/.test(String(appointmentTime || ''))) return null
+  const { hours, minutes } = parseAppointmentTime(appointmentTime)
+  const [year, month, day] = date.split('-').map(Number)
+  if (!year || !month || !day) return null
+  const desiredUtc = Date.UTC(year, month - 1, day, hours, minutes, 0)
+  const guess = new Date(desiredUtc)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BOOKING_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(guess)
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ''
+  let wallHour = Number(get('hour'))
+  if (wallHour === 24) wallHour = 0
+  const actualUtc = Date.UTC(
+    Number(get('year')),
+    Number(get('month')) - 1,
+    Number(get('day')),
+    wallHour,
+    Number(get('minute')),
+    0
+  )
+  return new Date(guess.getTime() + (desiredUtc - actualUtc))
+}
+
 export function buildAppointmentDateTimes(appointmentDate: string, appointmentTime: string) {
   const { hours, minutes } = parseAppointmentTime(appointmentTime)
   const startDateTimeLocal = `${appointmentDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`

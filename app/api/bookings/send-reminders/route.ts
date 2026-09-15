@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import twilio from 'twilio'
 import nodemailer from 'nodemailer'
+import { todayTorontoYmd, torontoWallToDate } from '@/lib/bookingTimes'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -70,24 +71,9 @@ interface Booking {
   table_name?: string
 }
 
-// Helper to parse appointment datetime
-function getAppointmentDateTime(booking: Booking): Date {
-  const dateStr = booking.appointment_date // YYYY-MM-DD
-  const timeStr = booking.appointment_time // "10:00 AM" or "14:30"
-  
-  let hours = 0
-  let minutes = 0
-  const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i)
-  if (timeMatch) {
-    hours = parseInt(timeMatch[1])
-    minutes = parseInt(timeMatch[2])
-    const period = timeMatch[3]?.toUpperCase()
-    if (period === 'PM' && hours !== 12) hours += 12
-    if (period === 'AM' && hours === 12) hours = 0
-  }
-  
-  const appointmentDate = new Date(`${dateStr}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00-05:00`) // Toronto timezone
-  return appointmentDate
+// Helper to parse appointment datetime in America/Toronto (handles EST/EDT)
+function getAppointmentDateTime(booking: Booking): Date | null {
+  return torontoWallToDate(booking.appointment_date, booking.appointment_time)
 }
 
 // Helper to get brand name
@@ -128,6 +114,7 @@ export async function GET(request: NextRequest) {
 
     const tables = ['fj_bookings', 'precon_factory_bookings', 'gta_lowrise_bookings']
     const now = new Date()
+    const todayToronto = todayTorontoYmd()
     const results = {
       checked: 0,
       sent: 0,
@@ -140,7 +127,7 @@ export async function GET(request: NextRequest) {
       const { data: bookings, error } = await supabase
         .from(tableName)
         .select('*')
-        .gte('appointment_date', now.toISOString().split('T')[0]) // Today or future
+        .gte('appointment_date', todayToronto) // Toronto today or future, not UTC date
         .or('status.in.(pending,confirmed,new),status.is.null')
         .order('appointment_date', { ascending: true })
         .order('appointment_time', { ascending: true })
@@ -159,12 +146,13 @@ export async function GET(request: NextRequest) {
         const bookingWithTable = { ...booking, table_name: tableName }
         try {
           const appointmentTime = getAppointmentDateTime(bookingWithTable)
+          if (!appointmentTime) continue
           const hoursUntil = (appointmentTime.getTime() - now.getTime()) / (1000 * 60 * 60)
           const minutesUntil = (appointmentTime.getTime() - now.getTime()) / (1000 * 60)
           const brandName = getBrandName(tableName)
 
-          // Skip if appointment is in the past
-          if (hoursUntil < 0) continue
+          // Never email/text after the appointment has started
+          if (minutesUntil <= 0) continue
 
           // 24-HOUR CUSTOMER REMINDER (SMS + email)
           if (!booking.reminder_24h_sent && hoursUntil <= 24 && hoursUntil > 1) {

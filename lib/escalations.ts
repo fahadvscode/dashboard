@@ -1,5 +1,5 @@
 import { BOOKED_BY_OPTIONS } from '@/lib/bookedBy'
-import { BOOKING_TIMEZONE, formatAppointmentTime } from '@/lib/bookingTimes'
+import { BOOKING_TIMEZONE, formatAppointmentTime, parseAppointmentTime } from '@/lib/bookingTimes'
 
 export const ESCALATION_FROM_STAFF = BOOKED_BY_OPTIONS
 export type EscalationFromStaff = (typeof ESCALATION_FROM_STAFF)[number]
@@ -19,7 +19,9 @@ export const ESCALATION_WHEN = [
   { id: '3h', label: 'In 3 hours', minutes: 180, reminderSms: true },
 ] as const
 
-export type EscalationWhenId = (typeof ESCALATION_WHEN)[number]['id']
+export const ESCALATION_CUSTOM_WHEN_ID = 'custom' as const
+
+export type EscalationWhenId = (typeof ESCALATION_WHEN)[number]['id'] | typeof ESCALATION_CUSTOM_WHEN_ID
 export type EscalationWhen = (typeof ESCALATION_WHEN)[number]
 
 export function parseEscalationFrom(value: unknown): EscalationFromStaff | '' {
@@ -39,8 +41,32 @@ export function parseEscalationWhen(value: unknown): EscalationWhen | null {
   return ESCALATION_WHEN.find((item) => item.id === raw) || null
 }
 
+export function isEscalationCustomWhen(value: unknown) {
+  return String(value || '').trim() === ESCALATION_CUSTOM_WHEN_ID
+}
+
 export function escalationDueAt(when: EscalationWhen, from = new Date()) {
   return new Date(from.getTime() + when.minutes * 60 * 1000)
+}
+
+export function escalationDueFromCustom(dateYmd: string, time: string): Date | null {
+  const date = String(dateYmd || '').trim()
+  const rawTime = String(time || '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/\d/.test(rawTime)) return null
+  const { hours, minutes } = parseAppointmentTime(rawTime)
+  const [year, month, day] = date.split('-').map(Number)
+  if (!year || !month || !day) return null
+  const desiredUtc = Date.UTC(year, month - 1, day, hours, minutes, 0)
+  const guess = new Date(desiredUtc)
+  const wall = formatTorontoWall(guess)
+  const [wallHour, wallMinute] = wall.startDateTimeLocal.slice(11, 16).split(':').map(Number)
+  const [wallYear, wallMonth, wallDay] = wall.date.split('-').map(Number)
+  const actualUtc = Date.UTC(wallYear, wallMonth - 1, wallDay, wallHour, wallMinute, 0)
+  return new Date(guess.getTime() + (desiredUtc - actualUtc))
+}
+
+export function customEscalationNeedsReminder(dueAt: Date, from = new Date()) {
+  return dueAt.getTime() - from.getTime() >= 7 * 60 * 1000
 }
 
 export function formatTorontoWall(date: Date) {

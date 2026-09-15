@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createEscalationCalendarEvent } from '@/lib/bookingCalendar'
 import {
   ESCALATION_CALENDAR_ATTENDEE,
+  customEscalationNeedsReminder,
   escalationDueAt,
+  escalationDueFromCustom,
   formatTorontoWall,
+  isEscalationCustomWhen,
   parseEscalationFrom,
   parseEscalationStaff,
   parseEscalationWhen,
@@ -41,14 +44,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Choose who to escalate to.' }, { status: 400 })
     }
 
-    const when = parseEscalationWhen(body.when)
-    if (!when) {
-      return NextResponse.json({ error: 'Choose 5 minutes, 15 minutes, 1 hour, or 3 hours.' }, { status: 400 })
+    const custom = isEscalationCustomWhen(body.when)
+    const when = custom ? null : parseEscalationWhen(body.when)
+    if (!custom && !when) {
+      return NextResponse.json({ error: 'Choose 5 minutes, 15 minutes, 1 hour, 3 hours, or a custom time.' }, { status: 400 })
     }
 
-    const dueAt = escalationDueAt(when)
+    const dueAt = custom
+      ? escalationDueFromCustom(String(body.date || ''), String(body.time || ''))
+      : escalationDueAt(when!)
+    if (!dueAt || Number.isNaN(dueAt.getTime())) {
+      return NextResponse.json({ error: 'Choose a date and time.' }, { status: 400 })
+    }
+    if (dueAt.getTime() < Date.now() - 30 * 1000) {
+      return NextResponse.json({ error: 'Choose a time in the future.' }, { status: 400 })
+    }
+
+    const reminderSms = custom ? customEscalationNeedsReminder(dueAt) : Boolean(when?.reminderSms)
     const wall = formatTorontoWall(dueAt)
     const endWall = formatTorontoWall(new Date(dueAt.getTime() + 15 * 60 * 1000))
+    const whenLabel = custom ? `on ${wall.date} at ${wall.time}` : `${when!.label.toLowerCase()} (${wall.time})`
 
     const person = resolved.context.person
     const leadName = fubPersonName(person) || 'Lead'
@@ -75,7 +90,7 @@ export async function POST(request: NextRequest) {
         time: wall.time,
         startDateTimeLocal: wall.startDateTimeLocal,
         endDateTimeLocal: endWall.startDateTimeLocal,
-        reminderMinutes: when.reminderSms ? 2 : 0,
+        reminderMinutes: reminderSms ? 2 : 0,
         email,
         phone,
         personId,
@@ -91,7 +106,7 @@ export async function POST(request: NextRequest) {
       console.error('FUB escalation staff notify failed:', notifyError)
     }
 
-    if (when.reminderSms) {
+    if (reminderSms) {
       try {
         await saveEscalationReminder({ ...notice, dueAt, personId })
       } catch (reminderError) {
@@ -112,7 +127,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       eventId,
-      message: `${staff} has to call ${leadName} ${when.label.toLowerCase()} (${wall.time}, from ${from}). Invited ${ESCALATION_CALENDAR_ATTENDEE} — the lead was not contacted.`,
+      message: `${staff} has to call ${leadName} ${whenLabel} (from ${from}). Invited ${ESCALATION_CALENDAR_ATTENDEE} — the lead was not contacted.`,
     })
   } catch (error) {
     console.error('FUB escalation error:', error)
