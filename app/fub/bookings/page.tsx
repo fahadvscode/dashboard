@@ -12,6 +12,7 @@ import {
   listUpcomingFubAppointments,
   matchProjectsFromTags,
 } from '@/lib/fubProjects'
+import { listAppointmentNurtures, personIdFromFubPerson } from '@/lib/fubNurture'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -104,6 +105,7 @@ export default async function FubBookingsPage({
   const tags = [...new Set([...contextTags, ...apiTags])]
   const taggedProjects = await matchProjectsFromTags(tags)
   const appointments = await listUpcomingFubAppointments(pickFubEmail(person), pickFubPhone(person))
+  const nurtures = await listAppointmentNurtures(personIdFromFubPerson(person))
 
   return (
     <FubBookingForm
@@ -115,6 +117,7 @@ export default async function FubBookingsPage({
       phone={pickFubPhone(person)}
       taggedProjects={taggedProjects}
       appointments={appointments}
+      nurtures={nurtures}
       currentUser={resolved.context?.user}
     />
   )

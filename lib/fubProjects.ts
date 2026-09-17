@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { FUB_BOOKING_BRANDS } from '@/lib/fubEmbeddedApp'
 import { isBookingStatusCanceled } from '@/lib/bookingTimes'
+import { torontoYmd } from '@/lib/bookingDateFilter'
 
 export type FubProjectOption = {
   id: string
@@ -166,7 +167,8 @@ export function bookingMatchesContact(
 
 export async function listUpcomingFubAppointments(email: string, phone: string): Promise<FubAppointment[]> {
   const supabase = getSupabaseAdmin()
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
+  const today = torontoYmd()
+  const lookback = torontoYmd(-14)
   const emailNorm = email.trim().toLowerCase()
   const phoneKey = lastTenDigits(phone)
   const collected: FubAppointment[] = []
@@ -175,9 +177,9 @@ export async function listUpcomingFubAppointments(email: string, phone: string):
     const { data } = await supabase
       .from(brand.table)
       .select('id, email, phone, appointment_date, appointment_time, appointment_type, booked_by, status, project_name')
-      .gte('appointment_date', today)
+      .gte('appointment_date', lookback)
       .order('appointment_date', { ascending: true })
-      .limit(40)
+      .limit(80)
 
     for (const row of data ?? []) {
       const item = row as {
@@ -209,7 +211,17 @@ export async function listUpcomingFubAppointments(email: string, phone: string):
     }
   }
 
-  return collected.slice(0, 8)
+  collected.sort((a, b) => {
+    const aUpcoming = a.appointment_date >= today
+    const bUpcoming = b.appointment_date >= today
+    if (aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1
+    if (aUpcoming) {
+      return a.appointment_date.localeCompare(b.appointment_date) || a.appointment_time.localeCompare(b.appointment_time)
+    }
+    return b.appointment_date.localeCompare(a.appointment_date) || b.appointment_time.localeCompare(a.appointment_time)
+  })
+
+  return collected.slice(0, 12)
 }
 
 export async function fetchFollowUpBossPersonTags(personId: string): Promise<string[]> {

@@ -7,7 +7,7 @@ import { format, formatDistanceToNow } from 'date-fns'
 import BookingReschedulePanel from '@/components/BookingReschedulePanel'
 import BookingDateFilterBar from '@/components/BookingDateFilterBar'
 import BookingDateSections from '@/components/BookingDateSections'
-import { formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
+import { formatAppointmentTimeDisplay, bookingStatusBadgeClass, formatBookingStatusLabel } from '@/lib/bookingTimes'
 import {
   applyAppointmentDateFilter,
   bookingDateFilterCountLabel,
@@ -106,16 +106,7 @@ export default function GTALowriseBookings() {
     a.click()
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'scheduled': return 'bg-green-100 text-green-800'
-      case 'completed': return 'bg-blue-100 text-blue-800'
-      case 'cancelled':
-      case 'canceled':
-        return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
-  }
+  const getStatusColor = (status: string) => bookingStatusBadgeClass(status)
 
   const handleToggleSelect = (bookingId: string) => {
     const newSelected = new Set(selectedBookingIds)
@@ -337,7 +328,7 @@ export default function GTALowriseBookings() {
                 <div className="ml-3">
                   <h3 className="font-semibold text-gray-900">{booking.firstname} {booking.lastname}</h3>
                   <span className={`inline-block px-2 py-1 text-xs rounded-full ${getStatusColor(booking.status)}`}>
-                    {booking.status}
+                    {formatBookingStatusLabel(booking.status)}
                   </span>
                 </div>
               </div>
@@ -468,7 +459,7 @@ export default function GTALowriseBookings() {
                   <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Status</span>
                   <div className="mt-2">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusColor(selectedBooking.status)}`}>
-                      {selectedBooking.status || '—'}
+                      {formatBookingStatusLabel(selectedBooking.status) || '—'}
                     </span>
                   </div>
                 </div>

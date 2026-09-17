@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { pickFubEmail, pickFubPhone, resolveFubBookingState } from '@/lib/fubEmbeddedApp'
 import { listUpcomingFubAppointments } from '@/lib/fubProjects'
+import { listAppointmentNurtures, personIdFromFubPerson } from '@/lib/fubNurture'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -18,9 +19,10 @@ export async function POST(request: NextRequest) {
 
     const person = resolved.context.person
     const appointments = await listUpcomingFubAppointments(pickFubEmail(person), pickFubPhone(person))
-    return NextResponse.json({ appointments })
+    const nurtures = await listAppointmentNurtures(personIdFromFubPerson(person))
+    return NextResponse.json({ appointments, nurtures })
   } catch (error) {
     console.error('FUB appointments list failed:', error)
-    return NextResponse.json({ appointments: [] })
+    return NextResponse.json({ appointments: [], nurtures: [] })
   }
 }

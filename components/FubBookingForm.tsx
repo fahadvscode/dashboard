@@ -2,13 +2,15 @@
 
 import type { CSSProperties } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { APPOINTMENT_TIME_SLOTS, formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
+import { APPOINTMENT_TIME_SLOTS, formatAppointmentTimeDisplay, formatBookingStatusLabel } from '@/lib/bookingTimes'
 import { FUB_BOOKING_BRANDS, FUB_MEETING_TYPES } from '@/lib/fubEmbeddedApp'
-import { meetingTypeLabel, parseMeetingType } from '@/lib/meetingTypes'
+import { parseMeetingType } from '@/lib/meetingTypes'
 import { BOOKED_BY_OPTIONS } from '@/lib/bookedBy'
 import type { FubAppointment, FubProjectOption } from '@/lib/fubProjects'
+import type { AppointmentNurtureRow } from '@/lib/appointmentNurture'
 import FubEscalationPanel from '@/components/FubEscalationPanel'
 import FubFollowUpPanel from '@/components/FubFollowUpPanel'
+import FubAppointmentNurture, { type NurtureActionId } from '@/components/FubAppointmentNurture'
 
 type Props = {
   context: string
@@ -19,6 +21,7 @@ type Props = {
   phone: string
   taggedProjects: FubProjectOption[]
   appointments: FubAppointment[]
+  nurtures?: AppointmentNurtureRow[]
   currentUser?: { id?: number; name?: string }
 }
 
@@ -35,6 +38,7 @@ export default function FubBookingForm({
   phone,
   taggedProjects,
   appointments: initialAppointments,
+  nurtures: initialNurtures = [],
   currentUser,
 }: Props) {
   const minDate = useMemo(() => todayToronto(), [])
@@ -53,6 +57,7 @@ export default function FubBookingForm({
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [appointments, setAppointments] = useState(initialAppointments)
+  const [nurtures, setNurtures] = useState(initialNurtures)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [editDate, setEditDate] = useState(minDate)
@@ -61,6 +66,9 @@ export default function FubBookingForm({
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const name = `${firstName} ${lastName}`.trim() || 'this lead'
+  const orphanNurtures = nurtures.filter(
+    (row) => !appointments.some((item) => item.id === row.booking_id && item.table === row.booking_table)
+  )
 
   async function reloadAppointments() {
     const response = await fetch('/api/fub/appointments', {
@@ -70,6 +78,7 @@ export default function FubBookingForm({
     })
     const payload = await response.json()
     if (Array.isArray(payload.appointments)) setAppointments(payload.appointments)
+    if (Array.isArray(payload.nurtures)) setNurtures(payload.nurtures)
   }
 
   useEffect(() => {
@@ -220,6 +229,43 @@ export default function FubBookingForm({
     }
   }
 
+  function nurtureFor(item: FubAppointment) {
+    return nurtures.find((row) => row.booking_id === item.id && row.booking_table === item.table) || null
+  }
+
+  async function runNurture(item: FubAppointment, action: NurtureActionId) {
+    setBusyId(item.id)
+    setError('')
+    setNotice(
+      action === 'appointment_done' || action === 'no_show' || action === 'restart'
+        ? 'Creating 14 Follow Up Boss tasks…'
+        : ''
+    )
+    try {
+      const response = await fetch('/api/fub/nurture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context,
+          signature,
+          table: item.table,
+          bookingId: item.id,
+          action,
+          firstName,
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Could not update appointment nurture.')
+      if (Array.isArray(payload.nurtures)) setNurtures(payload.nurtures)
+      setNotice(payload.message || 'Appointment nurture updated.')
+      await reloadAppointments()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update appointment nurture.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <div style={wrap}>
       <div style={{ fontSize: 15, fontWeight: 700, color: '#1f2933', marginBottom: 2 }}>{name}</div>
@@ -237,15 +283,18 @@ export default function FubBookingForm({
       </div>
       <div style={bookingInner}>
       <div style={bookingHint}>Meeting with the lead. Calendar invite and messages go to them.</div>
+      {notice ? <div style={noticeText}>{notice}</div> : null}
+      {error ? <div style={errorText}>{error}</div> : null}
       {appointments.length > 0 ? (
         <>
-          <div style={label}>Upcoming</div>
+          <div style={label}>Appointments</div>
           {appointments.map((item) => (
             <div key={`${item.table}-${item.id}`} style={apptCard}>
               <div style={{ fontWeight: 600, fontSize: 13 }}>{item.project_name}</div>
               <div style={{ fontSize: 12, color: '#667085', margin: '4px 0 8px' }}>
                 {item.appointment_date} · {formatAppointmentTimeDisplay(item.appointment_time)} · {item.brand}
                 {item.booked_by ? ` · Booked by ${item.booked_by}` : ''}
+                {item.status ? ` · ${formatBookingStatusLabel(item.status)}` : ''}
               </div>
               {editingId === item.id ? (
                 <>
@@ -345,12 +394,49 @@ export default function FubBookingForm({
                   </div>
                 </>
               )}
+              <FubAppointmentNurture
+                nurture={nurtureFor(item)}
+                disabled={busyId === item.id}
+                onAction={(action) => void runNurture(item, action)}
+              />
             </div>
           ))}
         </>
       ) : null}
 
-      <div style={{ ...label, marginTop: appointments.length > 0 ? 16 : 8 }}>New meeting</div>
+      {orphanNurtures.length > 0 ? (
+        <>
+          <div style={{ ...label, marginTop: 12 }}>Active nurture</div>
+          {orphanNurtures.map((row) => (
+            <div key={row.id} style={apptCard}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>
+                {formatBookingStatusLabel(row.outcome === 'appointment_done' ? 'completed' : row.outcome)}
+              </div>
+              <FubAppointmentNurture
+                nurture={row}
+                disabled={busyId === row.booking_id}
+                onAction={(action) =>
+                  void runNurture(
+                    {
+                      id: row.booking_id,
+                      table: row.booking_table,
+                      brand: '',
+                      project_name: 'Appointment nurture',
+                      appointment_date: '',
+                      appointment_time: '',
+                      appointment_type: '',
+                      status: row.outcome,
+                    },
+                    action
+                  )
+                }
+              />
+            </div>
+          ))}
+        </>
+      ) : null}
+
+      <div style={{ ...label, marginTop: appointments.length > 0 || orphanNurtures.length > 0 ? 16 : 8 }}>New meeting</div>
 
       <label style={label}>Brand</label>
       <select value={brand} onChange={(e) => setBrand(e.target.value)} style={input}>

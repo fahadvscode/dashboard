@@ -160,3 +160,41 @@ export function isBookingStatusCanceled(status: unknown): boolean {
   const normalized = String(status || '').trim().toLowerCase()
   return normalized === 'canceled' || normalized === 'cancelled'
 }
+
+export function bookingStatusBadgeClass(status: unknown): string {
+  switch (String(status || '').trim().toLowerCase()) {
+    case 'scheduled':
+    case 'confirmed':
+    case 'pending':
+    case 'new':
+      return 'bg-green-100 text-green-800'
+    case 'completed':
+      return 'bg-blue-100 text-blue-800'
+    case 'rescheduled':
+      return 'bg-amber-100 text-amber-800'
+    case 'no_show':
+      return 'bg-orange-100 text-orange-800'
+    case 'cancelled':
+    case 'canceled':
+      return 'bg-red-100 text-red-800'
+    default:
+      return 'bg-gray-100 text-gray-800'
+  }
+}
+
+export function formatBookingStatusLabel(status: unknown): string {
+  const raw = String(status || '').trim()
+  if (!raw) return 'Unknown'
+  switch (raw.toLowerCase()) {
+    case 'no_show':
+      return 'No show'
+    case 'completed':
+      return 'Appointment Done'
+    case 'rescheduled':
+      return 'Rescheduled'
+    case 'canceled':
+      return 'Cancelled'
+    default:
+      return raw.charAt(0).toUpperCase() + raw.slice(1)
+  }
+}
