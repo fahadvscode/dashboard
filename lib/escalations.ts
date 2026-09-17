@@ -1,5 +1,5 @@
 import { BOOKED_BY_OPTIONS } from '@/lib/bookedBy'
-import { BOOKING_TIMEZONE, formatAppointmentTime, parseAppointmentTime } from '@/lib/bookingTimes'
+import { BOOKING_TIMEZONE, formatAppointmentTime, torontoWallToDate } from '@/lib/bookingTimes'
 
 export const ESCALATION_FROM_STAFF = BOOKED_BY_OPTIONS
 export type EscalationFromStaff = (typeof ESCALATION_FROM_STAFF)[number]
@@ -50,19 +50,7 @@ export function escalationDueAt(when: EscalationWhen, from = new Date()) {
 }
 
 export function escalationDueFromCustom(dateYmd: string, time: string): Date | null {
-  const date = String(dateYmd || '').trim()
-  const rawTime = String(time || '').trim()
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/\d/.test(rawTime)) return null
-  const { hours, minutes } = parseAppointmentTime(rawTime)
-  const [year, month, day] = date.split('-').map(Number)
-  if (!year || !month || !day) return null
-  const desiredUtc = Date.UTC(year, month - 1, day, hours, minutes, 0)
-  const guess = new Date(desiredUtc)
-  const wall = formatTorontoWall(guess)
-  const [wallHour, wallMinute] = wall.startDateTimeLocal.slice(11, 16).split(':').map(Number)
-  const [wallYear, wallMonth, wallDay] = wall.date.split('-').map(Number)
-  const actualUtc = Date.UTC(wallYear, wallMonth - 1, wallDay, wallHour, wallMinute, 0)
-  return new Date(guess.getTime() + (desiredUtc - actualUtc))
+  return torontoWallToDate(dateYmd, time)
 }
 
 export function customEscalationNeedsReminder(dueAt: Date, from = new Date()) {

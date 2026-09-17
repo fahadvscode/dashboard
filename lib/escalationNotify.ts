@@ -97,7 +97,7 @@ export async function saveEscalationReminder(input: EscalationNotice & { dueAt: 
 export async function sendDueEscalationReminders() {
   const supabase = getSupabaseAdmin()
   const now = Date.now()
-  const windowStart = new Date(now - 60 * 1000).toISOString()
+  const windowStart = new Date(now + 60 * 1000).toISOString()
   const windowEnd = new Date(now + 3 * 60 * 1000).toISOString()
 
   const { data, error } = await supabase

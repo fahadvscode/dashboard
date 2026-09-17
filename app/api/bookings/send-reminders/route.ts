@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import twilio from 'twilio'
 import nodemailer from 'nodemailer'
-import { todayTorontoYmd, torontoWallToDate } from '@/lib/bookingTimes'
+import {
+  appointmentHasStarted,
+  todayTorontoYmd,
+  torontoWallToDate,
+} from '@/lib/bookingTimes'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -128,7 +132,7 @@ export async function GET(request: NextRequest) {
         .from(tableName)
         .select('*')
         .gte('appointment_date', todayToronto) // Toronto today or future, not UTC date
-        .or('status.in.(pending,confirmed,new),status.is.null')
+        .or('status.in.(pending,confirmed,new,scheduled),status.is.null')
         .order('appointment_date', { ascending: true })
         .order('appointment_time', { ascending: true })
 
@@ -151,11 +155,16 @@ export async function GET(request: NextRequest) {
           const minutesUntil = (appointmentTime.getTime() - now.getTime()) / (1000 * 60)
           const brandName = getBrandName(tableName)
 
-          // Never email/text after the appointment has started
-          if (minutesUntil <= 0) continue
+          // Toronto clock is the source of truth — never text/email after the slot
+          if (
+            minutesUntil <= 0 ||
+            appointmentHasStarted(booking.appointment_date, booking.appointment_time, now)
+          ) {
+            continue
+          }
 
           // 24-HOUR CUSTOMER REMINDER (SMS + email)
-          if (!booking.reminder_24h_sent && hoursUntil <= 24 && hoursUntil > 1) {
+          if (!booking.reminder_24h_sent && hoursUntil <= 26 && hoursUntil > 20) {
             await send24HourCustomerReminder(bookingWithTable, brandName)
             await markReminderSent(tableName, booking.id, 'reminder_24h_sent')
             results.sent++
@@ -163,7 +172,7 @@ export async function GET(request: NextRequest) {
           }
 
           // 1-HOUR CUSTOMER REMINDER (SMS + email)
-          if (!booking.reminder_1h_sent && hoursUntil <= 1 && minutesUntil > 5) {
+          if (!booking.reminder_1h_sent && minutesUntil <= 75 && minutesUntil > 45) {
             await send1HourCustomerReminder(bookingWithTable, brandName)
             await markReminderSent(tableName, booking.id, 'reminder_1h_sent')
             results.sent++
@@ -171,7 +180,7 @@ export async function GET(request: NextRequest) {
           }
 
           // 5-MIN CUSTOMER REMINDER (SMS only - too late for email)
-          if (booking.phone && !booking.reminder_5m_sent && minutesUntil <= 5 && minutesUntil > 0) {
+          if (booking.phone && !booking.reminder_5m_sent && minutesUntil <= 12 && minutesUntil > 1) {
             await send5MinCustomerReminder(bookingWithTable, brandName)
             await markReminderSent(tableName, booking.id, 'reminder_5m_sent')
             results.sent++
@@ -179,7 +188,7 @@ export async function GET(request: NextRequest) {
           }
 
           // 1-HOUR ADMIN REMINDER (SMS + email)
-          if (!booking.reminder_admin_1h_sent && hoursUntil <= 1 && minutesUntil > 15) {
+          if (!booking.reminder_admin_1h_sent && minutesUntil <= 75 && minutesUntil > 45) {
             await send1HourAdminReminder(bookingWithTable, brandName)
             await markReminderSent(tableName, booking.id, 'reminder_admin_1h_sent')
             results.sent++
@@ -187,7 +196,7 @@ export async function GET(request: NextRequest) {
           }
 
           // 15-MIN ADMIN REMINDER (SMS + email)
-          if (!booking.reminder_admin_15m_sent && minutesUntil <= 15 && minutesUntil > 0) {
+          if (!booking.reminder_admin_15m_sent && minutesUntil <= 22 && minutesUntil > 8) {
             await send15MinAdminReminder(bookingWithTable, brandName)
             await markReminderSent(tableName, booking.id, 'reminder_admin_15m_sent')
             results.sent++

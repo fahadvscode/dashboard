@@ -72,46 +72,84 @@ export function todayTorontoYmd() {
   return new Date().toLocaleDateString('en-CA', { timeZone: BOOKING_TIMEZONE })
 }
 
-/** Convert a Toronto wall date+time (e.g. 2026-09-14, 2:00 PM) to a real UTC Date, including DST. */
-export function torontoWallToDate(dateYmd: string, appointmentTime: string): Date | null {
-  const date = String(dateYmd || '').trim()
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/\d/.test(String(appointmentTime || ''))) return null
-  const { hours, minutes } = parseAppointmentTime(appointmentTime)
-  const [year, month, day] = date.split('-').map(Number)
-  if (!year || !month || !day) return null
-  const desiredUtc = Date.UTC(year, month - 1, day, hours, minutes, 0)
-  const guess = new Date(desiredUtc)
-  const parts = new Intl.DateTimeFormat('en-US', {
+/** YYYY-MM-DD from a date column or ISO timestamp. */
+export function bookingDateYmd(value: unknown): string | null {
+  const match = String(value || '').trim().match(/^(\d{4}-\d{2}-\d{2})/)
+  return match ? match[1] : null
+}
+
+export function torontoDateTimeParts(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: BOOKING_TIMEZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(guess)
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ''
-  let wallHour = Number(get('hour'))
-  if (wallHour === 24) wallHour = 0
-  const actualUtc = Date.UTC(
-    Number(get('year')),
-    Number(get('month')) - 1,
-    Number(get('day')),
-    wallHour,
-    Number(get('minute')),
-    0
-  )
-  return new Date(guess.getTime() + (desiredUtc - actualUtc))
+  let hour = Number(get('hour'))
+  if (hour === 24) hour = 0
+  return {
+    ymd: `${get('year')}-${get('month')}-${get('day')}`,
+    hour,
+    minute: Number(get('minute')),
+    second: Number(get('second')),
+  }
+}
+
+/** True once Toronto's clock has reached the appointment time (no late SMS/email). */
+export function appointmentHasStarted(
+  appointmentDate: string,
+  appointmentTime: string,
+  now = new Date()
+) {
+  const ymd = bookingDateYmd(appointmentDate)
+  if (!ymd || !/\d/.test(String(appointmentTime || ''))) return true
+  const { hours, minutes } = parseAppointmentTime(appointmentTime)
+  const nowParts = torontoDateTimeParts(now)
+  if (nowParts.ymd > ymd) return true
+  if (nowParts.ymd < ymd) return false
+  return nowParts.hour * 60 + nowParts.minute >= hours * 60 + minutes
+}
+
+/** Convert a Toronto wall date+time (e.g. 2026-09-14, 2:00 PM) to a real UTC Date, including DST. */
+export function torontoWallToDate(dateYmd: string, appointmentTime: string): Date | null {
+  const date = bookingDateYmd(dateYmd)
+  if (!date || !/\d/.test(String(appointmentTime || ''))) return null
+  const { hours, minutes } = parseAppointmentTime(appointmentTime)
+  const [year, month, day] = date.split('-').map(Number)
+  if (!year || !month || !day) return null
+  const desiredUtc = Date.UTC(year, month - 1, day, hours, minutes, 0)
+  let utc = Date.UTC(year, month - 1, day, hours + 4, minutes, 0)
+  for (let i = 0; i < 4; i++) {
+    const wall = torontoDateTimeParts(new Date(utc))
+    const actualUtc = Date.UTC(
+      Number(wall.ymd.slice(0, 4)),
+      Number(wall.ymd.slice(5, 7)) - 1,
+      Number(wall.ymd.slice(8, 10)),
+      wall.hour,
+      wall.minute,
+      0
+    )
+    const diff = desiredUtc - actualUtc
+    if (diff === 0) return new Date(utc)
+    utc += diff
+  }
+  return new Date(utc)
 }
 
 export function buildAppointmentDateTimes(appointmentDate: string, appointmentTime: string) {
+  const date = bookingDateYmd(appointmentDate) || String(appointmentDate || '').trim()
   const { hours, minutes } = parseAppointmentTime(appointmentTime)
-  const startDateTimeLocal = `${appointmentDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`
+  const startDateTimeLocal = `${date}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`
 
   const endMinutes = minutes + 30
   const adjustedEndHours = endMinutes >= 60 ? hours + 1 : hours
   const adjustedEndMinutes = endMinutes >= 60 ? endMinutes - 60 : endMinutes
-  const endDateTimeLocal = `${appointmentDate}T${String(adjustedEndHours).padStart(2, '0')}:${String(adjustedEndMinutes).padStart(2, '0')}:00`
+  const endDateTimeLocal = `${date}T${String(adjustedEndHours).padStart(2, '0')}:${String(adjustedEndMinutes).padStart(2, '0')}:00`
 
   return { startDateTimeLocal, endDateTimeLocal }
 }
