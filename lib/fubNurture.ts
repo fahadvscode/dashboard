@@ -92,11 +92,36 @@ async function loadNurture(table: string, bookingId: string) {
 }
 
 function fubTaskId(json: unknown): number | null {
+  if (typeof json === 'number' && Number.isFinite(json) && json > 0) return json
   if (!json || typeof json !== 'object') return null
-  const row = json as { id?: unknown; task?: { id?: unknown } }
-  const raw = row.id ?? row.task?.id
+  const row = json as {
+    id?: unknown
+    Id?: unknown
+    taskId?: unknown
+    task?: { id?: unknown }
+  }
+  const raw = row.id ?? row.Id ?? row.taskId ?? row.task?.id
   const id = typeof raw === 'number' ? raw : Number(String(raw || '').trim())
   return Number.isFinite(id) && id > 0 ? id : null
+}
+
+function fubErrorMessage(json: unknown, fallback: string) {
+  if (!json || typeof json !== 'object') return fallback
+  const row = json as Record<string, unknown>
+  const parts = [row.error, row.message, row.errorMessage, row.details]
+    .map((item) => {
+      if (typeof item === 'string') return item.trim()
+      if (item && typeof item === 'object') return JSON.stringify(item)
+      return ''
+    })
+    .filter((item) => item && item !== 'true' && item !== 'false')
+  if (parts[0]) return parts[0]
+  try {
+    const raw = JSON.stringify(json)
+    return raw && raw !== '{}' ? `${fallback} ${raw}` : fallback
+  } catch {
+    return fallback
+  }
 }
 
 async function resolveOfficeAssignee() {
@@ -118,11 +143,6 @@ async function resolveOfficeAssignee() {
 
 async function createOneNurtureTask(payload: Record<string, unknown>) {
   let created = await fubApiFetch('/tasks', { method: 'POST', body: JSON.stringify(payload) })
-  if (!created.ok && payload.description) {
-    const withoutDescription = { ...payload }
-    delete withoutDescription.description
-    created = await fubApiFetch('/tasks', { method: 'POST', body: JSON.stringify(withoutDescription) })
-  }
   if (!created.ok && payload.assignedUserId && payload.assignedTo) {
     const byId = { ...payload }
     delete byId.assignedTo
@@ -152,49 +172,56 @@ async function createTrackTasks(track: NurtureTrack, personId: number, firstName
   assignedUserId: number | null
 }) {
   const scheduled = scheduleNurtureTouches(track, firstName)
-  const tasks: NurtureTaskRecord[] = new Array(scheduled.length)
+  const tasks: NurtureTaskRecord[] = []
   let createdCount = 0
 
-  async function createIndex(index: number) {
-    const item = scheduled[index]
+  for (const item of scheduled) {
     const payload: Record<string, unknown> = {
       personId,
       name: item.name,
       type: 'Follow Up',
       dueDate: item.dueDate,
       dueDateTime: item.dueDateTime,
-      description: item.body,
     }
     if (assignee.assignedUserId) payload.assignedUserId = assignee.assignedUserId
     if (assignee.assignedTo) payload.assignedTo = assignee.assignedTo
 
     const created = await createOneNurtureTask(payload)
     const fubId = created.ok ? fubTaskId(created.json) : null
-    if (created.ok && fubId) createdCount += 1
-    if (!created.ok) {
-      const details = created.json as { error?: string; message?: string }
+    if (!created.ok || !fubId) {
+      const error = fubErrorMessage(created.json, `Could not create Touch ${item.touch.n}.`)
       console.error('Nurture FUB task failed:', item.name, created.status, created.json)
-      tasks[index] = {
+      tasks.push({
         touch: item.touch.n,
         fubTaskId: null,
         dueDate: item.dueDate,
         name: item.name,
-        error: details.error || details.message || 'Could not create task.',
-      }
-      return
+        error,
+      })
+      if (createdCount === 0) break
+      continue
     }
-    tasks[index] = {
+
+    createdCount += 1
+    tasks.push({
       touch: item.touch.n,
       fubTaskId: fubId,
       dueDate: item.dueDate,
       name: item.name,
-    }
-  }
+    })
 
-  const concurrency = 4
-  for (let start = 0; start < scheduled.length; start += concurrency) {
-    const batch = scheduled.slice(start, start + concurrency).map((_, offset) => createIndex(start + offset))
-    await Promise.all(batch)
+    try {
+      await fubApiFetch('/notes', {
+        method: 'POST',
+        body: JSON.stringify({
+          personId,
+          subject: item.name,
+          body: item.body,
+        }),
+      })
+    } catch (error) {
+      console.error('Nurture FUB note failed:', item.name, error)
+    }
   }
 
   return { tasks, createdCount }
@@ -323,6 +350,9 @@ export async function applyAppointmentNurture(input: {
 
   const assignee = await resolveOfficeAssignee()
   const { tasks, createdCount } = await createTrackTasks(track, input.personId, firstName, assignee)
+  if (createdCount === 0) {
+    throw new Error(tasks[0]?.error || 'Could not create Follow Up Boss tasks for Fahad Javed office.')
+  }
   await updateBookingOutcome(input.table, input.bookingId, track)
   const saved = await saveNurture({
     booking_id: input.bookingId,

@@ -19,18 +19,21 @@ export default function FubAppointmentNurture({
   const stopped = nurture?.status === 'stopped'
   const parked = nurture?.outcome === 'rescheduled' && nurture?.status === 'pending'
   const created = (nurture?.tasks || []).filter((task) => task.fubTaskId).length
+  const firstError = (nurture?.tasks || []).find((task) => task.error)?.error
+  const firstDue = (nurture?.tasks || []).find((task) => task.fubTaskId)
 
   return (
     <div style={box}>
       <div style={title}>Appointment nurture</div>
       <div style={hint}>
         Creates {NURTURE_TOUCH_COUNT} internal Follow Up Boss tasks for {NURTURE_ASSIGNEE} only. Does not email or
-        text the lead.
+        text the lead. Touch 1 is due immediately.
       </div>
 
       {active ? (
         <div style={statusActive}>
           Running · {nurtureOutcomeLabel(nurture?.outcome)} · {created}/{NURTURE_TOUCH_COUNT} tasks
+          {firstDue ? ` · Touch ${firstDue.touch} due ${firstDue.dueDate}` : ''}
         </div>
       ) : null}
       {stopped ? (
@@ -41,6 +44,7 @@ export default function FubAppointmentNurture({
       {parked ? (
         <div style={statusParked}>Rescheduled — no tasks. Mark Done or No show after the new meeting.</div>
       ) : null}
+      {firstError ? <div style={statusStopped}>{firstError}</div> : null}
 
       {!active ? (
         <div style={row}>
