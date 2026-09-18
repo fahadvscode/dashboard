@@ -107,8 +107,13 @@ const normalizeCallHistory = (value: unknown): CallHistoryEntry[] => {
 }
 
 function normalizeLead(raw: Record<string, unknown>, tableName: string): LandingPageLead {
-  const firstname = (raw.first_name ?? raw.firstname ?? '') as string
-  const lastname = (raw.last_name ?? raw.lastname ?? '') as string
+  let firstname = (raw.first_name ?? raw.firstname ?? '') as string
+  let lastname = (raw.last_name ?? raw.lastname ?? '') as string
+  if (!firstname && !lastname && typeof raw.full_name === 'string') {
+    const parts = raw.full_name.trim().split(/\s+/).filter(Boolean)
+    firstname = parts[0] || ''
+    lastname = parts.slice(1).join(' ')
+  }
   return {
     id: raw.id as string,
     firstname,

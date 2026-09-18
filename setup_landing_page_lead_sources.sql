@@ -65,7 +65,8 @@ VALUES
   ('og_urban_towns_leads', 'OG Urban Towns', 'OG Urban Towns', 'https://brightstone.ca/communities/og-urban-towns', 'first_name', true, false),
   ('rosemont_grove_leads', 'Rosemont Grove', 'Rosemont Grove', 'https://rosemontgrove.ca', 'first_name', true, false),
   ('yt_on_fourth_leads', 'YT on Fourth', 'YT on Fourth', 'https://ytonfourth.ca', 'first_name', true, false),
-  ('hawthorne_trafalgar_leads', 'Hawthorne on Trafalgar', 'Hawthorne on Trafalgar', 'https://hawthornetrafalgar.com', 'firstname', true, false)
+  ('hawthorne_trafalgar_leads', 'Hawthorne on Trafalgar', 'Hawthorne on Trafalgar', 'https://hawthornetrafalgar.com', 'firstname', true, false),
+  ('fahad_sells_leads', 'Fahad Sells', 'Fahad Sells', 'https://fahadsells.com', 'first_name', true, false)
 ON CONFLICT (table_name) DO UPDATE SET
   display_name = EXCLUDED.display_name,
   page_name = EXCLUDED.page_name,

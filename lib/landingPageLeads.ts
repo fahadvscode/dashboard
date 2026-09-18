@@ -16,6 +16,7 @@ export const OG_URBAN_TOWNS_LEADS_TABLE = 'og_urban_towns_leads' as const
 export const ROSEMONT_GROVE_LEADS_TABLE = 'rosemont_grove_leads' as const
 export const YT_ON_FOURTH_LEADS_TABLE = 'yt_on_fourth_leads' as const
 export const HAWTHORNE_TRAFALGAR_LEADS_TABLE = 'hawthorne_trafalgar_leads' as const
+export const FAHAD_SELLS_LEADS_TABLE = 'fahad_sells_leads' as const
 
 export const LANDING_PAGE_BRAND_LABELS: Record<string, string> = Object.fromEntries(
   BUILTIN_LANDING_PAGE_SOURCES.map((s) => [s.table_name, s.display_name])

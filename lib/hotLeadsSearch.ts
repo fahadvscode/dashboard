@@ -29,6 +29,7 @@ const LANDING_PAGE_TABLES = new Set<ContactSourceTable>([
   'og_urban_towns_leads',
   'rosemont_grove_leads',
   'yt_on_fourth_leads',
+  'fahad_sells_leads',
 ])
 
 const TABLES_WITH_FULL_NAME = new Set<ContactSourceTable>(['rental_leads'])
