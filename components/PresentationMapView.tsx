@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Loader2, Car, Footprints, MapPin, Navigation, Star, ChevronDown, ChevronRight, Eye, EyeOff, Map, List, ChevronUp } from 'lucide-react'
 import { loadGoogleMapsScript } from '@/lib/loadGoogleMapsScript'
+import { geocodeAddress } from '@/lib/geocodeAddress'
 
 /* ───────────────────────── Types ───────────────────────── */
 
@@ -238,20 +239,6 @@ function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)} km`
 }
 
-function geocodeAddress(
-  geocoder: google.maps.Geocoder,
-  address: string
-): Promise<google.maps.LatLngLiteral | null> {
-  return new Promise((resolve) => {
-    geocoder.geocode({ address }, (results, status) => {
-      if (status === 'OK' && results?.[0]?.geometry?.location) {
-        const loc = results[0].geometry.location
-        resolve({ lat: loc.lat(), lng: loc.lng() })
-      } else resolve(null)
-    })
-  })
-}
-
 function nearbySearchPromise(
   service: google.maps.places.PlacesService,
   request: google.maps.places.PlaceSearchRequest
@@ -360,8 +347,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
       return
     }
 
-    const geocoder = new google.maps.Geocoder()
-    geocodeAddress(geocoder, q).then((loc) => {
+    geocodeAddress(q).then((loc) => {
       if (loc) setProjectLocation(loc)
       else setError(`Could not geocode address: ${q}`)
     })
@@ -871,7 +857,6 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
 
     if (!mapRef.current || !nearbyProjects?.length || !window.google?.maps || !scriptReady) return
 
-    const geocoder = new google.maps.Geocoder()
     const map = mapRef.current
 
     nearbyProjects.forEach(async (np) => {
@@ -882,7 +867,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
         const parts = [(np.map_address || np.address || '').trim(), (np.city || '').trim(), 'Canada'].filter(Boolean)
         const q = parts.join(', ')
         if (q && q !== 'Canada') {
-          pos = await geocodeAddress(geocoder, q)
+          pos = await geocodeAddress(q)
         }
       }
       if (!pos) return

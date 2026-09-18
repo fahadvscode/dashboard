@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, MapPin } from 'lucide-react'
 import { loadGoogleMapsScript } from '@/lib/loadGoogleMapsScript'
+import { geocodeAddress } from '@/lib/geocodeAddress'
 import { getFirstPropertyImage, parsePropertyPictures } from '@/lib/propertyImages'
 
 export type MapCompany = 'fj' | 'precon_factory'
@@ -41,20 +42,6 @@ function buildGeocodeQuery(p: MapProperty): string | null {
   const parts = [line, city, 'Canada'].filter(Boolean)
   const q = parts.join(', ').trim()
   return q || null
-}
-
-function geocodePromise(
-  geocoder: google.maps.Geocoder,
-  address: string
-): Promise<google.maps.LatLngLiteral | null> {
-  return new Promise((resolve) => {
-    geocoder.geocode({ address }, (results, status) => {
-      if (status === 'OK' && results?.[0]?.geometry?.location) {
-        const loc = results[0].geometry.location
-        resolve({ lat: loc.lat(), lng: loc.lng() })
-      } else resolve(null)
-    })
-  })
 }
 
 function escapeHtml(s: string): string {
@@ -241,7 +228,6 @@ export default function CollectionsMapPanel({
   useEffect(() => {
     if (!scriptReady || !window.google?.maps) return
 
-    const geocoder = new google.maps.Geocoder()
     let cancelled = false
 
     const run = async () => {
@@ -265,7 +251,7 @@ export default function CollectionsMapPanel({
           continue
         }
         await new Promise((r) => setTimeout(r, 200))
-        const loc = await geocodePromise(geocoder, q)
+        const loc = await geocodeAddress(q)
         if (cancelled) return
         if (loc) next[p.id] = loc
         else errs.push(p.project_name)

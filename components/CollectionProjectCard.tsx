@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ExternalLink, MapPin, DollarSign, BedDouble, Bath, Ruler, X, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { loadGoogleMapsScript } from '@/lib/loadGoogleMapsScript'
+import { geocodeAddress } from '@/lib/geocodeAddress'
 import {
   getFirstPropertyImage,
   handlePropertyImageError,
@@ -72,7 +73,6 @@ export default function CollectionProjectCard({
     setMapSaving(true)
     try {
       await loadGoogleMapsScript(apiKey)
-      const geocoder = new google.maps.Geocoder()
       const line = mapAddrInput.trim() || (property.address || '').trim()
       const q = [line, (property.city || '').trim(), 'Canada'].filter(Boolean).join(', ')
 
@@ -80,14 +80,7 @@ export default function CollectionProjectCard({
       let lng: number | null = null
 
       if (q.length > 3) {
-        const loc = await new Promise<google.maps.LatLngLiteral | null>((resolve) => {
-          geocoder.geocode({ address: q }, (results, status) => {
-            if (status === 'OK' && results?.[0]?.geometry?.location) {
-              const l = results[0].geometry.location
-              resolve({ lat: l.lat(), lng: l.lng() })
-            } else resolve(null)
-          })
-        })
+        const loc = await geocodeAddress(q)
         if (loc) {
           lat = loc.lat
           lng = loc.lng
