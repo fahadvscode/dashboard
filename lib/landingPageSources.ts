@@ -53,6 +53,7 @@ export const BUILTIN_LANDING_PAGE_SOURCES: LandingPageSource[] = [
   { table_name: 'rosemont_grove_leads', display_name: 'Rosemont Grove', page_name: 'Rosemont Grove', site_url: 'https://rosemontgrove.ca', name_style: 'first_name', enabled: true, has_crm: false, builtin: true },
   { table_name: 'yt_on_fourth_leads', display_name: 'YT on Fourth', page_name: 'YT on Fourth', site_url: 'https://ytonfourth.ca', name_style: 'first_name', enabled: true, has_crm: false, builtin: true },
   { table_name: 'hawthorne_trafalgar_leads', display_name: 'Hawthorne on Trafalgar', page_name: 'Hawthorne on Trafalgar', site_url: 'https://hawthornetrafalgar.com', name_style: 'firstname', enabled: true, has_crm: false, builtin: true },
+  { table_name: 'agency_landing_leads', display_name: 'Agency Pages', page_name: 'Agency Pages', site_url: '', name_style: 'first_name', enabled: true, has_crm: true, builtin: true },
 ]
 
 const LEAD_TABLE_ALIASES: Record<string, string> = {

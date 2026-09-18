@@ -259,3 +259,13 @@ FUB_EMBEDDED_APP_SECRET=the_secret_key_from_the_fub_app_form
 
 Paste the Secret Key from Follow Up Boss → Admin → Integrations → Bookings Integration. The iframe URL is `https://property-dashboard-three.vercel.app/fub/bookings`.
 
+---
+
+## Agency landing-page lead webhook
+
+```bash
+AGENCY_LEAD_WEBHOOK_SECRET=a_long_random_string
+```
+
+Used by `POST /api/leads/ingest`. Give the agency this secret plus the webhook URL. Never put it in a public Git repo. After changing it in Vercel, redeploy.
+
