@@ -1,50 +1,41 @@
 let loadPromise: Promise<void> | null = null
 
-async function importRequiredLibraries(): Promise<void> {
-  const maps = window.google?.maps
-  if (!maps?.importLibrary) {
-    throw new Error('Google Maps importLibrary is unavailable')
-  }
-
-  await Promise.all([
-    maps.importLibrary('maps'),
-    maps.importLibrary('geocoding'),
-    maps.importLibrary('places'),
-  ])
-}
-
-function isGeocoderReady(): boolean {
-  return typeof window.google?.maps?.Geocoder === 'function'
+function isMapsReady(): boolean {
+  return (
+    typeof window.google?.maps?.Map === 'function' &&
+    typeof window.google?.maps?.Geocoder === 'function' &&
+    typeof window.google?.maps?.places?.PlacesService === 'function'
+  )
 }
 
 /**
- * Loads the Maps JavaScript API once, then imports maps/geocoding/places libraries.
+ * Loads the Maps JavaScript API once (Geocoder, Map, Places for dashboard maps).
+ * Uses the classic libraries=places bootstrap so google.maps.Geocoder is available.
  */
 export function loadGoogleMapsScript(apiKey: string): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve()
-  if (isGeocoderReady()) return Promise.resolve()
+  if (isMapsReady()) return Promise.resolve()
   if (loadPromise) return loadPromise
 
   loadPromise = new Promise((resolve, reject) => {
-    const finish = async () => {
-      try {
-        await importRequiredLibraries()
+    const onReady = () => {
+      if (isMapsReady()) {
         resolve()
-      } catch (error) {
-        loadPromise = null
-        reject(error instanceof Error ? error : new Error('Google Maps libraries failed'))
+        return
       }
+      loadPromise = null
+      reject(new Error('Google Maps libraries unavailable after script load'))
     }
 
     const existing = document.querySelector<HTMLScriptElement>(
       'script[data-google-maps-loader="1"]'
     )
     if (existing) {
-      if (window.google?.maps?.importLibrary) {
-        void finish()
+      if (isMapsReady()) {
+        resolve()
         return
       }
-      existing.addEventListener('load', () => void finish(), { once: true })
+      existing.addEventListener('load', onReady, { once: true })
       existing.addEventListener('error', () => reject(new Error('Google Maps script failed')), {
         once: true,
       })
@@ -52,11 +43,11 @@ export function loadGoogleMapsScript(apiKey: string): Promise<void> {
     }
 
     const s = document.createElement('script')
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&loading=async`
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places`
     s.async = true
     s.defer = true
     s.dataset.googleMapsLoader = '1'
-    s.onload = () => void finish()
+    s.onload = onReady
     s.onerror = () => {
       loadPromise = null
       reject(new Error('Google Maps script failed'))
