@@ -239,29 +239,149 @@ function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)} km`
 }
 
-function nearbySearchPromise(
-  service: google.maps.places.PlacesService,
-  request: google.maps.places.PlaceSearchRequest
-): Promise<google.maps.places.PlaceResult[]> {
-  return new Promise((resolve) => {
-    service.nearbySearch(request, (results, status) => {
-      if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-        resolve(results)
-      } else resolve([])
-    })
-  })
+function formatMinutes(minutes: number): string {
+  if (minutes < 1) return '< 1 min'
+  const m = Math.round(minutes)
+  if (m < 60) return `${m} min`
+  const hours = Math.floor(m / 60)
+  const rem = m % 60
+  return rem ? `${hours} hr ${rem} min` : `${hours} hr`
 }
 
-function distanceMatrixPromise(
-  service: google.maps.DistanceMatrixService,
-  request: google.maps.DistanceMatrixRequest
-): Promise<google.maps.DistanceMatrixResponse | null> {
-  return new Promise((resolve) => {
-    service.getDistanceMatrix(request, (response, status) => {
-      if (status === 'OK' && response) resolve(response)
-      else resolve(null)
+function estimateTravel(meters: number) {
+  return {
+    walkTime: formatMinutes(meters / 83.3),
+    walkDist: formatDistance(meters),
+    driveTime: formatMinutes(meters / 667),
+    driveDist: formatDistance(meters),
+  }
+}
+
+type NearbyPlace = {
+  id: string
+  name: string
+  address: string
+  lat: number
+  lng: number
+  rating?: number
+  totalRatings?: number
+}
+
+function latLngOf(loc: google.maps.LatLng | google.maps.LatLngLiteral | null | undefined) {
+  if (!loc) return null
+  const lat = typeof (loc as google.maps.LatLng).lat === 'function' ? (loc as google.maps.LatLng).lat() : Number((loc as google.maps.LatLngLiteral).lat)
+  const lng = typeof (loc as google.maps.LatLng).lng === 'function' ? (loc as google.maps.LatLng).lng() : Number((loc as google.maps.LatLngLiteral).lng)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  return { lat, lng }
+}
+
+async function searchNearbyPlacesNew(opts: {
+  apiKey?: string
+  lat: number
+  lng: number
+  types: string[]
+  radius: number
+  maxResults: number
+}): Promise<NearbyPlace[]> {
+  const types = opts.types.filter(Boolean).slice(0, 5)
+  if (types.length === 0) return []
+
+  try {
+    const lib = (await google.maps.importLibrary('places')) as google.maps.PlacesLibrary & {
+      Place?: {
+        searchNearby: (request: Record<string, unknown>) => Promise<{
+          places?: Array<{
+            id?: string | null
+            displayName?: string | null
+            formattedAddress?: string | null
+            location?: google.maps.LatLng | null
+            rating?: number | null
+            userRatingCount?: number | null
+          }>
+        }>
+      }
+    }
+    if (lib.Place?.searchNearby) {
+      const placesNs = google.maps.places as { SearchNearbyRankPreference?: { DISTANCE: string } }
+      const { places } = await lib.Place.searchNearby({
+        fields: ['id', 'displayName', 'formattedAddress', 'location', 'rating', 'userRatingCount'],
+        locationRestriction: { center: { lat: opts.lat, lng: opts.lng }, radius: opts.radius },
+        includedPrimaryTypes: types,
+        maxResultCount: Math.min(Math.max(opts.maxResults, 1), 20),
+        rankPreference: placesNs.SearchNearbyRankPreference?.DISTANCE ?? 'DISTANCE',
+      })
+      const mapped: NearbyPlace[] = []
+      for (const place of places || []) {
+        const loc = latLngOf(place.location)
+        if (!loc) continue
+        mapped.push({
+          id: place.id || `${loc.lat},${loc.lng}`,
+          name: place.displayName || 'Unknown',
+          address: place.formattedAddress || '',
+          lat: loc.lat,
+          lng: loc.lng,
+          rating: place.rating ?? undefined,
+          totalRatings: place.userRatingCount ?? undefined,
+        })
+      }
+      return mapped
+    }
+  } catch {
+    // Fall through to REST, then OSM.
+  }
+
+  if (!opts.apiKey) return []
+  try {
+    const res = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': opts.apiKey,
+        'X-Goog-FieldMask':
+          'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount',
+      },
+      body: JSON.stringify({
+        includedPrimaryTypes: types,
+        maxResultCount: Math.min(Math.max(opts.maxResults, 1), 20),
+        rankPreference: 'DISTANCE',
+        locationRestriction: {
+          circle: {
+            center: { latitude: opts.lat, longitude: opts.lng },
+            radius: opts.radius,
+          },
+        },
+      }),
     })
-  })
+    if (!res.ok) return []
+    const data = (await res.json()) as {
+      places?: Array<{
+        id?: string
+        displayName?: { text?: string }
+        formattedAddress?: string
+        location?: { latitude?: number; longitude?: number }
+        rating?: number
+        userRatingCount?: number
+      }>
+    }
+    const mapped: NearbyPlace[] = []
+    for (const place of data.places || []) {
+      const lat = place.location?.latitude
+      const lng = place.location?.longitude
+      if (typeof lat !== 'number' || typeof lng !== 'number') continue
+      mapped.push({
+        id: place.id || `${lat},${lng}`,
+        name: place.displayName?.text || 'Unknown',
+        address: place.formattedAddress || '',
+        lat,
+        lng,
+        rating: place.rating,
+        totalRatings: place.userRatingCount,
+      })
+    }
+    return mapped
+  } catch {
+    return []
+  }
 }
 
 /* ───────────────────────── Component ───────────────────────── */
@@ -272,7 +392,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   const projectMarkerRef = useRef<google.maps.Marker | null>(null)
   const amenityMarkersRef = useRef<Record<string, google.maps.Marker[]>>({})
   const nearbyMarkersRef = useRef<google.maps.Marker[]>([])
-  const commuteRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+  const commuteLineRef = useRef<google.maps.Polyline | null>(null)
   const highwayPolylinesRef = useRef<google.maps.Polyline[]>([])
   const highwayLabelsRef = useRef<google.maps.Marker[]>([])
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null)
@@ -317,18 +437,22 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   useEffect(() => {
     if (!scriptReady || !commuteInputRef?.current || !window.google?.maps?.places) return
 
-    const autocomplete = new google.maps.places.Autocomplete(commuteInputRef.current, {
-      types: ['address'],
-      componentRestrictions: { country: 'ca' },
-      fields: ['formatted_address', 'geometry'],
-    })
+    try {
+      const autocomplete = new google.maps.places.Autocomplete(commuteInputRef.current, {
+        types: ['address'],
+        componentRestrictions: { country: 'ca' },
+        fields: ['formatted_address', 'geometry'],
+      })
 
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace()
-      if (place?.formatted_address && onCommuteAddressChange) {
-        onCommuteAddressChange(place.formatted_address)
-      }
-    })
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace()
+        if (place?.formatted_address && onCommuteAddressChange) {
+          onCommuteAddressChange(place.formatted_address)
+        }
+      })
+    } catch {
+      // Legacy Autocomplete may be blocked; the input still accepts typed addresses.
+    }
   }, [scriptReady, commuteInputRef, onCommuteAddressChange])
 
   useEffect(() => {
@@ -423,117 +547,42 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
 
   // Fetch all amenities
   const fetchAmenities = useCallback(async () => {
-    if (!mapRef.current || !projectLocation || !window.google?.maps?.places) return
+    if (!mapRef.current || !projectLocation || !window.google?.maps) return
 
-    const placesService = new google.maps.places.PlacesService(mapRef.current)
-    const distanceService = new google.maps.DistanceMatrixService()
-    const origin = new google.maps.LatLng(projectLocation.lat, projectLocation.lng)
+    Object.values(amenityMarkersRef.current).forEach((markers) => {
+      markers.forEach((m) => m.setMap(null))
+    })
+    amenityMarkersRef.current = {}
 
-    for (const cat of CATEGORIES) {
-      setLoadingCategories((prev) => new Set(prev).add(cat.key))
-
+    let osmFallback: Record<string, Amenity[]> | null = null
+    const loadOsmFallback = async () => {
+      if (osmFallback) return osmFallback
       try {
-        let allResults: google.maps.places.PlaceResult[] = []
-
-        if (cat.keywords && cat.keywords.length > 0) {
-          for (const kw of cat.keywords) {
-            const kwResults = await nearbySearchPromise(placesService, {
-              location: origin,
-              radius: cat.radius,
-              keyword: kw,
-            })
-            allResults = allResults.concat(kwResults)
-            await new Promise((r) => setTimeout(r, 200))
-          }
-        } else {
-          const searchReq: google.maps.places.PlaceSearchRequest = {
-            location: origin,
-            radius: cat.radius,
-          }
-          if (cat.type) searchReq.type = cat.type
-          if (cat.keyword) searchReq.keyword = cat.keyword
-          allResults = await nearbySearchPromise(placesService, searchReq)
+        const res = await fetch(`/api/amenities?lat=${projectLocation.lat}&lng=${projectLocation.lng}`)
+        if (!res.ok) {
+          osmFallback = {}
+          return osmFallback
         }
+        const data = (await res.json()) as { amenities?: Record<string, Amenity[]> }
+        osmFallback = data.amenities || {}
+      } catch {
+        osmFallback = {}
+      }
+      return osmFallback
+    }
 
-        const maxItems = cat.maxResults || 6
-        const seenIds = new Set<string>()
-        const sorted = allResults
-          .filter((r) => {
-            if (!r.geometry?.location || !r.place_id) return false
-            if (seenIds.has(r.place_id)) return false
-            seenIds.add(r.place_id)
-            return true
-          })
-          .map((r) => ({
-            place_id: r.place_id || '',
-            name: r.name || 'Unknown',
-            address: r.vicinity || '',
-            lat: r.geometry!.location!.lat(),
-            lng: r.geometry!.location!.lng(),
-            category: cat.key,
-            rating: r.rating,
-            totalRatings: r.user_ratings_total,
-            straightDist: haversineDistance(
-              projectLocation.lat,
-              projectLocation.lng,
-              r.geometry!.location!.lat(),
-              r.geometry!.location!.lng()
-            ),
-            driveTime: undefined as string | undefined,
-            driveDist: undefined as string | undefined,
-            walkTime: undefined as string | undefined,
-            walkDist: undefined as string | undefined,
-          }))
-          .sort((a, b) => a.straightDist - b.straightDist)
-          .slice(0, maxItems)
-
-        // Fetch driving distances
-        if (sorted.length > 0) {
-          const destinations = sorted.map((a) => new google.maps.LatLng(a.lat, a.lng))
-
-          const [driveResp, walkResp] = await Promise.all([
-            distanceMatrixPromise(distanceService, {
-              origins: [origin],
-              destinations,
-              travelMode: google.maps.TravelMode.DRIVING,
-              unitSystem: google.maps.UnitSystem.METRIC,
-            }),
-            distanceMatrixPromise(distanceService, {
-              origins: [origin],
-              destinations,
-              travelMode: google.maps.TravelMode.WALKING,
-              unitSystem: google.maps.UnitSystem.METRIC,
-            }),
-          ])
-
-          sorted.forEach((amenity, i) => {
-            const driveEl = driveResp?.rows?.[0]?.elements?.[i]
-            const walkEl = walkResp?.rows?.[0]?.elements?.[i]
-            if (driveEl?.status === 'OK') {
-              amenity.driveTime = driveEl.duration?.text
-              amenity.driveDist = driveEl.distance?.text
-            }
-            if (walkEl?.status === 'OK') {
-              amenity.walkTime = walkEl.duration?.text
-              amenity.walkDist = walkEl.distance?.text
-            }
-          })
-        }
-
-        setAmenities((prev) => ({ ...prev, [cat.key]: sorted }))
-
-        // Add markers to map
-        const markers = sorted.map((amenity) => {
-          const m = new google.maps.Marker({
-            position: { lat: amenity.lat, lng: amenity.lng },
-            map: mapRef.current,
-            icon: createAmenityMarkerIcon(cat.color, cat.marker),
-            title: amenity.name,
-            zIndex: 100,
-          })
-          m.addListener('click', () => {
-            setHighlightedAmenity(amenity.place_id)
-            infoWindowRef.current?.setContent(`
+    const addMarkers = (cat: AmenityCategory, items: Amenity[]) => {
+      const markers = items.map((amenity) => {
+        const m = new google.maps.Marker({
+          position: { lat: amenity.lat, lng: amenity.lng },
+          map: mapRef.current,
+          icon: createAmenityMarkerIcon(cat.color, cat.marker),
+          title: amenity.name,
+          zIndex: 100,
+        })
+        m.addListener('click', () => {
+          setHighlightedAmenity(amenity.place_id)
+          infoWindowRef.current?.setContent(`
               <div style="font-family:system-ui,sans-serif;padding:4px;min-width:160px">
                 <div style="font-weight:700;font-size:13px;color:#0f172a">${amenity.name}</div>
                 <div style="font-size:11px;color:#64748b;margin-top:4px">${amenity.address}</div>
@@ -544,12 +593,60 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
                 </div>
               </div>
             `)
-            infoWindowRef.current?.open({ map: mapRef.current!, anchor: m })
-          })
-          return m
+          infoWindowRef.current?.open({ map: mapRef.current!, anchor: m })
         })
-        amenityMarkersRef.current[cat.key] = markers
+        return m
+      })
+      amenityMarkersRef.current[cat.key] = markers
+    }
 
+    for (const cat of CATEGORIES) {
+      setLoadingCategories((prev) => new Set(prev).add(cat.key))
+
+      try {
+        const maxItems = cat.maxResults || 6
+        const types = cat.keywords?.length ? cat.keywords : [cat.type, cat.keyword].filter(Boolean) as string[]
+        const results = await searchNearbyPlacesNew({
+          apiKey,
+          lat: projectLocation.lat,
+          lng: projectLocation.lng,
+          types,
+          radius: cat.radius,
+          maxResults: maxItems,
+        })
+
+        const seenIds = new Set<string>()
+        let sorted: Amenity[] = results
+          .filter((r) => {
+            if (seenIds.has(r.id)) return false
+            seenIds.add(r.id)
+            return true
+          })
+          .map((r) => {
+            const straightDist = haversineDistance(projectLocation.lat, projectLocation.lng, r.lat, r.lng)
+            return {
+              place_id: r.id,
+              name: r.name,
+              address: r.address,
+              lat: r.lat,
+              lng: r.lng,
+              category: cat.key,
+              rating: r.rating,
+              totalRatings: r.totalRatings,
+              straightDist,
+              ...estimateTravel(straightDist),
+            }
+          })
+          .sort((a, b) => a.straightDist - b.straightDist)
+          .slice(0, maxItems)
+
+        if (sorted.length === 0) {
+          const osm = await loadOsmFallback()
+          sorted = osm[cat.key] || []
+        }
+
+        setAmenities((prev) => ({ ...prev, [cat.key]: sorted }))
+        addMarkers(cat, sorted)
       } catch (err) {
         console.error(`Failed to fetch ${cat.label}:`, err)
       }
@@ -559,12 +656,10 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
         next.delete(cat.key)
         return next
       })
-
-      await new Promise((r) => setTimeout(r, 300))
     }
 
     setLoadedAll(true)
-  }, [projectLocation])
+  }, [apiKey, projectLocation])
 
   useEffect(() => {
     if (scriptReady && projectLocation && mapRef.current) {
@@ -684,7 +779,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
     }
   }, [loadedAll, amenities, onAmenitiesLoaded])
 
-  // Fetch real highway routes via Directions API and draw polylines
+  // Draw highway corridors and estimate drive times without legacy Directions/Distance Matrix
   useEffect(() => {
     highwayPolylinesRef.current.forEach((p) => p.setMap(null))
     highwayPolylinesRef.current = []
@@ -694,102 +789,54 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
     if (!mapRef.current || !projectLocation || !scriptReady || !window.google?.maps) return
 
     const map = mapRef.current
-    const directionsService = new google.maps.DirectionsService()
-    const distanceService = new google.maps.DistanceMatrixService()
-    const projOrigin = new google.maps.LatLng(projectLocation.lat, projectLocation.lng)
-    let cancelled = false
+    const foundHighways: HighwayInfo[] = []
 
-    async function fetchHighwayRoutes() {
-      if (!projectLocation) return
-      const foundHighways: HighwayInfo[] = []
+    for (const hw of GTA_HIGHWAYS) {
+      const path = [hw.origin, ...(hw.waypoints || []), hw.destination]
+      const polyline = new google.maps.Polyline({
+        path, map,
+        strokeColor: hw.color, strokeOpacity: 0.85, strokeWeight: 6, zIndex: 50, geodesic: true,
+      })
+      polyline.setVisible(showHighways)
+      highwayPolylinesRef.current.push(polyline)
 
-      for (const hw of GTA_HIGHWAYS) {
-        if (cancelled) return
-        try {
-          const dirRequest: google.maps.DirectionsRequest = {
-            origin: hw.origin,
-            destination: hw.destination,
-            travelMode: google.maps.TravelMode.DRIVING,
-          }
-          if (hw.waypoints && hw.waypoints.length > 0) {
-            dirRequest.waypoints = hw.waypoints.map(wp => ({ location: new google.maps.LatLng(wp.lat, wp.lng), stopover: false }))
-          }
-          const dirResult = await new Promise<google.maps.DirectionsResult | null>((resolve) => {
-            directionsService.route(dirRequest, (result, status) => {
-              resolve(status === 'OK' && result ? result : null)
-            })
-          })
+      const closestPt = closestPointOnPath(path, projectLocation)
+      const dist = haversineDistance(projectLocation.lat, projectLocation.lng, closestPt.lat, closestPt.lng)
+      const travel = estimateTravel(dist)
 
-          if (!dirResult?.routes?.[0]?.overview_path) {
-            foundHighways.push({ name: hw.name, short: hw.short, color: hw.color })
-            await new Promise((r) => setTimeout(r, 300))
-            continue
-          }
-
-          const routePath = dirResult.routes[0].overview_path
-
-          if (!cancelled) {
-            const polyline = new google.maps.Polyline({
-              path: routePath, map,
-              strokeColor: hw.color, strokeOpacity: 0.85, strokeWeight: 6, zIndex: 50, geodesic: true,
-            })
-            polyline.setVisible(showHighways)
-            highwayPolylinesRef.current.push(polyline)
-
-            const pathLiterals = routePath.map(p => ({ lat: p.lat(), lng: p.lng() }))
-            const closestPt = closestPointOnPath(pathLiterals, projectLocation)
-
-            const w = hw.short.length > 3 ? 56 : 44
-            const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="26" viewBox="0 0 ${w} 26">
+      const w = hw.short.length > 3 ? 56 : 44
+      const labelSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="26" viewBox="0 0 ${w} 26">
               <rect rx="5" width="100%" height="100%" fill="${hw.color}" stroke="white" stroke-width="2"/>
               <text x="50%" y="18" text-anchor="middle" fill="white" font-size="13" font-weight="800" font-family="system-ui,sans-serif">${hw.short}</text>
             </svg>`
-            const labelMarker = new google.maps.Marker({
-              position: closestPt, map,
-              icon: {
-                url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(labelSvg)}`,
-                scaledSize: new google.maps.Size(w, 26),
-                anchor: new google.maps.Point(w / 2, 13),
-              },
-              title: hw.name, zIndex: 300,
-            })
-            labelMarker.setVisible(showHighways)
-            highwayLabelsRef.current.push(labelMarker)
+      const labelMarker = new google.maps.Marker({
+        position: closestPt, map,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(labelSvg)}`,
+          scaledSize: new google.maps.Size(w, 26),
+          anchor: new google.maps.Point(w / 2, 13),
+        },
+        title: hw.name, zIndex: 300,
+      })
+      labelMarker.setVisible(showHighways)
+      highwayLabelsRef.current.push(labelMarker)
 
-            const distResp = await distanceMatrixPromise(distanceService, {
-              origins: [projOrigin],
-              destinations: [new google.maps.LatLng(closestPt.lat, closestPt.lng)],
-              travelMode: google.maps.TravelMode.DRIVING,
-              unitSystem: google.maps.UnitSystem.METRIC,
-            })
-            const el = distResp?.rows?.[0]?.elements?.[0]
-            foundHighways.push({
-              name: hw.name, short: hw.short, color: hw.color,
-              driveTime: el?.status === 'OK' ? el.duration?.text : undefined,
-              driveDist: el?.status === 'OK' ? el.distance?.text : undefined,
-            })
-          }
-        } catch {
-          foundHighways.push({ name: hw.name, short: hw.short, color: hw.color })
-        }
-        await new Promise((r) => setTimeout(r, 300))
-      }
-
-      if (!cancelled) {
-        foundHighways.sort((a, b) => {
-          const da = parseFloat(a.driveDist?.replace(/[^\d.]/g, '') || '9999')
-          const db = parseFloat(b.driveDist?.replace(/[^\d.]/g, '') || '9999')
-          return da - db
-        })
-        setHighways(foundHighways)
-        if (onHighwaysLoaded) onHighwaysLoaded(foundHighways)
-      }
+      foundHighways.push({
+        name: hw.name, short: hw.short, color: hw.color,
+        driveTime: travel.driveTime,
+        driveDist: travel.driveDist,
+      })
     }
 
-    fetchHighwayRoutes()
+    foundHighways.sort((a, b) => {
+      const da = parseFloat(a.driveDist?.replace(/[^\d.]/g, '') || '9999')
+      const db = parseFloat(b.driveDist?.replace(/[^\d.]/g, '') || '9999')
+      return da - db
+    })
+    setHighways(foundHighways)
+    if (onHighwaysLoaded) onHighwaysLoaded(foundHighways)
 
     return () => {
-      cancelled = true
       highwayPolylinesRef.current.forEach((p) => p.setMap(null))
       highwayPolylinesRef.current = []
       highwayLabelsRef.current.forEach((m) => m.setMap(null))
@@ -806,68 +853,51 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
 
   // Commute route
   useEffect(() => {
+    commuteLineRef.current?.setMap(null)
+    commuteLineRef.current = null
+
     if (!mapRef.current || !projectLocation || !commuteDestination || !window.google?.maps) {
-      commuteRendererRef.current?.setMap(null)
-      commuteRendererRef.current = null
       setCommuteResult(null)
+      setCommuteLoading(false)
       return
     }
 
+    let cancelled = false
     setCommuteLoading(true)
-    const directionsService = new google.maps.DirectionsService()
-    const distanceService = new google.maps.DistanceMatrixService()
-    const origin = new google.maps.LatLng(projectLocation.lat, projectLocation.lng)
 
-    commuteRendererRef.current?.setMap(null)
-    const renderer = new google.maps.DirectionsRenderer({
-      map: mapRef.current,
-      suppressMarkers: true,
-      polylineOptions: { strokeColor: '#4f46e5', strokeWeight: 4, strokeOpacity: 0.8 },
-    })
-    commuteRendererRef.current = renderer
-
-    directionsService.route(
-      { origin, destination: commuteDestination, travelMode: google.maps.TravelMode.DRIVING },
-      (result, status) => {
-        if (status === 'OK' && result) {
-          renderer.setDirections(result)
-        }
+    geocodeAddress(commuteDestination).then((dest) => {
+      if (cancelled) return
+      if (!dest || !mapRef.current || !projectLocation) {
+        setCommuteResult(null)
+        setCommuteLoading(false)
+        return
       }
-    )
 
-    distanceMatrixPromise(distanceService, {
-      origins: [origin],
-      destinations: [commuteDestination],
-      travelMode: google.maps.TravelMode.DRIVING,
-      unitSystem: google.maps.UnitSystem.METRIC,
-    }).then(async (driveResp) => {
-      const driveEl = driveResp?.rows?.[0]?.elements?.[0]
-      const drive = driveEl?.status === 'OK' ? `${driveEl.duration?.text} (${driveEl.distance?.text})` : undefined
-
-      const walkResp = await distanceMatrixPromise(distanceService, {
-        origins: [origin],
-        destinations: [commuteDestination],
-        travelMode: google.maps.TravelMode.WALKING,
-        unitSystem: google.maps.UnitSystem.METRIC,
+      const line = new google.maps.Polyline({
+        path: [projectLocation, dest],
+        map: mapRef.current,
+        strokeColor: '#4f46e5',
+        strokeWeight: 4,
+        strokeOpacity: 0.8,
+        geodesic: true,
+        zIndex: 60,
       })
-      const walkEl = walkResp?.rows?.[0]?.elements?.[0]
-      const walk = walkEl?.status === 'OK' ? `${walkEl.duration?.text} (${walkEl.distance?.text})` : undefined
+      commuteLineRef.current = line
 
-      const transitResp = await distanceMatrixPromise(distanceService, {
-        origins: [origin],
-        destinations: [commuteDestination],
-        travelMode: google.maps.TravelMode.TRANSIT,
-        unitSystem: google.maps.UnitSystem.METRIC,
+      const dist = haversineDistance(projectLocation.lat, projectLocation.lng, dest.lat, dest.lng)
+      const travel = estimateTravel(dist)
+      setCommuteResult({
+        drive: `${travel.driveTime} (${travel.driveDist})`,
+        walk: `${travel.walkTime} (${travel.walkDist})`,
+        transit: `${formatMinutes(dist / 417)} (${formatDistance(dist)})`,
       })
-      const transitEl = transitResp?.rows?.[0]?.elements?.[0]
-      const transit = transitEl?.status === 'OK' ? `${transitEl.duration?.text} (${transitEl.distance?.text})` : undefined
-
-      setCommuteResult({ drive, walk, transit })
       setCommuteLoading(false)
     })
 
     return () => {
-      renderer.setMap(null)
+      cancelled = true
+      commuteLineRef.current?.setMap(null)
+      commuteLineRef.current = null
     }
   }, [commuteDestination, projectLocation])
 
