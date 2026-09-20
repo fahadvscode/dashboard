@@ -42,6 +42,13 @@ export function loadGoogleMapsScript(apiKey: string): Promise<void> {
       return
     }
 
+    const previousAuthFailure = window.gm_authFailure
+    window.gm_authFailure = () => {
+      previousAuthFailure?.()
+      loadPromise = null
+      reject(new Error('Google Maps authentication failed'))
+    }
+
     const s = document.createElement('script')
     s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places`
     s.async = true
