@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Loader2, Car, Footprints, MapPin, Navigation, Star, ChevronDown, ChevronRight, Eye, EyeOff, Map, List, ChevronUp } from 'lucide-react'
 import { geocodeAddress } from '@/lib/geocodeAddress'
-import OsmLocationMap from '@/components/OsmLocationMap'
+import { loadGoogleMapsScript } from '@/lib/loadGoogleMapsScript'
 
 /* ───────────────────────── Types ───────────────────────── */
 
@@ -279,7 +279,6 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const [scriptReady, setScriptReady] = useState(false)
-  const [googleFailed, setGoogleFailed] = useState(false)
   const [projectLocation, setProjectLocation] = useState<google.maps.LatLngLiteral | null>(null)
   const [amenities, setAmenities] = useState<Record<string, Amenity[]>>({})
   const [loadingCategories, setLoadingCategories] = useState<Set<string>>(new Set())
@@ -295,11 +294,24 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   const [mobileTab, setMobileTab] = useState<'map' | 'amenities'>('map')
   const [legendOpen, setLegendOpen] = useState(false)
 
-  // Maps JavaScript API is not activated on this key. Show OSM instead of
-  // loading Google Maps, which only produces ApiNotActivatedMapError.
+  // Load Google Maps script
   useEffect(() => {
-    setGoogleFailed(true)
-  }, [])
+    if (!apiKey) {
+      setError('Google Maps API key is missing')
+      return
+    }
+    let cancelled = false
+    loadGoogleMapsScript(apiKey)
+      .then(() => {
+        if (!cancelled) setScriptReady(true)
+      })
+      .catch(() => {
+        if (!cancelled) setError('Failed to load Google Maps')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [apiKey])
 
   // Initialize Places Autocomplete on commute input
   useEffect(() => {
@@ -327,7 +339,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   // Get project location without waiting for Google Maps
   useEffect(() => {
     let cancelled = false
-    setError(null)
+    setError((prev) => (prev && /geocode|address/i.test(prev) ? null : prev))
     setLoadedAll(false)
     setAmenities({})
     setProjectLocation(null)
@@ -364,7 +376,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
 
   // Initialize map
   useEffect(() => {
-    if (googleFailed || !scriptReady || !projectLocation || !mapDivRef.current || !window.google?.maps) return
+    if (!scriptReady || !projectLocation || !mapDivRef.current || !window.google?.maps) return
 
     const map = new google.maps.Map(mapDivRef.current, {
       center: projectLocation,
@@ -407,7 +419,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
       infoWindowRef.current?.close()
       mapRef.current = null
     }
-  }, [googleFailed, scriptReady, projectLocation, property])
+  }, [scriptReady, projectLocation, property])
 
   // Fetch all amenities
   const fetchAmenities = useCallback(async () => {
@@ -555,24 +567,10 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   }, [projectLocation])
 
   useEffect(() => {
-    if (!projectLocation) return
-    let cancelled = false
-    setLoadedAll(false)
-    setAmenities({})
-    fetch(`/api/amenities?lat=${projectLocation.lat}&lng=${projectLocation.lng}`)
-      .then((res) => res.json())
-      .then((data: { amenities?: Record<string, Amenity[]> }) => {
-        if (cancelled) return
-        setAmenities(data.amenities || {})
-        setLoadedAll(true)
-      })
-      .catch(() => {
-        if (!cancelled) setLoadedAll(true)
-      })
-    return () => {
-      cancelled = true
+    if (scriptReady && projectLocation && mapRef.current) {
+      fetchAmenities()
     }
-  }, [projectLocation])
+  }, [scriptReady, projectLocation, fetchAmenities])
 
   // Filter markers by selected categories
   useEffect(() => {
@@ -965,7 +963,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
         }`}
         ref={mapContainerRef}
       >
-        {(!projectLocation || (!scriptReady && !googleFailed)) && (
+        {(!scriptReady || !projectLocation) && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -973,14 +971,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
             </div>
           </div>
         )}
-        {projectLocation && googleFailed && (
-          <OsmLocationMap
-            lat={projectLocation.lat}
-            lng={projectLocation.lng}
-            title={property.project_name}
-          />
-        )}
-        <div ref={mapDivRef} className={`absolute inset-0 ${googleFailed ? 'hidden' : ''}`} />
+        <div ref={mapDivRef} className="absolute inset-0" />
 
         {/* Map Legend — collapsible on mobile */}
         {loadedAll && (
