@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Loader2, Car, Footprints, MapPin, Navigation, Star, ChevronDown, ChevronRight, Eye, EyeOff, Map, List, ChevronUp } from 'lucide-react'
-import { loadGoogleMapsScript } from '@/lib/loadGoogleMapsScript'
 import { geocodeAddress } from '@/lib/geocodeAddress'
 import OsmLocationMap from '@/components/OsmLocationMap'
 
@@ -296,32 +295,12 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   const [mobileTab, setMobileTab] = useState<'map' | 'amenities'>('map')
   const [legendOpen, setLegendOpen] = useState(false)
 
-  // Load Google Maps script
+  // Maps JavaScript API is not activated on this key. Show OSM instead of
+  // loading Google Maps, which only produces ApiNotActivatedMapError.
   useEffect(() => {
-    if (!apiKey) {
-      setGoogleFailed(true)
-      return
-    }
-    let cancelled = false
-    const previousAuthFailure = window.gm_authFailure
-    window.gm_authFailure = () => {
-      previousAuthFailure?.()
-      if (!cancelled) setGoogleFailed(true)
-    }
-    loadGoogleMapsScript(apiKey)
-      .then(() => { if (!cancelled) setScriptReady(true) })
-      .catch(() => { if (!cancelled) setGoogleFailed(true) })
-    return () => {
-      cancelled = true
-      window.gm_authFailure = previousAuthFailure
-    }
-  }, [apiKey])
-
-  useEffect(() => {
-    if (scriptReady || googleFailed) return
-    const timeout = window.setTimeout(() => setGoogleFailed(true), 8000)
-    return () => window.clearTimeout(timeout)
-  }, [scriptReady, googleFailed])
+    setGoogleFailed(true)
+    setLoadedAll(true)
+  }, [])
 
   // Initialize Places Autocomplete on commute input
   useEffect(() => {
@@ -416,7 +395,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
       infoWindowRef.current?.close()
       mapRef.current = null
     }
-  }, [scriptReady, projectLocation, property])
+  }, [googleFailed, scriptReady, projectLocation, property])
 
   // Fetch all amenities
   const fetchAmenities = useCallback(async () => {
@@ -1162,7 +1141,14 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
 
         {/* Amenity List */}
         <div className="flex-1 overflow-y-auto min-h-0">
-          {!loadedAll && Object.keys(amenities).length === 0 ? (
+          {googleFailed && Object.keys(amenities).length === 0 ? (
+            <div className="px-5 py-10 text-center">
+              <p className="text-sm font-medium text-gray-700">Map pin is using OpenStreetMap</p>
+              <p className="mt-2 text-xs text-gray-500 leading-relaxed">
+                Nearby amenities need Maps JavaScript API enabled on the Google Cloud key. The project location still shows on the map.
+              </p>
+            </div>
+          ) : !loadedAll && Object.keys(amenities).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Loader2 className="h-7 w-7 animate-spin text-blue-500" />
               <p className="text-sm text-gray-500">Discovering nearby amenities...</p>
