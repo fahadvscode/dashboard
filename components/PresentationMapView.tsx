@@ -299,7 +299,6 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   // loading Google Maps, which only produces ApiNotActivatedMapError.
   useEffect(() => {
     setGoogleFailed(true)
-    setLoadedAll(true)
   }, [])
 
   // Initialize Places Autocomplete on commute input
@@ -327,7 +326,12 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
 
   // Get project location without waiting for Google Maps
   useEffect(() => {
+    let cancelled = false
     setError(null)
+    setLoadedAll(false)
+    setAmenities({})
+    setProjectLocation(null)
+
     if (property.map_lat != null && property.map_lng != null) {
       setProjectLocation({ lat: Number(property.map_lat), lng: Number(property.map_lng) })
       return
@@ -341,13 +345,21 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
     const q = parts.join(', ')
     if (!q || q === 'Canada') {
       setError('No address available for this project')
+      setLoadedAll(true)
       return
     }
 
     geocodeAddress(q).then((loc) => {
+      if (cancelled) return
       if (loc) setProjectLocation(loc)
-      else setError(`Could not geocode address: ${q}`)
+      else {
+        setError(`Could not geocode address: ${q}`)
+        setLoadedAll(true)
+      }
     })
+    return () => {
+      cancelled = true
+    }
   }, [property])
 
   // Initialize map
@@ -543,10 +555,24 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
   }, [projectLocation])
 
   useEffect(() => {
-    if (scriptReady && projectLocation && mapRef.current) {
-      fetchAmenities()
+    if (!projectLocation) return
+    let cancelled = false
+    setLoadedAll(false)
+    setAmenities({})
+    fetch(`/api/amenities?lat=${projectLocation.lat}&lng=${projectLocation.lng}`)
+      .then((res) => res.json())
+      .then((data: { amenities?: Record<string, Amenity[]> }) => {
+        if (cancelled) return
+        setAmenities(data.amenities || {})
+        setLoadedAll(true)
+      })
+      .catch(() => {
+        if (!cancelled) setLoadedAll(true)
+      })
+    return () => {
+      cancelled = true
     }
-  }, [scriptReady, projectLocation, fetchAmenities])
+  }, [projectLocation])
 
   // Filter markers by selected categories
   useEffect(() => {
@@ -1141,14 +1167,7 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
 
         {/* Amenity List */}
         <div className="flex-1 overflow-y-auto min-h-0">
-          {googleFailed && Object.keys(amenities).length === 0 ? (
-            <div className="px-5 py-10 text-center">
-              <p className="text-sm font-medium text-gray-700">Map pin is using OpenStreetMap</p>
-              <p className="mt-2 text-xs text-gray-500 leading-relaxed">
-                Nearby amenities need Maps JavaScript API enabled on the Google Cloud key. The project location still shows on the map.
-              </p>
-            </div>
-          ) : !loadedAll && Object.keys(amenities).length === 0 ? (
+          {!loadedAll && Object.keys(amenities).length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Loader2 className="h-7 w-7 animate-spin text-blue-500" />
               <p className="text-sm text-gray-500">Discovering nearby amenities...</p>
