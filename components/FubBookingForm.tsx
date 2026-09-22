@@ -56,6 +56,7 @@ export default function FubBookingForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [limitPrompt, setLimitPrompt] = useState<{ count: number; message: string } | null>(null)
   const [appointments, setAppointments] = useState(initialAppointments)
   const [nurtures, setNurtures] = useState(initialNurtures)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -108,10 +109,19 @@ export default function FubBookingForm({
     setChangingProject(false)
   }
 
-  async function book() {
-    setSaving(true)
+  async function book(override = false) {
     setError('')
     setNotice('')
+    if (!bookedBy) {
+      setError('Choose who booked this appointment.')
+      return
+    }
+    if (!date || !time) {
+      setError('Choose a date and time.')
+      return
+    }
+    setSaving(true)
+    if (!override) setLimitPrompt(null)
     try {
       const response = await fetch('/api/fub/bookings', {
         method: 'POST',
@@ -128,41 +138,21 @@ export default function FubBookingForm({
           projectId: selected?.id || '',
           email: contactEmail,
           phone: contactPhone,
+          ...(override ? { override: true } : {}),
         }),
       })
       const payload = await response.json()
       if (!response.ok) {
-        if (payload.needsOverride) {
-          const proceed = window.confirm(
-            `This person already has ${payload.count || 3} bookings.\n\n${payload.error || 'Contact +1 4163994289 to book an appointment'}\n\nBook anyway from the dashboard?`
-          )
-          if (!proceed) return
-          const retry = await fetch('/api/fub/bookings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              context,
-              signature,
-              brand,
-              type,
-              bookedBy,
-              date,
-              time,
-              project: selected?.project_name || search.trim(),
-              projectId: selected?.id || '',
-              email: contactEmail,
-              phone: contactPhone,
-              override: true,
-            }),
+        if (payload.needsOverride && !override) {
+          setLimitPrompt({
+            count: Number(payload.count) || 3,
+            message: String(payload.error || 'Contact +1 4163994289 to book an appointment'),
           })
-          const retryPayload = await retry.json()
-          if (!retry.ok) throw new Error(retryPayload.error || 'Could not book this meeting.')
-          setNotice(retryPayload.message || 'Meeting booked.')
-          await reloadAppointments()
           return
         }
         throw new Error(payload.error || 'Could not book this meeting.')
       }
+      setLimitPrompt(null)
       setNotice(payload.message || 'Meeting booked.')
       await reloadAppointments()
     } catch (err) {
@@ -539,9 +529,20 @@ export default function FubBookingForm({
 
       {notice ? <div style={noticeText}>{notice}</div> : null}
       {error ? <div style={errorText}>{error}</div> : null}
+      {limitPrompt ? (
+        <div style={limitBox}>
+          <div style={{ fontWeight: 700 }}>This person already has {limitPrompt.count} bookings.</div>
+          <div style={{ marginTop: 4 }}>{limitPrompt.message}</div>
+        </div>
+      ) : null}
 
-      <button type="button" onClick={() => void book()} disabled={saving || !date || !time || !bookedBy} style={button}>
-        {saving ? 'Booking…' : 'Book meeting'}
+      <button
+        type="button"
+        onClick={() => void book(Boolean(limitPrompt))}
+        disabled={saving}
+        style={button}
+      >
+        {saving ? 'Booking…' : limitPrompt ? 'Book anyway' : 'Book meeting'}
       </button>
       </div>
       </div>
@@ -689,6 +690,17 @@ const errorText: CSSProperties = {
   marginTop: 8,
   fontSize: 12,
   color: '#b42318',
+  lineHeight: 1.4,
+}
+
+const limitBox: CSSProperties = {
+  marginTop: 10,
+  padding: '10px 12px',
+  borderRadius: 8,
+  background: '#fef3f2',
+  border: '1px solid #fecdca',
+  color: '#b42318',
+  fontSize: 13,
   lineHeight: 1.4,
 }
 
