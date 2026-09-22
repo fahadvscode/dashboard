@@ -8,6 +8,12 @@ export function parseBookedBy(value: unknown): BookedByName | '' {
   return BOOKED_BY_OPTIONS.find((name) => name.toLowerCase() === raw.toLowerCase()) || ''
 }
 
+/** Puts the staff name at the front of a calendar event title. */
+export function bookedByCalendarPrefix(value: unknown): string {
+  const name = parseBookedBy(value)
+  return name ? `${name} - ` : ''
+}
+
 export function bookedByAdminSmsLine(value: unknown): string {
   const name = parseBookedBy(value)
   return name ? `\n🧑‍💼 Booked by: ${name}` : ''

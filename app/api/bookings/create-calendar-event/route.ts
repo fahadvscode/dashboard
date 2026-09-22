@@ -11,6 +11,7 @@ import {
   resolveBookingFirstName,
   resolveBookingLastName,
 } from '@/lib/normalizeBookingPayload'
+import { bookedByCalendarPrefix, parseBookedBy } from '@/lib/bookedBy'
 
 // Unified Qikfill OAuth credentials for info@qikfill.com Google Workspace
 const QIKFILL_CLIENT_ID = process.env.QIKFILL_GOOGLE_CLIENT_ID!
@@ -163,7 +164,9 @@ export async function POST(request: NextRequest) {
     let isGoogleMeet = false
 
     const personLabel = isInterview ? 'Candidate' : 'Customer'
-    const customerLine = `${personLabel}: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}\nAppointment Type: ${displayType}\n`
+    const bookedByName = isInterview ? '' : parseBookedBy(booking.booked_by)
+    const bookedByLine = bookedByName ? `Booked by: ${bookedByName}\n` : ''
+    const customerLine = `${personLabel}: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}\nAppointment Type: ${displayType}\n${bookedByLine}`
     const projectLines = [
       booking.project_name && `Project: ${booking.project_name}`,
       booking.project_id && `Project ID: ${booking.project_id}`,
@@ -206,7 +209,7 @@ export async function POST(request: NextRequest) {
     }
     const enhancedTitle = isInterview
       ? `${brandName} - ${eventTitle}`
-      : `${brandName} - ${eventTitle} - ${displayType}`
+      : `${bookedByCalendarPrefix(booking.booked_by)}${brandName} - ${eventTitle} - ${displayType}`
 
     const calendar = await getCalendarClient()
 

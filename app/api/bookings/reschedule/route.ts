@@ -19,6 +19,7 @@ import { prepareInterviewBooking, syncInterviewReschedule } from '@/lib/intervie
 import { appointmentToSlotIso } from '@/lib/interviewSlotTimes'
 import { normalizeBookingPayload } from '@/lib/normalizeBookingPayload'
 import { meetingCalendarLocation, meetingTypeLabel, parseMeetingType } from '@/lib/meetingTypes'
+import { bookedByCalendarPrefix, parseBookedBy } from '@/lib/bookedBy'
 
 function toE164NorthAmerica(phone: string): string {
   const digits = phone.replace(/\D/g, '')
@@ -196,6 +197,7 @@ export async function POST(request: NextRequest) {
 
       if (calendarEventId) {
         const displayType = meetingTypeLabel(nextType)
+        const bookedByName = parseBookedBy(booking.booked_by)
         const patched = await updateCalendarEventTime(
           calendar,
           calendarId,
@@ -204,11 +206,11 @@ export async function POST(request: NextRequest) {
           normalizedTime,
           typeChanged && nextType
             ? {
-                summary: `${brandName} - Booking: ${booking.firstname} ${booking.lastname || ''}`.trim() +
+                summary: `${bookedByCalendarPrefix(booking.booked_by)}${brandName} - Booking: ${booking.firstname} ${booking.lastname || ''}`.trim() +
                   (booking.project_name ? ` - ${booking.project_name}` : '') +
                   ` - ${displayType}`,
                 location: meetingCalendarLocation(nextType, brandPhone),
-                description: `Appointment type: ${displayType}\nCustomer: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}`,
+                description: `Appointment type: ${displayType}\nCustomer: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}${bookedByName ? `\nBooked by: ${bookedByName}` : ''}`,
                 createGoogleMeet: nextType === 'google_meet',
               }
             : undefined
