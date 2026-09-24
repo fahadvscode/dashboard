@@ -13,6 +13,9 @@ import {
   FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE,
   INTERVIEW_BRAND_NAME,
   INTERVIEW_OFFICE_ADDRESS,
+  interviewHeading,
+  interviewPhrase,
+  interviewRoleLabel,
 } from '@/lib/interviewBookingConstants'
 import {
   getInterviewManageLinkHtml,
@@ -78,7 +81,7 @@ function buildInterviewRescheduleSms(
   previousDate: string,
   previousTime: string
 ) {
-  return `Hi ${booking.firstname}, your interview has been rescheduled.
+  return `Hi ${booking.firstname}, your ${interviewPhrase(booking)} has been rescheduled.
 
 Was: ${previousDate} at ${previousTime}
 Now: ${booking.appointment_date || 'TBD'} at ${booking.appointment_time || 'TBD'}${getInterviewLocationSms()}${getInterviewManageLinkSms(manageUrl)}
@@ -92,7 +95,7 @@ function buildInterviewCancelSms(
   appointmentTime: string,
   manageUrl: string | null
 ) {
-  return `Hi ${booking.firstname}, your interview on ${appointmentDate} at ${appointmentTime} has been cancelled.${getInterviewManageLinkSms(manageUrl)}
+  return `Hi ${booking.firstname}, your ${interviewPhrase(booking)} on ${appointmentDate} at ${appointmentTime} has been cancelled.${getInterviewManageLinkSms(manageUrl)}
 
 - ${INTERVIEW_BRAND_NAME}`
 }
@@ -231,6 +234,7 @@ async function dispatchCandidateEmail(
       <div style="background:#f9fafb;padding:16px;border-radius:8px;margin:16px 0;">
         <p><strong>Date:</strong> ${booking.appointment_date || 'Not specified'}</p>
         <p><strong>Time:</strong> ${booking.appointment_time || 'Not specified'}</p>
+        ${interviewRoleLabel(booking) ? `<p><strong>Position:</strong> ${interviewRoleLabel(booking)}</p>` : ''}
         <p><strong>Location:</strong> ${INTERVIEW_OFFICE_ADDRESS}</p>
       </div>
       ${getInterviewManageLinkHtml(manageUrl)}
@@ -310,10 +314,13 @@ export async function syncInterviewCancellation(
     }
   }
 
+  const cancelledHeading = interviewHeading(newBooking)
+  const cancelledRole = interviewRoleLabel(newBooking)
   const adminEmails = await sendAdminEmail(
-    `Interview cancelled — ${newBooking.firstname} ${newBooking.lastname || ''}`.trim(),
-    `<p><strong>Interview cancelled</strong> ({{source}})</p>
+    `${cancelledHeading} cancelled — ${newBooking.firstname} ${newBooking.lastname || ''}`.trim(),
+    `<p><strong>${cancelledHeading} cancelled</strong> ({{source}})</p>
      <p><strong>Candidate:</strong> ${newBooking.firstname} ${newBooking.lastname || ''}</p>
+     ${cancelledRole ? `<p><strong>Position:</strong> ${cancelledRole}</p>` : ''}
      <p><strong>Was scheduled:</strong> ${previousDate} at ${previousTime}</p>
      <p><a href="${dashboardUrl}">View in Dashboard</a></p>`,
     sourceLabel
@@ -358,12 +365,17 @@ export async function syncInterviewReschedule(
       previousTime
     )
     if (calendarEventId) {
+      const role = interviewRoleLabel(newBooking)
       await updateCalendarEventTime(
         calendar,
         calendarId,
         calendarEventId,
         String(newBooking.appointment_date || ''),
-        String(newBooking.appointment_time || '')
+        String(newBooking.appointment_time || ''),
+        {
+          summary: `${INTERVIEW_BRAND_NAME} - ${interviewHeading(newBooking)}: ${newBooking.firstname} ${newBooking.lastname || ''}`.trim(),
+          description: `IN-PERSON INTERVIEW (Fahad Sells)\n\nCandidate: ${newBooking.firstname} ${newBooking.lastname || ''}\nEmail: ${newBooking.email || ''}\nPhone: ${newBooking.phone || 'Not provided'}${role ? `\nPosition: ${role}` : ''}`,
+        }
       )
       calendarUpdated = true
       await persistCalendarEventId(supabase, String(newBooking.id || ''), calendarEventId)
@@ -394,8 +406,8 @@ export async function syncInterviewReschedule(
     try {
       candidateEmail = await dispatchCandidateEmail(
         newBooking,
-        `Interview rescheduled — ${newBooking.appointment_date || 'Upcoming'} at ${newBooking.appointment_time || 'TBD'}`,
-        'Your interview has been rescheduled. Here are your updated details:',
+        `${interviewHeading(newBooking)} rescheduled — ${newBooking.appointment_date || 'Upcoming'} at ${newBooking.appointment_time || 'TBD'}`,
+        `Your ${interviewPhrase(newBooking)} has been rescheduled. Here are your updated details:`,
         manageUrl
       )
     } catch (error) {
@@ -403,10 +415,13 @@ export async function syncInterviewReschedule(
     }
   }
 
+  const rescheduledHeading = interviewHeading(newBooking)
+  const rescheduledRole = interviewRoleLabel(newBooking)
   const adminEmails = await sendAdminEmail(
-    `Interview rescheduled — ${newBooking.firstname} ${newBooking.lastname || ''}`.trim(),
-    `<p><strong>Interview rescheduled</strong> ({{source}})</p>
+    `${rescheduledHeading} rescheduled — ${newBooking.firstname} ${newBooking.lastname || ''}`.trim(),
+    `<p><strong>${rescheduledHeading} rescheduled</strong> ({{source}})</p>
      <p><strong>Candidate:</strong> ${newBooking.firstname} ${newBooking.lastname || ''}</p>
+     ${rescheduledRole ? `<p><strong>Position:</strong> ${rescheduledRole}</p>` : ''}
      <p><strong>Previous:</strong> ${previousDate} at ${previousTime}</p>
      <p><strong>New:</strong> ${newBooking.appointment_date || 'TBD'} at ${newBooking.appointment_time || 'TBD'}</p>
      <p><a href="${dashboardUrl}">View in Dashboard</a></p>`,

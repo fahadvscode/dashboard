@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import {
   INTERVIEW_BRAND_NAME,
   INTERVIEW_OFFICE_ADDRESS,
+  interviewHeading,
+  interviewRoleLabel,
   isFahadSellsInterviewBooking,
 } from '@/lib/interviewBookingConstants'
 import { getCalendarTeamEmails } from '@/lib/bookingCalendar'
@@ -166,7 +168,9 @@ export async function POST(request: NextRequest) {
     const personLabel = isInterview ? 'Candidate' : 'Customer'
     const bookedByName = isInterview ? '' : parseBookedBy(booking.booked_by)
     const bookedByLine = bookedByName ? `Booked by: ${bookedByName}\n` : ''
-    const customerLine = `${personLabel}: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}\nAppointment Type: ${displayType}\n${bookedByLine}`
+    const interviewRole = isInterview ? interviewRoleLabel(booking) : ''
+    const roleLine = interviewRole ? `Position: ${interviewRole}\n` : ''
+    const customerLine = `${personLabel}: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}\nAppointment Type: ${displayType}\n${roleLine}${bookedByLine}`
     const projectLines = [
       booking.project_name && `Project: ${booking.project_name}`,
       booking.project_id && `Project ID: ${booking.project_id}`,
@@ -202,7 +206,7 @@ export async function POST(request: NextRequest) {
     }
 
     let eventTitle = isInterview
-      ? `Interview: ${booking.firstname} ${booking.lastname || ''}`.trim()
+      ? `${interviewHeading(booking)}: ${booking.firstname} ${booking.lastname || ''}`.trim()
       : `Booking: ${booking.firstname} ${booking.lastname || ''}`
     if (booking.project_name) {
       eventTitle += ` - ${booking.project_name}`

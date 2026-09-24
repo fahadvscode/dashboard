@@ -6,7 +6,7 @@ import { format, formatDistanceToNow } from 'date-fns'
 import BookingReschedulePanel from '@/components/BookingReschedulePanel'
 import BookingDateFilterBar from '@/components/BookingDateFilterBar'
 import BookingDateSections from '@/components/BookingDateSections'
-import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
+import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE, interviewRoleLabel } from '@/lib/interviewBookingConstants'
 import { formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
 import {
   bookingDateFilterCountLabel,
@@ -62,8 +62,15 @@ const CARD_SKIP_FIELDS = [
   'slot_end',
   'application_id',
   'position_id',
+  'position_label',
   'candidate_number',
 ]
+
+function roleBadgeClass(role: string) {
+  if (role === 'ISA') return 'bg-amber-100 text-amber-900'
+  if (role === 'Real Estate Agent') return 'bg-blue-100 text-blue-900'
+  return 'bg-gray-100 text-gray-700'
+}
 
 function mapRowToBooking(row: Record<string, unknown>): Booking {
   const copy = { ...row }
@@ -442,8 +449,10 @@ export default function InterviewBookings() {
                     )}
                     <h3 className="font-semibold text-gray-900">{booking.firstname} {booking.lastname}</h3>
                   </div>
-                  {typeof booking.details.position_label === 'string' && booking.details.position_label && (
-                    <p className="text-xs text-gray-500 mt-0.5">{booking.details.position_label}</p>
+                  {interviewRoleLabel(booking.details) && (
+                    <span className={`mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold ${roleBadgeClass(interviewRoleLabel(booking.details))}`}>
+                      {interviewRoleLabel(booking.details)}
+                    </span>
                   )}
                   <span className={`inline-block px-2 py-1 text-xs rounded-full ${getStatusColor(booking.status)}`}>
                     {booking.status}
@@ -522,7 +531,7 @@ export default function InterviewBookings() {
                   </h2>
                 </div>
                 <p className="mt-1 text-sm text-gray-500">
-                  Booking · {formatDistanceToNow(new Date(selectedBooking.created_at), { addSuffix: true })}
+                  {interviewRoleLabel(selectedBooking.details) || 'Interview'} · {formatDistanceToNow(new Date(selectedBooking.created_at), { addSuffix: true })}
                 </p>
               </div>
             </div>

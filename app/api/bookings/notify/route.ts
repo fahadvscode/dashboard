@@ -11,6 +11,8 @@ import {
 import {
   INTERVIEW_BRAND_NAME,
   INTERVIEW_OFFICE_ADDRESS,
+  interviewHeading,
+  interviewRoleLabel,
   isFahadSellsInterviewBooking,
 } from '@/lib/interviewBookingConstants'
 import { appendInterviewBookingToGoogleSheet } from '@/lib/interviewBookingsSheet'
@@ -187,6 +189,8 @@ export async function POST(request: NextRequest) {
       ? 'visit_office'
       : (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
     const displayType = isInterview ? 'In-Person Interview' : typeLabel(meetingFormat)
+    const interviewTitle = isInterview ? interviewHeading(booking) : ''
+    const interviewRole = isInterview ? interviewRoleLabel(booking) : ''
 
     const source = isInterview
       ? INTERVIEW_BRAND_NAME
@@ -218,7 +222,7 @@ export async function POST(request: NextRequest) {
     if (isInterview && booking.phone && accountSid && authToken && twilioPhone) {
       try {
         customerSmsResult = await client.messages.create({
-          body: `Interview confirmed — ${INTERVIEW_BRAND_NAME}
+          body: `${interviewTitle} confirmed — ${INTERVIEW_BRAND_NAME}
 
 📅 ${booking.appointment_date || 'TBD'}
 🕐 ${booking.appointment_time || 'TBD'}${getInterviewCandidateLocationSms()}${getInterviewManageLinkSms(interviewManageUrl)}
@@ -235,7 +239,7 @@ export async function POST(request: NextRequest) {
 
     // ── 1. Admin SMS ──────────────────────────────────────────────
     let message = isInterview
-      ? `🔔 New ${source} Interview Booking!\n\n🆔 Candidate ID: ${interviewCandidateLabel || 'pending'}\n👤 Candidate: ${firstname} ${lastname || ''}`
+      ? `🔔 New ${source} ${interviewTitle}!\n\n🆔 Candidate ID: ${interviewCandidateLabel || 'pending'}\n👤 Candidate: ${firstname} ${lastname || ''}${interviewRole ? `\n💼 Position: ${interviewRole}` : ''}`
       : `🔔 New ${source} Booking!\n\n👤 ${firstname} ${lastname || ''}`
     message += `
 📧 ${booking.email}
@@ -316,7 +320,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
         .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
       </style></head><body><div class="container">
         <div class="header">
-          <h1>🔔 New ${isInterview ? 'Interview ' : ''}Booking Alert</h1>
+          <h1>🔔 New ${isInterview ? `${interviewTitle} ` : ''}Booking Alert</h1>
           <p style="margin: 10px 0 0 0; font-size: 18px;">${source}${isInterview ? ' — Fahad Sells' : ''}</p>
         </div>
         <div class="content">
@@ -330,6 +334,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
             <div class="detail-row"><div class="detail-label">📅 Date:</div><div class="detail-value">${booking.appointment_date || 'Not specified'}</div></div>
             <div class="detail-row"><div class="detail-label">🕐 Time:</div><div class="detail-value">${booking.appointment_time || 'Not specified'}</div></div>
             <div class="detail-row"><div class="detail-label">🎯 Type:</div><div class="detail-value">${displayType}</div></div>
+            ${interviewRole ? `<div class="detail-row"><div class="detail-label">💼 Position:</div><div class="detail-value">${interviewRole}</div></div>` : ''}
             ${isInterview ? '' : bookedByAdminEmailRow(booking.booked_by)}
             ${booking.project_name ? `<div class="detail-row"><div class="detail-label">🏢 Project:</div><div class="detail-value">${booking.project_name}</div></div>` : ''}
             ${booking.project_id ? `<div class="detail-row"><div class="detail-label">🆔 Project ID:</div><div class="detail-value">${booking.project_id}</div></div>` : ''}
@@ -356,7 +361,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
           const result = await emailTransporter.sendMail({
             from: `"Property Dashboard" <${process.env.GMAIL_USER || 'info@qikfill.com'}>`,
             to: email,
-            subject: `🔔 New ${source} ${isInterview ? 'Interview ' : ''}Booking (${displayType}) - ${interviewCandidateLabel ? `${interviewCandidateLabel} ` : ''}${firstname} ${lastname || ''}`,
+            subject: `🔔 New ${source} ${isInterview ? `${interviewTitle} ` : ''}Booking (${displayType}) - ${interviewCandidateLabel ? `${interviewCandidateLabel} ` : ''}${firstname} ${lastname || ''}`,
             html: adminEmailHtml,
             attachments: interviewResumeAttachment ? [interviewResumeAttachment] : undefined,
           })
@@ -433,7 +438,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
         .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
       </style></head><body><div class="container">
         <div class="header">
-          <h1>Interview confirmed</h1>
+          <h1>${interviewTitle} confirmed</h1>
           <p style="margin: 10px 0 0 0; font-size: 16px;">${INTERVIEW_BRAND_NAME}</p>
         </div>
         <div class="content">
@@ -443,6 +448,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
             <div class="detail-row"><span class="detail-label">Date:</span><span class="detail-value">${booking.appointment_date || 'Not specified'}</span></div>
             <div class="detail-row"><span class="detail-label">Time:</span><span class="detail-value">${booking.appointment_time || 'Not specified'}</span></div>
             <div class="detail-row"><span class="detail-label">Type:</span><span class="detail-value">${displayType}</span></div>
+            ${interviewRole ? `<div class="detail-row"><span class="detail-label">Position:</span><span class="detail-value">${interviewRole}</span></div>` : ''}
           </div>
           ${typeSpecificHtml}
           ${getInterviewManageLinkHtml(interviewManageUrl)}
@@ -491,7 +497,7 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
       </div></body></html>`
 
       const customerSubject = isInterview
-        ? `Interview confirmed — ${booking.appointment_date || 'Upcoming'} at ${booking.appointment_time || 'TBD'}`
+        ? `${interviewTitle} confirmed — ${booking.appointment_date || 'Upcoming'} at ${booking.appointment_time || 'TBD'}`
         : `✅ Appointment Confirmed (${displayType}) - ${booking.appointment_date || 'Upcoming'} at ${booking.appointment_time || 'TBD'}`
 
       customerEmailResult = await emailTransporter.sendMail({
