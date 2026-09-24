@@ -1,6 +1,6 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { FUB_BOOKING_BRANDS } from '@/lib/fubEmbeddedApp'
-import { isBookingStatusCanceled } from '@/lib/bookingTimes'
 import { torontoYmd } from '@/lib/bookingDateFilter'
 
 export type FubProjectOption = {
@@ -132,6 +132,16 @@ export async function searchCanadaProjects(query: string): Promise<FubProjectOpt
   return mapRows([...(byId ?? []), ...(byName ?? [])]).slice(0, 8)
 }
 
+export type FubBookingKind = 'upcoming' | 'past' | 'cancelled' | 'rescheduled' | 'done' | 'no_show'
+
+export type FubRescheduleMove = {
+  at: string
+  from_date: string
+  from_time: string
+  to_date: string
+  to_time: string
+}
+
 export type FubAppointment = {
   id: string
   table: string
@@ -142,6 +152,91 @@ export type FubAppointment = {
   appointment_type: string
   booked_by?: string | null
   status: string
+  created_at?: string
+  kind?: FubBookingKind
+  moves?: FubRescheduleMove[]
+}
+
+export function fubBookingKind(status: string, appointmentDate: string, today: string): FubBookingKind {
+  const normalized = status.trim().toLowerCase()
+  if (normalized === 'canceled' || normalized === 'cancelled') return 'cancelled'
+  if (normalized === 'rescheduled') return 'rescheduled'
+  if (normalized === 'no_show') return 'no_show'
+  if (normalized === 'completed') return 'done'
+  if (appointmentDate && appointmentDate >= today) return 'upcoming'
+  return 'past'
+}
+
+export function fubBookingKindLabel(kind: FubBookingKind) {
+  switch (kind) {
+    case 'upcoming':
+      return 'Upcoming'
+    case 'past':
+      return 'Already happened'
+    case 'cancelled':
+      return 'Cancelled'
+    case 'rescheduled':
+      return 'Rescheduled'
+    case 'done':
+      return 'Appointment done'
+    case 'no_show':
+      return 'No show'
+  }
+}
+
+export function fubBookingHistorySummary(items: Array<{ kind?: FubBookingKind }>) {
+  if (items.length === 0) {
+    return {
+      headline: 'Not booked before',
+      detail: 'No meetings on this email or phone yet.',
+    }
+  }
+  const count = (kind: FubBookingKind) => items.filter((item) => item.kind === kind).length
+  const earlier = items.length - count('upcoming')
+  const parts: string[] = []
+  if (count('upcoming')) parts.push(`${count('upcoming')} upcoming`)
+  if (count('past')) parts.push(`${count('past')} already happened`)
+  if (count('rescheduled')) parts.push(`${count('rescheduled')} rescheduled`)
+  if (count('cancelled')) parts.push(`${count('cancelled')} cancelled`)
+  if (count('done')) parts.push(`${count('done')} appointment done`)
+  if (count('no_show')) parts.push(`${count('no_show')} no show`)
+  const headline =
+    earlier > 0
+      ? `Booked before — ${items.length} meeting${items.length === 1 ? '' : 's'}`
+      : items.length === 1
+        ? '1 upcoming meeting — not booked before'
+        : `${items.length} upcoming meetings — not booked before`
+  return { headline, detail: parts.join(' · ') }
+}
+
+export function parseRescheduleLog(value: unknown): FubRescheduleMove[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const row = item as Record<string, unknown>
+    const from_date = String(row.from_date || '')
+    const to_date = String(row.to_date || '')
+    if (!from_date || !to_date) return []
+    return [{
+      at: String(row.at || ''),
+      from_date,
+      from_time: String(row.from_time || ''),
+      to_date,
+      to_time: String(row.to_time || ''),
+    }]
+  })
+}
+
+export async function appendBookingRescheduleLog(
+  supabase: SupabaseClient,
+  table: string,
+  bookingId: string,
+  existing: unknown,
+  move: FubRescheduleMove
+) {
+  const next = [...parseRescheduleLog(existing), move].slice(-20)
+  const { error } = await supabase.from(table).update({ reschedule_log: next }).eq('id', bookingId)
+  if (error) console.warn('Could not store reschedule history:', error.message)
 }
 
 function lastTenDigits(phone: string) {
@@ -165,63 +260,114 @@ export function bookingMatchesContact(
   return false
 }
 
-export async function listUpcomingFubAppointments(email: string, phone: string): Promise<FubAppointment[]> {
+const BOOKING_HISTORY_COLUMNS =
+  'id, email, phone, appointment_date, appointment_time, appointment_type, booked_by, status, project_name, created_at, reschedule_log'
+
+let bookingHistorySelect = BOOKING_HISTORY_COLUMNS
+
+export async function listUpcomingFubAppointments(
+  email: string,
+  phone: string,
+  extraEmails: string[] = [],
+  extraPhones: string[] = []
+): Promise<FubAppointment[]> {
   const supabase = getSupabaseAdmin()
   const today = torontoYmd()
-  const lookback = torontoYmd(-14)
-  const emailNorm = email.trim().toLowerCase()
-  const phoneKey = lastTenDigits(phone)
+  const emails = [...new Set([email, ...extraEmails].map((item) => item.trim().toLowerCase()).filter(Boolean))]
+  const phones = [...new Set([phone, ...extraPhones].map(lastTenDigits).filter((item) => item.length >= 10))]
+  if (emails.length === 0 && phones.length === 0) return []
+
   const collected: FubAppointment[] = []
+  const seen = new Set<string>()
 
   for (const brand of FUB_BOOKING_BRANDS) {
-    const { data } = await supabase
-      .from(brand.table)
-      .select('id, email, phone, appointment_date, appointment_time, appointment_type, booked_by, status, project_name')
-      .gte('appointment_date', lookback)
-      .order('appointment_date', { ascending: true })
-      .limit(80)
-
-    for (const row of data ?? []) {
-      const item = row as {
-        id: string
-        email?: string | null
-        phone?: string | null
-        appointment_date: string
-        appointment_time: string
-        appointment_type?: string | null
-        booked_by?: string | null
-        status?: string
-        project_name?: string | null
+    const batches: Array<Record<string, unknown>>[] = []
+    for (const emailNorm of emails) {
+      const rows = await loadBookingRows(supabase, brand.table, 'email', emailNorm)
+      batches.push(rows)
+    }
+    for (const phoneKey of phones) {
+      const rows = await loadBookingRows(supabase, brand.table, 'phone', phoneKey)
+      batches.push(rows)
+    }
+    for (const batch of batches) {
+      for (const row of batch) {
+        const item = row as {
+          id?: string
+          email?: string | null
+          phone?: string | null
+          appointment_date?: string | null
+          appointment_time?: string | null
+          appointment_type?: string | null
+          booked_by?: string | null
+          status?: string | null
+          project_name?: string | null
+          created_at?: string | null
+          reschedule_log?: unknown
+        }
+        const emailMatch = emails.includes(String(item.email || '').trim().toLowerCase())
+        const phoneMatch = phones.includes(lastTenDigits(String(item.phone || '')))
+        if (!emailMatch && !phoneMatch) continue
+        const key = `${brand.table}:${item.id}`
+        if (!item.id || seen.has(key)) continue
+        seen.add(key)
+        const appointmentDate = String(item.appointment_date || '')
+        const status = String(item.status || '')
+        collected.push({
+          id: String(item.id),
+          table: brand.table,
+          brand: brand.label,
+          project_name: String(item.project_name || 'Meeting'),
+          appointment_date: appointmentDate,
+          appointment_time: String(item.appointment_time || ''),
+          appointment_type: String(item.appointment_type || ''),
+          booked_by: String(item.booked_by || ''),
+          status,
+          created_at: String(item.created_at || ''),
+          kind: fubBookingKind(status, appointmentDate, today),
+          moves: parseRescheduleLog(item.reschedule_log),
+        })
       }
-      if (isBookingStatusCanceled(item.status)) continue
-      const emailMatch = emailNorm && String(item.email || '').trim().toLowerCase() === emailNorm
-      const phoneMatch = phoneKey.length >= 10 && lastTenDigits(String(item.phone || '')) === phoneKey
-      if (!emailMatch && !phoneMatch) continue
-      collected.push({
-        id: String(item.id),
-        table: brand.table,
-        brand: brand.label,
-        project_name: String(item.project_name || 'Meeting'),
-        appointment_date: String(item.appointment_date || ''),
-        appointment_time: String(item.appointment_time || ''),
-        appointment_type: String(item.appointment_type || ''),
-        booked_by: String(item.booked_by || ''),
-        status: String(item.status || ''),
-      })
     }
   }
 
   collected.sort((a, b) => {
-    const aUpcoming = a.appointment_date >= today
-    const bUpcoming = b.appointment_date >= today
+    const aUpcoming = a.kind === 'upcoming'
+    const bUpcoming = b.kind === 'upcoming'
     if (aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1
     if (aUpcoming) {
       return a.appointment_date.localeCompare(b.appointment_date) || a.appointment_time.localeCompare(b.appointment_time)
     }
-    return b.appointment_date.localeCompare(a.appointment_date) || b.appointment_time.localeCompare(a.appointment_time)
+    const aWhen = a.created_at || a.appointment_date
+    const bWhen = b.created_at || b.appointment_date
+    return bWhen.localeCompare(aWhen)
   })
 
-  return collected.slice(0, 12)
+  return collected.slice(0, 40)
+}
+
+async function loadBookingRows(
+  supabase: SupabaseClient,
+  table: string,
+  field: 'email' | 'phone',
+  value: string
+) {
+  const filter = field === 'email' ? value : `%${value}%`
+  const run = (columns: string) =>
+    supabase.from(table).select(columns).ilike(field, filter).limit(50)
+
+  let { data, error } = await run(bookingHistorySelect)
+  if (error && bookingHistorySelect.includes('reschedule_log') && /reschedule_log/i.test(error.message)) {
+    bookingHistorySelect = BOOKING_HISTORY_COLUMNS.replace(', reschedule_log', '')
+    const retry = await run(bookingHistorySelect)
+    data = retry.data
+    error = retry.error
+  }
+  if (error) {
+    console.error(`FUB booking history failed for ${table}:`, error.message)
+    return []
+  }
+  return (data ?? []) as Array<Record<string, unknown>>
 }
 
 export async function fetchFollowUpBossPersonTags(personId: string): Promise<string[]> {

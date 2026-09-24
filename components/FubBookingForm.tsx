@@ -4,9 +4,16 @@ import type { CSSProperties } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { APPOINTMENT_TIME_SLOTS, formatAppointmentTimeDisplay, formatBookingStatusLabel } from '@/lib/bookingTimes'
 import { FUB_BOOKING_BRANDS, FUB_MEETING_TYPES } from '@/lib/fubEmbeddedApp'
-import { parseMeetingType } from '@/lib/meetingTypes'
+import { meetingTypeLabel, parseMeetingType } from '@/lib/meetingTypes'
 import { BOOKED_BY_OPTIONS } from '@/lib/bookedBy'
-import type { FubAppointment, FubProjectOption } from '@/lib/fubProjects'
+import {
+  fubBookingHistorySummary,
+  fubBookingKind,
+  fubBookingKindLabel,
+  type FubAppointment,
+  type FubBookingKind,
+  type FubProjectOption,
+} from '@/lib/fubProjects'
 import type { AppointmentNurtureRow } from '@/lib/appointmentNurture'
 import FubEscalationPanel from '@/components/FubEscalationPanel'
 import FubFollowUpPanel from '@/components/FubFollowUpPanel'
@@ -27,6 +34,50 @@ type Props = {
 
 function todayToronto() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })
+}
+
+function formatHistoryDate(ymd: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd || 'No date'
+  return new Date(`${ymd}T12:00:00`).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'America/Toronto',
+  })
+}
+
+function formatBookedOn(iso: string) {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'America/Toronto',
+  })
+}
+
+function kindBadgeStyle(kind: FubBookingKind): CSSProperties {
+  const tone: Record<FubBookingKind, CSSProperties> = {
+    upcoming: { background: '#ecfdf3', color: '#027a48' },
+    past: { background: '#f2f4f7', color: '#344054' },
+    cancelled: { background: '#fef3f2', color: '#b42318' },
+    rescheduled: { background: '#fffaeb', color: '#b54708' },
+    done: { background: '#eff8ff', color: '#175cd3' },
+    no_show: { background: '#fff6ed', color: '#c4320a' },
+  }
+  return {
+    ...tone[kind],
+    display: 'inline-block',
+    fontSize: 11,
+    fontWeight: 700,
+    borderRadius: 999,
+    padding: '2px 8px',
+  }
 }
 
 export default function FubBookingForm({
@@ -67,6 +118,11 @@ export default function FubBookingForm({
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const name = `${firstName} ${lastName}`.trim() || 'this lead'
+  const history = appointments.map((item) => ({
+    ...item,
+    kind: item.kind || fubBookingKind(item.status, item.appointment_date, minDate),
+  }))
+  const historySummary = fubBookingHistorySummary(history)
   const orphanNurtures = nurtures.filter(
     (row) => !appointments.some((item) => item.id === row.booking_id && item.table === row.booking_table)
   )
@@ -275,18 +331,38 @@ export default function FubBookingForm({
       <div style={bookingHint}>Meeting with the lead. Calendar invite and messages go to them.</div>
       {notice ? <div style={noticeText}>{notice}</div> : null}
       {error ? <div style={errorText}>{error}</div> : null}
-      {appointments.length > 0 ? (
+      <div style={historyBox}>
+        <div style={historyHeadline}>{historySummary.headline}</div>
+        <div style={historyDetail}>{historySummary.detail}</div>
+      </div>
+      {history.length > 0 ? (
         <>
-          <div style={label}>Appointments</div>
-          {appointments.map((item) => (
+          <div style={label}>Booking history</div>
+          {history.map((item) => {
+            const kind = item.kind || 'past'
+            const bookedOn = formatBookedOn(item.created_at || '')
+            const cancelled = kind === 'cancelled'
+            return (
             <div key={`${item.table}-${item.id}`} style={apptCard}>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>{item.project_name}</div>
-              <div style={{ fontSize: 12, color: '#667085', margin: '4px 0 8px' }}>
-                {item.appointment_date} · {formatAppointmentTimeDisplay(item.appointment_time)} · {item.brand}
-                {item.booked_by ? ` · Booked by ${item.booked_by}` : ''}
-                {item.status ? ` · ${formatBookingStatusLabel(item.status)}` : ''}
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{formatHistoryDate(item.appointment_date)}</div>
+                <span style={kindBadgeStyle(kind)}>{fubBookingKindLabel(kind)}</span>
               </div>
-              {editingId === item.id ? (
+              <div style={{ fontSize: 12, color: '#344054', marginTop: 4 }}>
+                {formatAppointmentTimeDisplay(item.appointment_time) || 'Time not set'} · {meetingTypeLabel(item.appointment_type)}
+              </div>
+              <div style={{ fontWeight: 600, fontSize: 13, marginTop: 4 }}>{item.project_name}</div>
+              <div style={{ fontSize: 12, color: '#667085', margin: '4px 0 8px' }}>
+                {item.brand}
+                {item.booked_by ? ` · Booked by ${item.booked_by}` : ''}
+                {bookedOn ? ` · Booked ${bookedOn}` : ''}
+              </div>
+              {(item.moves || []).map((move, index) => (
+                <div key={`${item.id}-move-${index}`} style={moveLine}>
+                  Rescheduled from {formatHistoryDate(move.from_date)} {formatAppointmentTimeDisplay(move.from_time) || move.from_time} to {formatHistoryDate(move.to_date)} {formatAppointmentTimeDisplay(move.to_time) || move.to_time}
+                </div>
+              ))}
+              {cancelled ? null : editingId === item.id ? (
                 <>
                   <label style={label}>Type</label>
                   <select value={editType} onChange={(e) => setEditType(e.target.value)} style={input}>
@@ -384,13 +460,16 @@ export default function FubBookingForm({
                   </div>
                 </>
               )}
-              <FubAppointmentNurture
-                nurture={nurtureFor(item)}
-                disabled={busyId === item.id}
-                onAction={(action) => void runNurture(item, action)}
-              />
+              {!cancelled ? (
+                <FubAppointmentNurture
+                  nurture={nurtureFor(item)}
+                  disabled={busyId === item.id}
+                  onAction={(action) => void runNurture(item, action)}
+                />
+              ) : null}
             </div>
-          ))}
+            )
+          })}
         </>
       ) : null}
 
@@ -636,9 +715,39 @@ const button: CSSProperties = {
 
 const apptCard: CSSProperties = {
   border: '1px solid #e5e7eb',
+  borderLeft: '3px solid #2563eb',
   borderRadius: 8,
   padding: 10,
   marginBottom: 8,
+  background: '#fff',
+}
+
+const historyBox: CSSProperties = {
+  marginTop: 8,
+  padding: '10px 12px',
+  borderRadius: 8,
+  background: '#fff',
+  border: '1px solid #93c5fd',
+}
+
+const historyHeadline: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 800,
+  color: '#1e3a8a',
+}
+
+const historyDetail: CSSProperties = {
+  marginTop: 3,
+  fontSize: 12,
+  color: '#1e40af',
+  lineHeight: 1.4,
+}
+
+const moveLine: CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: '#b54708',
+  margin: '0 0 8px',
 }
 
 const smallPrimary: CSSProperties = {

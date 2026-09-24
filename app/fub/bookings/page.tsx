@@ -104,7 +104,12 @@ export default async function FubBookingsPage({
   const apiTags = person?.id != null ? await fetchFollowUpBossPersonTags(String(person.id)) : []
   const tags = [...new Set([...contextTags, ...apiTags])]
   const taggedProjects = await matchProjectsFromTags(tags)
-  const appointments = await listUpcomingFubAppointments(pickFubEmail(person), pickFubPhone(person))
+  const appointments = await listUpcomingFubAppointments(
+    pickFubEmail(person),
+    pickFubPhone(person),
+    (person?.emails || []).map((item) => String(item.value || '')),
+    (person?.phones || []).map((item) => String(item.normalized || item.value || ''))
+  )
   const nurtures = await listAppointmentNurtures(personIdFromFubPerson(person))
 
   return (

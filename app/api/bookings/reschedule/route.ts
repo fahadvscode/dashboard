@@ -20,6 +20,7 @@ import { appointmentToSlotIso } from '@/lib/interviewSlotTimes'
 import { normalizeBookingPayload } from '@/lib/normalizeBookingPayload'
 import { meetingCalendarLocation, meetingTypeLabel, parseMeetingType } from '@/lib/meetingTypes'
 import { bookedByCalendarPrefix, parseBookedBy } from '@/lib/bookedBy'
+import { appendBookingRescheduleLog } from '@/lib/fubProjects'
 
 function toE164NorthAmerica(phone: string): string {
   const digits = phone.replace(/\D/g, '')
@@ -243,6 +244,16 @@ export async function POST(request: NextRequest) {
           : {}),
       }
     )
+
+    if (timeChanged) {
+      await appendBookingRescheduleLog(supabase, table, String(bookingId), booking.reschedule_log, {
+        at: new Date().toISOString(),
+        from_date: previousDate,
+        from_time: previousTime,
+        to_date: appointment_date,
+        to_time: normalizedTime,
+      })
+    }
 
     let smsSent = false
     let smsError: string | null = null

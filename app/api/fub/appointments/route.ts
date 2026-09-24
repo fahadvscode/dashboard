@@ -18,7 +18,12 @@ export async function POST(request: NextRequest) {
     }
 
     const person = resolved.context.person
-    const appointments = await listUpcomingFubAppointments(pickFubEmail(person), pickFubPhone(person))
+    const appointments = await listUpcomingFubAppointments(
+      pickFubEmail(person),
+      pickFubPhone(person),
+      (person.emails || []).map((item) => String(item.value || '')),
+      (person.phones || []).map((item) => String(item.normalized || item.value || ''))
+    )
     const nurtures = await listAppointmentNurtures(personIdFromFubPerson(person))
     return NextResponse.json({ appointments, nurtures })
   } catch (error) {
