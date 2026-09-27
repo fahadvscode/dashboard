@@ -74,7 +74,7 @@ const CATEGORIES: AmenityCategory[] = [
   { key: 'park', label: 'Parks & Recreation', type: 'park', color: '#16a34a', marker: 'P', radius: 5000 },
   { key: 'hospital', label: 'Hospitals & Clinics', type: 'hospital', color: '#ef4444', marker: 'H', radius: 8000 },
   { key: 'pharmacy', label: 'Pharmacies', type: 'pharmacy', color: '#06b6d4', marker: '+', radius: 5000 },
-  { key: 'transit_station', label: 'Transit Stations', type: 'transit_station', color: '#6366f1', marker: 'T', radius: 5000 },
+  { key: 'transit_station', label: 'Transit & GO stations', type: 'transit_station', color: '#6366f1', marker: 'T', radius: 5000 },
   { key: 'gas_station', label: 'Gas Stations', type: 'gas_station', color: '#eab308', marker: 'F', radius: 5000 },
   { key: 'bank', label: 'Banks', type: 'bank', color: '#14b8a6', marker: 'B', radius: 5000 },
   { key: 'gym', label: 'Fitness & Gyms', type: 'gym', color: '#f43f5e', marker: 'W', radius: 5000 },
@@ -190,6 +190,10 @@ function createAmenityMarkerIcon(color: string, letter: string): google.maps.Ico
     scaledSize: new google.maps.Size(30, 30),
     anchor: new google.maps.Point(15, 15),
   }
+}
+
+function isGoStationName(name: string) {
+  return /\bGO\b/i.test(name) || /go station/i.test(name)
 }
 
 function createHighlightedAmenityMarkerIcon(color: string, letter: string): google.maps.Icon {
@@ -573,12 +577,15 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
 
     const addMarkers = (cat: AmenityCategory, items: Amenity[]) => {
       const markers = items.map((amenity) => {
+        const goStation = cat.key === 'transit_station' && isGoStationName(amenity.name)
         const m = new google.maps.Marker({
           position: { lat: amenity.lat, lng: amenity.lng },
           map: mapRef.current,
-          icon: createAmenityMarkerIcon(cat.color, cat.marker),
-          title: amenity.name,
-          zIndex: 100,
+          icon: goStation
+            ? createHighlightedAmenityMarkerIcon('#4f46e5', 'GO')
+            : createAmenityMarkerIcon(cat.color, cat.marker),
+          title: goStation ? `GO station: ${amenity.name}` : amenity.name,
+          zIndex: goStation ? 400 : 100,
         })
         m.addListener('click', () => {
           setHighlightedAmenity(amenity.place_id)
@@ -685,10 +692,14 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
       catAmenities.forEach((a, i) => {
         const marker = markers[i]
         if (!marker) return
+        const goStation = cat.key === 'transit_station' && isGoStationName(a.name)
         if (a.place_id === highlightedAmenity) {
-          marker.setIcon(createHighlightedAmenityMarkerIcon(cat.color, cat.marker))
+          marker.setIcon(createHighlightedAmenityMarkerIcon(goStation ? '#4f46e5' : cat.color, goStation ? 'GO' : cat.marker))
           marker.setZIndex(500)
           mapRef.current?.panTo({ lat: a.lat, lng: a.lng })
+        } else if (goStation) {
+          marker.setIcon(createHighlightedAmenityMarkerIcon('#4f46e5', 'GO'))
+          marker.setZIndex(400)
         } else {
           marker.setIcon(createAmenityMarkerIcon(cat.color, cat.marker))
           marker.setZIndex(100)
@@ -1259,6 +1270,11 @@ export default function PresentationMapView({ property, apiKey, commuteDestinati
                                 <p className="font-medium text-sm text-gray-900 truncate">
                                   {amenity.name}
                                 </p>
+                                {cat.key === 'transit_station' && isGoStationName(amenity.name) && (
+                                  <span className="mt-1 inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-bold text-indigo-800">
+                                    GO station
+                                  </span>
+                                )}
                                 <p className="text-xs text-gray-500 truncate mt-0.5 flex items-center gap-1">
                                   <MapPin className="h-3 w-3 flex-shrink-0" />
                                   {amenity.address}

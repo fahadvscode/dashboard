@@ -103,6 +103,7 @@ const MORE_SECTIONS = [
     items: [
       { label: 'Canada Properties', icon: Building2, tint: '#007AFF', href: '/properties' },
       { label: 'Project Presentation', icon: Users, tint: '#AF52DE', href: '/project-presentation' },
+      { label: 'City Project Map', icon: MapPin, tint: '#007AFF', href: '/city-projects' },
       { label: 'Project Collections', icon: FolderOpen, tint: '#FF9500', href: '/collections' },
     ],
   },

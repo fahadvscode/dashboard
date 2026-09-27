@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned, PlusCircle, TrendingUp, ClipboardList, BarChart3, ThumbsDown } from 'lucide-react'
+import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned, Map, PlusCircle, TrendingUp, ClipboardList, BarChart3, ThumbsDown } from 'lucide-react'
 import { useState } from 'react'
 import { logout } from '@/lib/auth'
 
@@ -21,6 +21,7 @@ const navigationSections: { heading: string; items: NavItem[] }[] = [
     items: [
       { name: 'Canada Properties', href: '/', icon: Building2 },
       { name: 'Project Presentation', href: '/project-presentation', icon: MapPinned },
+      { name: 'City Project Map', href: '/city-projects', icon: Map },
       { name: 'Project Collections', href: '/collections', icon: FolderOpen },
     ],
   },
