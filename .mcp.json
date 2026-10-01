@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "followupboss": {
+      "command": "node",
+      "args": ["mcp/followupboss/src/index.js"]
+    }
+  }
+}

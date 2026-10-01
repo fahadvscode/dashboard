@@ -1,0 +1,14 @@
+{
+  "name": "followupboss-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local MCP server that lets Claude use your Follow Up Boss account.",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "dotenv": "^16.4.5",
+    "zod": "^3.25.76"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "followupboss": {
+      "command": "node",
+      "args": ["/Volumes/JAY MAC/Jay data/Dashboard/mcp/followupboss/src/index.js"]
+    }
+  }
+}
