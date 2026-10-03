@@ -67,7 +67,7 @@ const emailTransporter = nodemailer.createTransport({
 
 function getBrandContact(source: string) {
   if (source === 'Fahad Javed Real Estate') {
-    return { email: 'fahad@fahadsold.com', phone: '647.898.1739', phoneFormatted: '(647) 898-1739' }
+    return { email: 'fahad@fahadsold.com', phone: '289.536.9724', phoneFormatted: '(289) 536-9724' }
   } else if (source === 'Precon Factory') {
     return { email: 'info@preconfactory.com', phone: '647.956.4063', phoneFormatted: '(647) 956-4063' }
   }

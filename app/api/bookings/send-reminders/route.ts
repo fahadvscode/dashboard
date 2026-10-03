@@ -89,7 +89,7 @@ function getBrandName(tableName: string): string {
 
 function getBrandContact(source: string) {
   if (source === 'Fahad Javed Real Estate') {
-    return { email: 'fahad@fahadsold.com', phoneFormatted: '(647) 898-1739' }
+    return { email: 'fahad@fahadsold.com', phoneFormatted: '(289) 536-9724' }
   } else if (source === 'Precon Factory') {
     return { email: 'info@preconfactory.com', phoneFormatted: '(647) 956-4063' }
   }

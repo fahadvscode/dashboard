@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
     const meetingFormat = isInterview
       ? 'visit_office'
       : (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
-    const brandPhone = brandName === 'Fahad Javed Real Estate' ? '(647) 898-1739' :
+    const brandPhone = brandName === 'Fahad Javed Real Estate' ? '(289) 536-9724' :
                        brandName === 'Precon Factory' ? '(647) 956-4063' :
                        '(416) 399-4289'
 
