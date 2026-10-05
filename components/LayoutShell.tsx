@@ -1,13 +1,16 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
 import AuthGuard from '@/components/AuthGuard'
-import MobileDashboard from '@/components/MobileDashboard'
 import MobileBottomNav, { InnerTopBar } from '@/components/MobileBottomNav'
+
+const MobileDashboard = dynamic(() => import('@/components/MobileDashboard'), { ssr: false })
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isPublicRoute = pathname.startsWith('/present') || pathname.startsWith('/fub')
+  const isPublicRoute =
+    pathname.startsWith('/present') || pathname.startsWith('/fub') || pathname.startsWith('/broker')
   const isHome = pathname === '/'
 
   if (isPublicRoute) {
