@@ -357,7 +357,16 @@ export default function BrokerGuide() {
         const haystack = [
           project.project_name,
           project.city,
-          ...project.places.flatMap((place) => [place.place_type, place.address, place.cross_streets, place.phone, place.note]),
+          project.id,
+          project.canada_property_id,
+          ...project.places.flatMap((place) => [
+            place.place_type,
+            place.address,
+            place.cross_streets,
+            place.phone,
+            place.note,
+            place.contacts,
+          ]),
         ]
           .filter(Boolean)
           .join(' ')
@@ -514,7 +523,7 @@ export default function BrokerGuide() {
               <div className="mt-4 flex items-start justify-between gap-3 rounded-xl bg-emerald-50 px-4 py-3">
                 <div>
                   <p className="font-semibold text-slate-900">{projectName}</p>
-                  <p className="text-sm text-emerald-800">Selected from current projects. Saving here does not change Canada Properties.</p>
+                  <p className="text-sm text-emerald-800">ID {propertyId}. Saving here does not change Canada Properties.</p>
                 </div>
                 <button
                   type="button"
@@ -536,7 +545,7 @@ export default function BrokerGuide() {
                   <input
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search project name"
+                    placeholder="Search name, builder, or project ID"
                     className={`${inputClass} pl-11`}
                   />
                 </div>
@@ -560,7 +569,7 @@ export default function BrokerGuide() {
                         >
                           <span className="block font-semibold text-slate-900">{hit.project_name}</span>
                           <span className="block text-sm text-slate-500">
-                            {[hit.city, hit.builder].filter(Boolean).join(' · ')}
+                            {[`ID ${hit.id}`, hit.builder, hit.city].filter(Boolean).join(' · ')}
                           </span>
                         </button>
                       </li>
@@ -751,7 +760,7 @@ export default function BrokerGuide() {
           <input
             value={listQuery}
             onChange={(event) => setListQuery(event.target.value)}
-            placeholder="Search the guide"
+            placeholder="Search name, builder, or project ID"
             className={`${inputClass} pl-11`}
           />
         </div>

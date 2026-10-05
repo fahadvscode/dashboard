@@ -19,16 +19,29 @@ export async function GET(request: NextRequest) {
   const query = (request.nextUrl.searchParams.get('q') ?? '').trim()
   if (query.length < 2) return NextResponse.json({ results: [] })
 
-  const safe = query.replace(/[%_,]/g, '').slice(0, 80)
+  const safe = query.replace(/[%_,.()]/g, '').slice(0, 80)
   if (safe.length < 2) return NextResponse.json({ results: [] })
 
   try {
     const supabase = getSupabaseAdmin()
-    const { data, error } = await supabase
+    const select = 'id, project_name, city, builder'
+    const byNameOrBuilder = `project_name.ilike.%${safe}%,builder.ilike.%${safe}%`
+    let { data, error } = await supabase
       .from('canada_properties')
-      .select('id, project_name, city, builder')
-      .ilike('project_name', `%${safe}%`)
+      .select(select)
+      .or(`${byNameOrBuilder},id.ilike.%${safe}%`)
       .limit(8)
+
+    if (error && /uuid|operator does not exist|invalid input syntax/i.test(error.message ?? '')) {
+      const exactId = /^\d+$/.test(safe) || /^[0-9a-f-]{32,36}$/i.test(safe)
+      const retry = await supabase
+        .from('canada_properties')
+        .select(select)
+        .or(exactId ? `${byNameOrBuilder},id.eq.${safe}` : byNameOrBuilder)
+        .limit(8)
+      data = retry.data
+      error = retry.error
+    }
 
     if (error) throw error
 
