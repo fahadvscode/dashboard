@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { resolveCustomerNotes } from '@/lib/customerNotes'
+import { sendSheetRowToFollowUpBoss } from '@/lib/fubLeadInquiry'
 import { formatLeadSheetTimestamp } from '@/lib/leadGoogleSheets'
 import {
   resolvePreconFactoryWebsiteInterested,
@@ -202,26 +203,45 @@ async function appendLeadToGoogleSheet(
       sheetMessage,
     ]
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'Sheet1!A:M',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [row],
-      },
-    })
+    try {
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: 'Sheet1!A:M',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [row],
+        },
+      })
+      console.log('Lead appended to Google Sheet successfully:', {
+        firstName,
+        lastName,
+        projectName,
+        company,
+        tag,
+        broker,
+        interested,
+      })
+    } catch (error) {
+      console.error('Error appending lead to Google Sheet:', error)
+    }
 
-    console.log('Lead appended to Google Sheet successfully:', {
-      firstName,
-      lastName,
-      projectName,
-      company,
-      tag,
-      broker,
-      interested,
-    })
+    try {
+      const fub = await sendSheetRowToFollowUpBoss(row)
+      console.log('Follow Up Boss inquiry:', {
+        firstName,
+        lastName,
+        projectName,
+        ok: fub.ok,
+        status: fub.status,
+        personId: fub.personId,
+        skipped: fub.skipped,
+        error: fub.error,
+      })
+    } catch (error) {
+      console.error('Follow Up Boss inquiry error:', error)
+    }
   } catch (error) {
-    console.error('Error appending lead to Google Sheet:', error)
+    console.error('Error preparing lead for sheet and Follow Up Boss:', error)
   }
 }
 
