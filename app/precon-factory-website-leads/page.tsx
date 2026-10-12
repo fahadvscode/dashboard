@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { fetchAllRows, supabase } from '@/lib/supabase'
 import { Download, Mail, Phone, User, MapPin, Calendar, X, MessageSquare, Search, Sparkles, Loader2, Trash2, AlertCircle, Brain, TrendingUp, Target, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import MobileLeadCard from '@/components/MobileLeadCard'
@@ -236,13 +236,15 @@ export default function PreconFactoryWebsiteLeads() {
 
   async function fetchLeads() {
     try {
-      const { data, error } = await supabase
-        .from('precon_factory_website_leads')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      const normalized = (data || []).map((lead) => normalizeLeadRecord(lead as Record<string, unknown>))
+      const data = await fetchAllRows<Record<string, unknown>>((from, to) =>
+        supabase
+          .from('precon_factory_website_leads')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to)
+      )
+      const normalized = data.map((lead) => normalizeLeadRecord(lead))
       setLeads(normalized)
       setInitialLoadDone(true)
     } catch (error) {

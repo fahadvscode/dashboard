@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { fetchAllRows, supabase } from '@/lib/supabase'
 import { Download, Mail, Phone, User, MapPin, Calendar, X, MessageSquare, Search, Sparkles, Loader2, Trash2, AlertCircle, Brain, TrendingUp, Target, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import MobileLeadCard from '@/components/MobileLeadCard'
@@ -132,13 +132,15 @@ export default function GTALowriseLeads() {
 
   async function fetchLeads() {
     try {
-      const { data, error } = await supabase
-        .from('gta_lowrise_leads')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      const normalized = (data || []).map((lead) => normalizeLeadRecord(lead as Lead))
+      const data = await fetchAllRows<Lead>((from, to) =>
+        supabase
+          .from('gta_lowrise_leads')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to)
+      )
+      const normalized = data.map((lead) => normalizeLeadRecord(lead))
       setLeads(normalized)
       setInitialLoadDone(true)
     } catch (error) {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { fetchAllRows, supabase } from '@/lib/supabase'
 import { Download, Mail, Phone, User, MapPin, X, MessageSquare, Search, Sparkles, Loader2, Trash2, AlertCircle, Brain, TrendingUp, Target } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import LeadDateRangeFilter from '@/components/LeadDateRangeFilter'
@@ -259,23 +259,26 @@ export default function LandingPagesLeads() {
       const enabledSources: LandingPageSource[] = sourcesJson.sources || []
       setSources(enabledSources)
 
-      const results = await Promise.all(
-        enabledSources.map((source) =>
-          supabase.from(source.table_name).select('*').order('created_at', { ascending: false })
-        )
-      )
-
       const combined: LandingPageLead[] = []
-      results.forEach((res, index) => {
-        const tableName = enabledSources[index].table_name
-        if (res.error) {
-          console.error(`${tableName} fetch:`, res.error)
-          return
-        }
-        for (const row of res.data || []) {
-          combined.push(normalizeLead(row as Record<string, unknown>, tableName))
-        }
-      })
+      await Promise.all(
+        enabledSources.map(async (source) => {
+          try {
+            const rows = await fetchAllRows<Record<string, unknown>>((from, to) =>
+              supabase
+                .from(source.table_name)
+                .select('*')
+                .order('created_at', { ascending: false })
+                .order('id', { ascending: false })
+                .range(from, to)
+            )
+            for (const row of rows) {
+              combined.push(normalizeLead(row, source.table_name))
+            }
+          } catch (error) {
+            console.error(`${source.table_name} fetch:`, error)
+          }
+        })
+      )
 
       combined.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()

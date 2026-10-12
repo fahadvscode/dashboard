@@ -54,3 +54,23 @@ function getSupabaseClient() {
 }
 
 export const supabase = getSupabaseClient()
+
+/** PostgREST returns at most 1000 rows per request. Page until the table is exhausted. */
+export async function fetchAllRows<T>(
+  loadPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const pageSize = 1000
+  const rows: T[] = []
+  let from = 0
+
+  for (let page = 0; page < 100; page++) {
+    const { data, error } = await loadPage(from, from + pageSize - 1)
+    if (error) throw error
+    const batch = data ?? []
+    rows.push(...batch)
+    if (batch.length < pageSize) break
+    from += pageSize
+  }
+
+  return rows
+}

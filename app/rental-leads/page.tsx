@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { fetchAllRows, supabase } from '@/lib/supabase'
 import { Download, Mail, Phone, User, MapPin, Calendar, X, MessageSquare, Loader2, Trash2, Home, DollarSign, Users, CreditCard, AlertCircle, FileText, Send } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import LeadDateRangeFilter from '@/components/LeadDateRangeFilter'
@@ -144,13 +144,15 @@ export default function RentalLeads() {
 
   async function fetchLeads() {
     try {
-      const { data, error } = await supabase
-        .from('rental_leads')
-        .select('*')
-        .order('created_at', { ascending: false })
-      
-      if (error) throw error
-      const normalized = (data || []).map((lead) => normalizeLeadRecord(lead as RentalLead))
+      const data = await fetchAllRows<RentalLead>((from, to) =>
+        supabase
+          .from('rental_leads')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(from, to)
+      )
+      const normalized = data.map((lead) => normalizeLeadRecord(lead))
       
       // Update application sent leads from database
       if (data) {
