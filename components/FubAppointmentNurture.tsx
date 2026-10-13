@@ -1,7 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { NURTURE_ASSIGNEE, NURTURE_TOUCH_COUNT, nurtureOutcomeLabel } from '@/lib/appointmentNurture'
+import { NURTURE_TOUCH_COUNT, nurtureOutcomeLabel } from '@/lib/appointmentNurture'
 import type { AppointmentNurtureRow, NurtureOutcome } from '@/lib/appointmentNurture'
 
 export type NurtureActionId = NurtureOutcome | 'stop' | 'restart'
@@ -26,8 +26,7 @@ export default function FubAppointmentNurture({
     <div style={box}>
       <div style={title}>Appointment nurture</div>
       <div style={hint}>
-        Creates {NURTURE_TOUCH_COUNT} internal Follow Up Boss tasks for {NURTURE_ASSIGNEE} only. Does not email or
-        text the lead. Touch 1 is due immediately.
+        Appointment Done and No show only record the outcome. They do not create Follow Up Boss tasks.
       </div>
 
       {active ? (
@@ -38,7 +37,7 @@ export default function FubAppointmentNurture({
       ) : null}
       {stopped ? (
         <div style={statusStopped}>
-          Stopped · {nurtureOutcomeLabel(nurture?.outcome)} · Restart begins at Touch 1
+          {nurtureOutcomeLabel(nurture?.outcome)} · no follow-up tasks
         </div>
       ) : null}
       {parked ? (
@@ -62,15 +61,10 @@ export default function FubAppointmentNurture({
         </div>
       ) : null}
 
-      {active || stopped ? (
+      {active ? (
         <div style={row}>
-          {active ? (
-            <button type="button" disabled={disabled} onClick={() => onAction('stop')} style={stopBtn}>
-              Stop nurture
-            </button>
-          ) : null}
-          <button type="button" disabled={disabled} onClick={() => onAction('restart')} style={restartBtn}>
-            Restart from Touch 1
+          <button type="button" disabled={disabled} onClick={() => onAction('stop')} style={stopBtn}>
+            Stop nurture
           </button>
         </div>
       ) : null}
@@ -143,4 +137,3 @@ const doneBtn: CSSProperties = { ...baseBtn, background: '#166534' }
 const noShowBtn: CSSProperties = { ...baseBtn, background: '#c2410c' }
 const rescheduleBtn: CSSProperties = { ...baseBtn, background: '#b45309' }
 const stopBtn: CSSProperties = { ...baseBtn, background: '#6b7280' }
-const restartBtn: CSSProperties = { ...baseBtn, background: '#1d4ed8' }

@@ -282,11 +282,7 @@ export default function FubBookingForm({
   async function runNurture(item: FubAppointment, action: NurtureActionId) {
     setBusyId(item.id)
     setError('')
-    setNotice(
-      action === 'appointment_done' || action === 'no_show' || action === 'restart'
-        ? 'Creating 14 Follow Up Boss tasks…'
-        : ''
-    )
+    setNotice(action === 'appointment_done' || action === 'no_show' ? 'Saving appointment outcome…' : '')
     try {
       const response = await fetch('/api/fub/nurture', {
         method: 'POST',
