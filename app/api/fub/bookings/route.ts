@@ -11,6 +11,7 @@ import {
   pickFubPhone,
   resolveFubBookingState,
 } from '@/lib/fubEmbeddedApp'
+import { setFubPersonStage } from '@/lib/fubApi'
 
 const MEETING_LABEL: Record<string, string> = {
   phone_call: 'Phone Call',
@@ -102,9 +103,23 @@ export async function POST(request: NextRequest) {
 
     const label = MEETING_LABEL[meeting.id] || meeting.label
     const who = fubPersonName(person) || firstname
+    let stageNote = ''
+    if (personId) {
+      try {
+        const staged = await setFubPersonStage(personId, 'Appointment Pending')
+        if (!staged.ok) {
+          const details = staged.json as { errorMessage?: string; error?: string }
+          console.error('FUB stage update failed:', details.errorMessage || details.error || staged.status)
+          stageNote = ' The stage could not be changed to Appointment Pending.'
+        }
+      } catch (stageError) {
+        console.error('FUB stage update failed:', stageError)
+        stageNote = ' The stage could not be changed to Appointment Pending.'
+      }
+    }
     return NextResponse.json({
       id: data?.id,
-      message: `${label} booked for ${who} on ${date} at ${time}. It will show on the calendar and send the usual invites.`,
+      message: `${label} booked for ${who} on ${date} at ${time}. It will show on the calendar and send the usual invites.${stageNote}`,
     })
   } catch (error) {
     console.error('FUB booking error:', error)

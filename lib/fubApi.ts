@@ -20,6 +20,29 @@ export function fubApiHeaders() {
   return headers
 }
 
+export async function setFubPersonStage(personId: string, stageName: string) {
+  const id = String(personId || '').trim()
+  const wanted = stageName.trim()
+  if (!id || !wanted) {
+    return { ok: false, status: 400, stage: '', json: { error: 'Missing person or stage.' } }
+  }
+
+  const listed = await fubApiFetch('/stages')
+  const rows = listed.ok
+    ? ((listed.json as { stages?: Array<{ name?: string }> }).stages || [])
+    : []
+  const names = rows.map((row) => String(row.name || '').trim()).filter(Boolean)
+  const exact = names.find((name) => name.toLowerCase() === wanted.toLowerCase())
+  const loose = names.find((name) => /appoint/i.test(name) && /pending/i.test(name))
+  const stage = exact || loose || wanted
+
+  const saved = await fubApiFetch(`/people/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ stage }),
+  })
+  return { ...saved, stage }
+}
+
 export async function addFubPersonTags(personId: string, tags: string[]) {
   const id = String(personId || '').trim()
   const next = tags.map((tag) => tag.trim()).filter(Boolean)
