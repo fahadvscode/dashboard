@@ -12,8 +12,6 @@ import {
   listUpcomingFubAppointments,
   matchProjectsFromTags,
 } from '@/lib/fubProjects'
-import { listAppointmentNurtures, personIdFromFubPerson } from '@/lib/fubNurture'
-
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -110,8 +108,6 @@ export default async function FubBookingsPage({
     (person?.emails || []).map((item) => String(item.value || '')),
     (person?.phones || []).map((item) => String(item.normalized || item.value || ''))
   )
-  const nurtures = await listAppointmentNurtures(personIdFromFubPerson(person))
-
   return (
     <FubBookingForm
       context={context}
@@ -122,7 +118,6 @@ export default async function FubBookingsPage({
       phone={pickFubPhone(person)}
       taggedProjects={taggedProjects}
       appointments={appointments}
-      nurtures={nurtures}
     />
   )
 }

@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { APPOINTMENT_TIME_SLOTS, formatAppointmentTimeDisplay, formatBookingStatusLabel } from '@/lib/bookingTimes'
+import { APPOINTMENT_TIME_SLOTS, formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
 import { FUB_BOOKING_BRANDS, FUB_MEETING_TYPES } from '@/lib/fubEmbeddedApp'
 import { meetingTypeLabel, parseMeetingType } from '@/lib/meetingTypes'
 import { BOOKED_BY_OPTIONS } from '@/lib/bookedBy'
@@ -14,9 +14,8 @@ import {
   type FubBookingKind,
   type FubProjectOption,
 } from '@/lib/fubProjects'
-import type { AppointmentNurtureRow } from '@/lib/appointmentNurture'
 import FubEscalationPanel from '@/components/FubEscalationPanel'
-import FubAppointmentNurture, { type NurtureActionId } from '@/components/FubAppointmentNurture'
+import FubLeadFlags from '@/components/FubLeadFlags'
 
 type Props = {
   context: string
@@ -27,7 +26,6 @@ type Props = {
   phone: string
   taggedProjects: FubProjectOption[]
   appointments: FubAppointment[]
-  nurtures?: AppointmentNurtureRow[]
 }
 
 function todayToronto() {
@@ -87,7 +85,6 @@ export default function FubBookingForm({
   phone,
   taggedProjects,
   appointments: initialAppointments,
-  nurtures: initialNurtures = [],
 }: Props) {
   const minDate = useMemo(() => todayToronto(), [])
   const [brand, setBrand] = useState('fj')
@@ -106,23 +103,21 @@ export default function FubBookingForm({
   const [notice, setNotice] = useState('')
   const [limitPrompt, setLimitPrompt] = useState<{ count: number; message: string } | null>(null)
   const [appointments, setAppointments] = useState(initialAppointments)
-  const [nurtures, setNurtures] = useState(initialNurtures)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [editDate, setEditDate] = useState(minDate)
   const [editTime, setEditTime] = useState('10:00 AM')
   const [editType, setEditType] = useState('phone_call')
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [leadFirst, setLeadFirst] = useState(firstName)
+  const [leadLast, setLeadLast] = useState(lastName)
 
-  const name = `${firstName} ${lastName}`.trim() || 'this lead'
+  const name = `${leadFirst} ${leadLast}`.trim() || 'this lead'
   const history = appointments.map((item) => ({
     ...item,
     kind: item.kind || fubBookingKind(item.status, item.appointment_date, minDate),
   }))
   const historySummary = fubBookingHistorySummary(history)
-  const orphanNurtures = nurtures.filter(
-    (row) => !appointments.some((item) => item.id === row.booking_id && item.table === row.booking_table)
-  )
 
   async function reloadAppointments() {
     const response = await fetch('/api/fub/appointments', {
@@ -132,7 +127,6 @@ export default function FubBookingForm({
     })
     const payload = await response.json()
     if (Array.isArray(payload.appointments)) setAppointments(payload.appointments)
-    if (Array.isArray(payload.nurtures)) setNurtures(payload.nurtures)
   }
 
   useEffect(() => {
@@ -272,51 +266,25 @@ export default function FubBookingForm({
     }
   }
 
-  function nurtureFor(item: FubAppointment) {
-    return nurtures.find((row) => row.booking_id === item.id && row.booking_table === item.table) || null
-  }
-
-  async function runNurture(item: FubAppointment, action: NurtureActionId) {
-    setBusyId(item.id)
-    setError('')
-    setNotice(action === 'appointment_done' || action === 'no_show' ? 'Saving appointment outcome…' : '')
-    try {
-      const response = await fetch('/api/fub/nurture', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          context,
-          signature,
-          table: item.table,
-          bookingId: item.id,
-          action,
-          firstName,
-        }),
-      })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Could not update appointment nurture.')
-      if (Array.isArray(payload.nurtures)) setNurtures(payload.nurtures)
-      setNotice(payload.message || 'Appointment nurture updated.')
-      await reloadAppointments()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not update appointment nurture.')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
   return (
     <div style={wrap}>
       <div style={{ fontSize: 15, fontWeight: 700, color: '#1f2933', marginBottom: 2 }}>{name}</div>
       <div style={{ fontSize: 12, color: '#667085', marginBottom: 12 }}>
-        Escalation, then Booking
+        Booking, then Escalation
       </div>
 
-      <FubEscalationPanel context={context} signature={signature} leadName={name} />
+      <FubLeadFlags
+        context={context}
+        signature={signature}
+        onNamed={(first, last) => {
+          setLeadFirst(first)
+          setLeadLast(last)
+        }}
+      />
 
       <div style={bookingBox}>
       <div style={bookingHeaderBar}>
-        <span style={bookingStep}>2</span>
+        <span style={bookingStep}>1</span>
         Booking
       </div>
       <div style={bookingInner}>
@@ -452,52 +420,13 @@ export default function FubBookingForm({
                   </div>
                 </>
               )}
-              {!cancelled ? (
-                <FubAppointmentNurture
-                  nurture={nurtureFor(item)}
-                  disabled={busyId === item.id}
-                  onAction={(action) => void runNurture(item, action)}
-                />
-              ) : null}
             </div>
             )
           })}
         </>
       ) : null}
 
-      {orphanNurtures.length > 0 ? (
-        <>
-          <div style={{ ...label, marginTop: 12 }}>Active nurture</div>
-          {orphanNurtures.map((row) => (
-            <div key={row.id} style={apptCard}>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>
-                {formatBookingStatusLabel(row.outcome === 'appointment_done' ? 'completed' : row.outcome)}
-              </div>
-              <FubAppointmentNurture
-                nurture={row}
-                disabled={busyId === row.booking_id}
-                onAction={(action) =>
-                  void runNurture(
-                    {
-                      id: row.booking_id,
-                      table: row.booking_table,
-                      brand: '',
-                      project_name: 'Appointment nurture',
-                      appointment_date: '',
-                      appointment_time: '',
-                      appointment_type: '',
-                      status: row.outcome,
-                    },
-                    action
-                  )
-                }
-              />
-            </div>
-          ))}
-        </>
-      ) : null}
-
-      <div style={{ ...label, marginTop: appointments.length > 0 || orphanNurtures.length > 0 ? 16 : 8 }}>New meeting</div>
+      <div style={{ ...label, marginTop: appointments.length > 0 ? 16 : 8 }}>New meeting</div>
 
       <label style={label}>Brand</label>
       <select value={brand} onChange={(e) => setBrand(e.target.value)} style={input}>
@@ -617,6 +546,8 @@ export default function FubBookingForm({
       </button>
       </div>
       </div>
+
+      <FubEscalationPanel context={context} signature={signature} leadName={name} />
     </div>
   )
 }

@@ -67,7 +67,7 @@ export default function FubEscalationPanel({
   return (
     <div style={box}>
       <div style={headerBar}>
-        <span style={step}>1</span>
+        <span style={step}>2</span>
         Escalation
       </div>
       <div style={inner}>
