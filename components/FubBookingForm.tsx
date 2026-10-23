@@ -16,7 +16,6 @@ import {
 } from '@/lib/fubProjects'
 import type { AppointmentNurtureRow } from '@/lib/appointmentNurture'
 import FubEscalationPanel from '@/components/FubEscalationPanel'
-import FubFollowUpPanel from '@/components/FubFollowUpPanel'
 import FubAppointmentNurture, { type NurtureActionId } from '@/components/FubAppointmentNurture'
 
 type Props = {
@@ -29,7 +28,6 @@ type Props = {
   taggedProjects: FubProjectOption[]
   appointments: FubAppointment[]
   nurtures?: AppointmentNurtureRow[]
-  currentUser?: { id?: number; name?: string }
 }
 
 function todayToronto() {
@@ -90,7 +88,6 @@ export default function FubBookingForm({
   taggedProjects,
   appointments: initialAppointments,
   nurtures: initialNurtures = [],
-  currentUser,
 }: Props) {
   const minDate = useMemo(() => todayToronto(), [])
   const [brand, setBrand] = useState('fj')
@@ -312,15 +309,14 @@ export default function FubBookingForm({
     <div style={wrap}>
       <div style={{ fontSize: 15, fontWeight: 700, color: '#1f2933', marginBottom: 2 }}>{name}</div>
       <div style={{ fontSize: 12, color: '#667085', marginBottom: 12 }}>
-        Three separate actions: Escalation, Follow-up, then Booking
+        Escalation, then Booking
       </div>
 
       <FubEscalationPanel context={context} signature={signature} leadName={name} />
-      <FubFollowUpPanel context={context} signature={signature} currentUser={currentUser} />
 
       <div style={bookingBox}>
       <div style={bookingHeaderBar}>
-        <span style={bookingStep}>3</span>
+        <span style={bookingStep}>2</span>
         Booking
       </div>
       <div style={bookingInner}>

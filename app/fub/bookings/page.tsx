@@ -123,7 +123,6 @@ export default async function FubBookingsPage({
       taggedProjects={taggedProjects}
       appointments={appointments}
       nurtures={nurtures}
-      currentUser={resolved.context?.user}
     />
   )
 }
