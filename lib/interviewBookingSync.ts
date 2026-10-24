@@ -27,6 +27,7 @@ import {
   resolveBookingFirstName,
   resolveBookingLastName,
 } from '@/lib/normalizeBookingPayload'
+import { logOutboundSms } from '@/lib/logSmsConversation'
 
 const notificationEmails = ['fahad@fahadsold.com', 'info@preconfactory.com']
 const dashboardUrl = 'https://property-dashboard-three.vercel.app/interview-bookings'
@@ -205,7 +206,7 @@ async function sendAdminEmail(subject: string, html: string, sourceLabel: string
   return results
 }
 
-async function dispatchCandidateSms(phone: string, body: string) {
+async function dispatchCandidateSms(phone: string, body: string, booking?: InterviewBookingRecord) {
   const accountSid = process.env.TWILIO_ACCOUNT_SID
   const authToken = process.env.TWILIO_AUTH_TOKEN
   const twilioPhone = process.env.TWILIO_PHONE_NUMBER
@@ -213,10 +214,22 @@ async function dispatchCandidateSms(phone: string, body: string) {
     return { sent: false, error: 'Twilio not configured' }
   }
   const client = twilio(accountSid, authToken)
+  const toPhone = toE164NorthAmerica(phone)
   const response = await client.messages.create({
     body,
     from: twilioPhone,
-    to: toE164NorthAmerica(phone),
+    to: toPhone,
+  })
+  const name = `${booking?.firstname || ''} ${booking?.lastname || ''}`.trim()
+  await logOutboundSms({
+    messageSid: response.sid,
+    fromPhone: twilioPhone,
+    toPhone,
+    body,
+    status: response.status,
+    leadName: name || null,
+    leadId: booking?.id ? String(booking.id) : null,
+    leadTable: booking ? FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE : null,
   })
   return { sent: true, sid: response.sid }
 }
@@ -304,7 +317,8 @@ export async function syncInterviewCancellation(
     try {
       candidateSms = await dispatchCandidateSms(
         String(newBooking.phone),
-        buildInterviewCancelSms(newBooking, previousDate, previousTime, manageUrl)
+        buildInterviewCancelSms(newBooking, previousDate, previousTime, manageUrl),
+        newBooking
       )
     } catch (error) {
       candidateSms = {
@@ -392,7 +406,8 @@ export async function syncInterviewReschedule(
     try {
       candidateSms = await dispatchCandidateSms(
         String(newBooking.phone),
-        buildInterviewRescheduleSms(newBooking, manageUrl, previousDate, previousTime)
+        buildInterviewRescheduleSms(newBooking, manageUrl, previousDate, previousTime),
+        newBooking
       )
     } catch (error) {
       candidateSms = {

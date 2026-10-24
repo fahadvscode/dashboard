@@ -26,6 +26,7 @@ import {
   resolveInterviewManageUrl,
 } from '@/lib/interviewManageUrl'
 import { interviewAlreadyNotified, markInterviewNotified } from '@/lib/markInterviewNotified'
+import { logOutboundSms } from '@/lib/logSmsConversation'
 import { formatInterviewCandidateId } from '@/lib/interviewCandidateNumber'
 import { bookedByAdminEmailRow, bookedByAdminSmsLine } from '@/lib/bookedBy'
 import { SALES_CALENDAR_EMAIL } from '@/lib/bookingCalendar'
@@ -220,18 +221,30 @@ export async function POST(request: NextRequest) {
     // Interview candidate SMS first so Gmail delays cannot skip the text.
     let customerSmsResult = null
     if (isInterview && booking.phone && accountSid && authToken && twilioPhone) {
-      try {
-        customerSmsResult = await client.messages.create({
-          body: `${interviewTitle} confirmed — ${INTERVIEW_BRAND_NAME}
+      const candidateSmsBody = `${interviewTitle} confirmed — ${INTERVIEW_BRAND_NAME}
 
 📅 ${booking.appointment_date || 'TBD'}
 🕐 ${booking.appointment_time || 'TBD'}${getInterviewCandidateLocationSms()}${getInterviewManageLinkSms(interviewManageUrl)}
 
-- ${INTERVIEW_BRAND_NAME}`,
+- ${INTERVIEW_BRAND_NAME}`
+      const candidateSmsTo = toE164NorthAmerica(booking.phone)
+      try {
+        customerSmsResult = await client.messages.create({
+          body: candidateSmsBody,
           from: twilioPhone,
-          to: toE164NorthAmerica(booking.phone)
+          to: candidateSmsTo
         })
         console.log('Interview candidate SMS sent:', customerSmsResult.sid)
+        await logOutboundSms({
+          messageSid: customerSmsResult.sid,
+          fromPhone: twilioPhone,
+          toPhone: candidateSmsTo,
+          body: candidateSmsBody,
+          status: customerSmsResult.status,
+          leadName: `${firstname} ${lastname}`.trim(),
+          leadId: booking.id ? String(booking.id) : null,
+          leadTable: 'fahad_sells_interview_bookings',
+        })
       } catch (smsError) {
         console.error('Error sending interview candidate SMS:', smsError)
       }
