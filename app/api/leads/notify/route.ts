@@ -226,7 +226,8 @@ async function appendLeadToGoogleSheet(
     }
 
     try {
-      const fub = await sendSheetRowToFollowUpBoss(row)
+      const assignToOffice = Boolean(landingMeta) || isEmailLeadTable(lead.table_name)
+      const fub = await sendSheetRowToFollowUpBoss(row, { assignToOffice })
       console.log('Follow Up Boss inquiry:', {
         firstName,
         lastName,
@@ -235,6 +236,7 @@ async function appendLeadToGoogleSheet(
         status: fub.status,
         personId: fub.personId,
         skipped: fub.skipped,
+        assigned: fub.assigned,
         error: fub.error,
       })
     } catch (error) {
