@@ -7,6 +7,9 @@ import {
   todayTorontoYmd,
   torontoWallToDate,
 } from '@/lib/bookingTimes'
+import { sendDueInterviewReminders } from '@/lib/interviewReminders'
+
+export const maxDuration = 60
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -209,6 +212,12 @@ export async function GET(request: NextRequest) {
         }
       }
     }
+
+    const interviews = await sendDueInterviewReminders(now)
+    results.checked += interviews.checked
+    results.sent += interviews.sent
+    results.errors += interviews.errors
+    results.details.push(...interviews.details)
 
     console.log('✅ Reminder check complete:', results)
 
