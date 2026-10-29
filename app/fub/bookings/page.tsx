@@ -1,5 +1,7 @@
 import { connection } from 'next/server'
 import FubBookingForm from '@/components/FubBookingForm'
+import { countPersonBookings } from '@/lib/bookingLimit'
+import { getSupabaseAdmin } from '@/lib/supabase'
 import {
   fubPersonName,
   pickFubEmail,
@@ -102,22 +104,26 @@ export default async function FubBookingsPage({
   const apiTags = person?.id != null ? await fetchFollowUpBossPersonTags(String(person.id)) : []
   const tags = [...new Set([...contextTags, ...apiTags])]
   const taggedProjects = await matchProjectsFromTags(tags)
+  const email = pickFubEmail(person)
+  const phone = pickFubPhone(person)
   const appointments = await listUpcomingFubAppointments(
-    pickFubEmail(person),
-    pickFubPhone(person),
+    email,
+    phone,
     (person?.emails || []).map((item) => String(item.value || '')),
     (person?.phones || []).map((item) => String(item.normalized || item.value || ''))
   )
+  const bookingCount = await countPersonBookings(getSupabaseAdmin(), email, phone)
   return (
     <FubBookingForm
       context={context}
       signature={signature}
       firstName={person?.firstName || person?.first_name || leadName}
       lastName={person?.lastName || person?.last_name || ''}
-      email={pickFubEmail(person)}
-      phone={pickFubPhone(person)}
+      email={email}
+      phone={phone}
       taggedProjects={taggedProjects}
       appointments={appointments}
+      bookingCount={bookingCount}
     />
   )
 }

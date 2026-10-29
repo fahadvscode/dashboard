@@ -78,14 +78,5 @@ export async function getPublicBookingLimit(
   phone: string
 ): Promise<BookingLimitResult> {
   const count = await countPersonBookings(supabase, email, phone)
-  if (count >= PUBLIC_BOOKING_LIMIT) {
-    return {
-      count,
-      allowed: false,
-      limit: PUBLIC_BOOKING_LIMIT,
-      code: BOOKING_LIMIT_CODE,
-      message: BOOKING_LIMIT_MESSAGE,
-    }
-  }
   return { count, allowed: true, limit: PUBLIC_BOOKING_LIMIT }
 }

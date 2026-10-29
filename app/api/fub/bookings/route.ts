@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { normalizeAppointmentTime } from '@/lib/bookingTimes'
 import { parseBookedBy } from '@/lib/bookedBy'
-import { getPublicBookingLimit } from '@/lib/bookingLimit'
 import {
   FUB_BOOKING_BRANDS,
   FUB_MEETING_TYPES,
@@ -61,21 +60,6 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin()
-    if (body.override !== true) {
-      const limit = await getPublicBookingLimit(supabase, email, phone)
-      if (!limit.allowed) {
-        return NextResponse.json(
-          {
-            error: limit.message,
-            code: limit.code,
-            count: limit.count,
-            needsOverride: true,
-          },
-          { status: 409 }
-        )
-      }
-    }
-
     const row = {
       firstname,
       lastname,

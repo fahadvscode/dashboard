@@ -6,6 +6,7 @@ import { APPOINTMENT_TIME_SLOTS, formatAppointmentTimeDisplay } from '@/lib/book
 import { FUB_BOOKING_BRANDS, FUB_MEETING_TYPES } from '@/lib/fubEmbeddedApp'
 import { meetingTypeLabel, parseMeetingType } from '@/lib/meetingTypes'
 import { BOOKED_BY_OPTIONS } from '@/lib/bookedBy'
+import { PUBLIC_BOOKING_LIMIT } from '@/lib/bookingLimit'
 import {
   fubBookingHistorySummary,
   fubBookingKind,
@@ -26,6 +27,7 @@ type Props = {
   phone: string
   taggedProjects: FubProjectOption[]
   appointments: FubAppointment[]
+  bookingCount?: number
 }
 
 function todayToronto() {
@@ -85,6 +87,7 @@ export default function FubBookingForm({
   phone,
   taggedProjects,
   appointments: initialAppointments,
+  bookingCount = 0,
 }: Props) {
   const minDate = useMemo(() => todayToronto(), [])
   const [brand, setBrand] = useState('fj')
@@ -101,7 +104,7 @@ export default function FubBookingForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [limitPrompt, setLimitPrompt] = useState<{ count: number; message: string } | null>(null)
+  const [priorCount, setPriorCount] = useState(bookingCount)
   const [appointments, setAppointments] = useState(initialAppointments)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
@@ -149,6 +152,31 @@ export default function FubBookingForm({
     return () => window.clearTimeout(timer)
   }, [search, context, signature])
 
+  useEffect(() => {
+    const emailValue = contactEmail.trim()
+    const phoneValue = contactPhone.trim()
+    if (!emailValue && !phoneValue) {
+      setPriorCount(0)
+      return
+    }
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const response = await fetch('/api/bookings/limit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: emailValue, phone: phoneValue }),
+        })
+        const payload = await response.json().catch(() => ({}))
+        if (!cancelled && response.ok) setPriorCount(Number(payload.count) || 0)
+      })()
+    }, 250)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [contactEmail, contactPhone])
+
   function chooseProject(project: FubProjectOption) {
     setSelected(project)
     setSearch('')
@@ -156,7 +184,7 @@ export default function FubBookingForm({
     setChangingProject(false)
   }
 
-  async function book(override = false) {
+  async function book() {
     setError('')
     setNotice('')
     if (!bookedBy) {
@@ -168,7 +196,6 @@ export default function FubBookingForm({
       return
     }
     setSaving(true)
-    if (!override) setLimitPrompt(null)
     try {
       const response = await fetch('/api/fub/bookings', {
         method: 'POST',
@@ -185,22 +212,14 @@ export default function FubBookingForm({
           projectId: selected?.id || '',
           email: contactEmail,
           phone: contactPhone,
-          ...(override ? { override: true } : {}),
         }),
       })
       const payload = await response.json()
       if (!response.ok) {
-        if (payload.needsOverride && !override) {
-          setLimitPrompt({
-            count: Number(payload.count) || 3,
-            message: String(payload.error || 'Contact +1 4163994289 to book an appointment'),
-          })
-          return
-        }
         throw new Error(payload.error || 'Could not book this meeting.')
       }
-      setLimitPrompt(null)
       setNotice(payload.message || 'Meeting booked.')
+      setPriorCount((count) => count + 1)
       await reloadAppointments()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not book this meeting.')
@@ -288,6 +307,9 @@ export default function FubBookingForm({
         Booking
       </div>
       <div style={bookingInner}>
+      {priorCount >= PUBLIC_BOOKING_LIMIT ? (
+        <div style={{ ...limitBox, marginTop: 0, marginBottom: 10 }}>This person already booked three meetings.</div>
+      ) : null}
       <div style={bookingHint}>Meeting with the lead. Calendar invite and messages go to them.</div>
       {notice ? <div style={noticeText}>{notice}</div> : null}
       {error ? <div style={errorText}>{error}</div> : null}
@@ -529,20 +551,14 @@ export default function FubBookingForm({
 
       {notice ? <div style={noticeText}>{notice}</div> : null}
       {error ? <div style={errorText}>{error}</div> : null}
-      {limitPrompt ? (
-        <div style={limitBox}>
-          <div style={{ fontWeight: 700 }}>This person already has {limitPrompt.count} bookings.</div>
-          <div style={{ marginTop: 4 }}>{limitPrompt.message}</div>
-        </div>
-      ) : null}
 
       <button
         type="button"
-        onClick={() => void book(Boolean(limitPrompt))}
+        onClick={() => void book()}
         disabled={saving}
         style={button}
       >
-        {saving ? 'Booking…' : limitPrompt ? 'Book anyway' : 'Book meeting'}
+        {saving ? 'Booking…' : 'Book meeting'}
       </button>
       </div>
       </div>
