@@ -183,10 +183,14 @@ const APPT_TYPES = [
   { key: 'builder visit', label: 'Site Visit', icon: MapPin },
   { key: 'phone call', label: 'Phone Call', icon: PhoneCall },
   { key: 'zoom/google meet', label: 'Google Meet', icon: Video },
+  { key: 'resale_home_showing', label: 'Resale Home Showing', icon: Home },
 ]
 
 function appointmentTypeMeta(type: string) {
   const normalized = (type || '').toLowerCase().replace(/[_-]+/g, ' ').trim()
+  if (normalized.includes('resale') || normalized.includes('home showing')) {
+    return { icon: Home, label: 'Resale Home Showing', tint: '#FF9500' }
+  }
   if (normalized.includes('google meet') || normalized.includes('zoom')) {
     return { icon: Video, label: 'Google Meet', tint: '#1A73E8' }
   }

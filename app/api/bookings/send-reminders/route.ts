@@ -8,6 +8,7 @@ import {
   torontoWallToDate,
 } from '@/lib/bookingTimes'
 import { sendDueInterviewReminders } from '@/lib/interviewReminders'
+import { parseMeetingType } from '@/lib/meetingTypes'
 
 export const maxDuration = 60
 
@@ -24,7 +25,8 @@ const notificationEmails = ['fahad@fahadsold.com', 'info@preconfactory.com']
 const OFFICE_ADDRESS = '600 Matheson Blvd W, Mississauga, ON L5R 4C1'
 
 function getMeetingFormat(booking: Booking): string {
-  return (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
+  const raw = (booking.meeting_format || booking.appointment_type || '').trim()
+  return parseMeetingType(raw) || raw.toLowerCase()
 }
 
 function typeLabel(t: string): string {
@@ -32,6 +34,7 @@ function typeLabel(t: string): string {
     case 'google_meet': return 'Google Meet'
     case 'visit_office': return 'Office Visit'
     case 'builder_site_visit': return 'Builder Site Visit'
+    case 'resale_home_showing': return 'Resale Home Showing'
     default: return 'Phone Call'
   }
 }
@@ -260,6 +263,8 @@ function get24hSms(booking: Booking, brandName: string): string {
       return `Hi ${booking.firstname}! Reminder — your office visit is tomorrow at ${time} at ${OFFICE_ADDRESS} to chat about ${project}. We look forward to seeing you!\n\n- ${brandName} Team`
     case 'builder_site_visit':
       return `Hi ${booking.firstname}! Reminder — your builder site visit is tomorrow at ${time} regarding ${project}. We'll contact you ~2 hours before with the site location and instructions.\n\n- ${brandName} Team`
+    case 'resale_home_showing':
+      return `Hi ${booking.firstname}! Reminder — your home showing is tomorrow at ${time} for ${project}. We'll meet you at the property. Looking forward to it!\n\n- ${brandName} Team`
     default:
       return `Hi ${booking.firstname}! Quick reminder - we'll call you tomorrow at ${time} to chat about ${project}. Looking forward to it!\n\n- ${brandName} Team`
   }
@@ -283,6 +288,10 @@ function get24hEmailBody(booking: Booking): string {
       return `<p>Hi <strong>${booking.firstname}</strong>,</p>
         <p>Quick reminder — your <strong>builder site visit</strong> is <strong>tomorrow</strong> at <strong>${time}</strong>${project}.</p>
         <p>We will contact you approximately <strong>2 hours before</strong> your appointment with the exact site location and instructions.</p>`
+    case 'resale_home_showing':
+      return `<p>Hi <strong>${booking.firstname}</strong>,</p>
+        <p>Quick reminder — your <strong>resale home showing</strong> is <strong>tomorrow</strong> at <strong>${time}</strong>${project}.</p>
+        <p>We will meet you at the property.</p>`
     default:
       return `<p>Hi <strong>${booking.firstname}</strong>,</p>
         <p>Quick reminder — your appointment is <strong>tomorrow</strong> at <strong>${time}</strong>${project}.</p>
@@ -300,6 +309,8 @@ function get1hSms(booking: Booking, brandName: string): string {
       return `Your office visit is in 1 hour (${time}) at ${OFFICE_ADDRESS}. We look forward to seeing you! 🏢\n\n- ${brandName} Team`
     case 'builder_site_visit':
       return `Your builder site visit is in 1 hour (${time}). Expect a call shortly with the exact location and instructions. 🏗️\n\n- ${brandName} Team`
+    case 'resale_home_showing':
+      return `Your home showing is in 1 hour (${time}). We'll meet you at the property. 🏠\n\n- ${brandName} Team`
     default:
       return `We'll call you in 1 hour (${time}). Have your questions ready! 📞\n\n- ${brandName} Team`
   }
@@ -319,6 +330,9 @@ function get1hEmailBody(booking: Booking): string {
     case 'builder_site_visit':
       return `<p>Hi <strong>${booking.firstname}</strong>,</p>
         <p>Your <strong>builder site visit</strong> is in <strong>1 hour</strong> at <strong>${time}</strong>. Expect a call shortly with the exact location and instructions.</p>`
+    case 'resale_home_showing':
+      return `<p>Hi <strong>${booking.firstname}</strong>,</p>
+        <p>Your <strong>resale home showing</strong> is in <strong>1 hour</strong> at <strong>${time}</strong>. We will meet you at the property.</p>`
     default:
       return `<p>Hi <strong>${booking.firstname}</strong>,</p>
         <p>Your appointment is in <strong>1 hour</strong> at <strong>${time}</strong>. We will call you at your provided number. Have your questions ready!</p>`
@@ -334,6 +348,8 @@ function get5minSms(booking: Booking, brandName: string): string {
       return `Your office visit starts in 5 minutes! We're ready for you at ${OFFICE_ADDRESS}. 🏢\n\n- ${brandName} Team`
     case 'builder_site_visit':
       return `Your builder site visit starts in 5 minutes! 🏗️\n\n- ${brandName} Team`
+    case 'resale_home_showing':
+      return `Your home showing starts in 5 minutes! We'll meet you at the property. 🏠\n\n- ${brandName} Team`
     default:
       return `We're calling you in 5 minutes! 📞\n\n- ${brandName} Team`
   }
@@ -351,6 +367,8 @@ function getAdmin1hSms(booking: Booking): string {
       return `🏢 1 HOUR - ${name} visiting office about ${project} at ${time}. Prepare meeting room.`
     case 'builder_site_visit':
       return `🏗️ 1 HOUR - Call ${name} at ${booking.phone} with builder site directions for ${project} at ${time}.`
+    case 'resale_home_showing':
+      return `🏠 1 HOUR - Home showing with ${name} for ${project} at ${time}. Meet them at the property.`
     default:
       return `📞 1 HOUR - Call ${name} at ${booking.phone} about ${project} at ${time}`
   }
@@ -379,6 +397,12 @@ function getAdmin1hEmailHtml(booking: Booking): string {
         <p>Call <strong>${name}</strong> at ${booking.phone} with builder site directions</p>
         <p>Project: ${project}</p>
         <p>Time: ${booking.appointment_date} at ${time}</p>`
+    case 'resale_home_showing':
+      return `<p><strong>🏠 1 HOUR – Upcoming Home Showing</strong></p>
+        <p>Meet <strong>${name}</strong> at the property</p>
+        <p>Project: ${project}</p>
+        <p>Time: ${booking.appointment_date} at ${time}</p>
+        <p>Phone: ${booking.phone}</p>`
     default:
       return `<p><strong>📞 1 HOUR – Upcoming Call</strong></p>
         <p>Call <strong>${name}</strong> at ${booking.phone}</p>
@@ -398,6 +422,8 @@ function getAdmin15mSms(booking: Booking): string {
       return `🏢 ARRIVING NOW - ${name} at office for ${project}.`
     case 'builder_site_visit':
       return `🏗️ NOW - Ensure ${name} has site directions for ${project}. Call ${booking.phone} if needed.`
+    case 'resale_home_showing':
+      return `🏠 NOW - Home showing with ${name} for ${project}. Meet them at the property.`
     default:
       return `📞 CALL NOW - ${name} at ${booking.phone} (${project})`
   }
@@ -422,6 +448,11 @@ function getAdmin15mEmailHtml(booking: Booking): string {
       return `<p><strong>🏗️ NOW – 15 minutes until builder site visit</strong></p>
         <p>Ensure <strong>${name}</strong> has directions. Call ${booking.phone} if needed.</p>
         <p>Project: ${project}</p>`
+    case 'resale_home_showing':
+      return `<p><strong>🏠 NOW – 15 minutes until home showing</strong></p>
+        <p>Meet <strong>${name}</strong> at the property.</p>
+        <p>Project: ${project}</p>
+        <p>Phone: ${booking.phone}</p>`
     default:
       return `<p><strong>📞 CALL NOW – 15 minutes until appointment</strong></p>
         <p>Call <strong>${name}</strong> at ${booking.phone}</p>
@@ -436,6 +467,7 @@ function getAdmin1hSubject(booking: Booking): string {
     case 'google_meet': return '1 HOUR – Upcoming Google Meet'
     case 'visit_office': return '1 HOUR – Customer Arriving at Office'
     case 'builder_site_visit': return '1 HOUR – Builder Site Visit'
+    case 'resale_home_showing': return '1 HOUR – Upcoming Home Showing'
     default: return '1 HOUR – Upcoming Call'
   }
 }
@@ -446,6 +478,7 @@ function getAdmin15mSubject(booking: Booking): string {
     case 'google_meet': return 'JOIN NOW – Google Meet in 15 min'
     case 'visit_office': return 'ARRIVING NOW – Office visit in 15 min'
     case 'builder_site_visit': return 'NOW – Builder site visit in 15 min'
+    case 'resale_home_showing': return 'NOW – Home showing in 15 min'
     default: return 'CALL NOW – 15 min until appointment'
   }
 }
@@ -526,7 +559,7 @@ async function send15MinAdminReminder(booking: Booking, brandName: string) {
 async function sendAdminReminderEmails(booking: Booking, brandName: string, subject: string, htmlBody: string) {
   try {
     const mt = getMeetingFormat(booking)
-    const icon = mt === 'google_meet' ? '💻' : mt === 'visit_office' ? '🏢' : mt === 'builder_site_visit' ? '🏗️' : '📞'
+    const icon = mt === 'google_meet' ? '💻' : mt === 'visit_office' ? '🏢' : mt === 'builder_site_visit' ? '🏗️' : mt === 'resale_home_showing' ? '🏠' : '📞'
     const fullHtml = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif">${htmlBody}</body></html>`
     for (const email of notificationEmails) {
       await emailTransporter.sendMail({

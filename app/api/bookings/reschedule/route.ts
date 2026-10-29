@@ -41,9 +41,8 @@ function buildRescheduleSms(
   brandName: string
 ) {
   const brandContact = getBrandContact(brandName)
-  const meetingFormat = (booking.meeting_format || booking.appointment_type || '')
-    .trim()
-    .toLowerCase()
+  const rawMeeting = (booking.meeting_format || booking.appointment_type || '').trim()
+  const meetingFormat = parseMeetingType(rawMeeting) || rawMeeting.toLowerCase()
 
   let typeLine = `\n🎯 Type: ${meetingTypeLabel(meetingFormat)}`
   if (meetingFormat === 'google_meet' && booking.meet_link) {
@@ -52,6 +51,8 @@ function buildRescheduleSms(
     typeLine += '\n🏢 Office visit — see your calendar invite for the address.'
   } else if (meetingFormat === 'builder_site_visit') {
     typeLine += '\n🏗️ Site visit — we will send the location before the appointment.'
+  } else if (meetingFormat === 'resale_home_showing') {
+    typeLine += '\n🏠 Resale home showing — we will meet you at the property.'
   } else if (meetingFormat === 'phone_call') {
     typeLine += '\n📞 Phone call — we will call you at this number.'
   }
@@ -210,8 +211,8 @@ export async function POST(request: NextRequest) {
                 summary: `${bookedByCalendarPrefix(booking.booked_by)}${brandName} - Booking: ${booking.firstname} ${booking.lastname || ''}`.trim() +
                   (booking.project_name ? ` - ${booking.project_name}` : '') +
                   ` - ${displayType}`,
-                location: meetingCalendarLocation(nextType, brandPhone),
-                description: `Appointment type: ${displayType}\nCustomer: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}${bookedByName ? `\nBooked by: ${bookedByName}` : ''}`,
+                location: meetingCalendarLocation(nextType, brandPhone, booking.project_name),
+                description: `Appointment type: ${displayType}\nCustomer: ${booking.firstname} ${booking.lastname || ''}\nEmail: ${booking.email}\nPhone: ${booking.phone || 'Not provided'}${bookedByName ? `\nBooked by: ${bookedByName}` : ''}${nextType === 'resale_home_showing' ? '\nMeet the customer at the property for the home showing.' : ''}`,
                 createGoogleMeet: nextType === 'google_meet',
               }
             : undefined

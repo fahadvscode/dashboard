@@ -29,6 +29,7 @@ import { interviewAlreadyNotified, markInterviewNotified } from '@/lib/markInter
 import { logOutboundSms } from '@/lib/logSmsConversation'
 import { formatInterviewCandidateId } from '@/lib/interviewCandidateNumber'
 import { bookedByAdminEmailRow, bookedByAdminSmsLine } from '@/lib/bookedBy'
+import { parseMeetingType } from '@/lib/meetingTypes'
 import { SALES_CALENDAR_EMAIL } from '@/lib/bookingCalendar'
 import {
   buildInterviewResumeEmailHtml,
@@ -80,6 +81,7 @@ function typeLabel(t: string): string {
     case 'google_meet': return 'Google Meet'
     case 'visit_office': return 'Office Visit'
     case 'builder_site_visit': return 'Builder Site Visit'
+    case 'resale_home_showing': return 'Resale Home Showing'
     default: return 'Phone Call'
   }
 }
@@ -89,6 +91,7 @@ function getAdminTypeInstruction(mt: string): string {
     case 'google_meet': return '💻 ACTION: Join the Google Meet — link is in the calendar event.'
     case 'visit_office': return `🏢 ACTION: Customer will visit the office at ${OFFICE_ADDRESS}. Prepare the meeting room.`
     case 'builder_site_visit': return '🏗️ ACTION: Contact the customer ~2 hours before with the builder site location and instructions.'
+    case 'resale_home_showing': return '🏠 ACTION: Meet the customer at the property for a resale home showing.'
     default: return '📞 ACTION: Call the customer at their provided phone number.'
   }
 }
@@ -120,6 +123,12 @@ function getCustomerTypeHtml(mt: string, meetLink: string | null, brandContact: 
           <p>This is a builder site visit. You will be contacted approximately <strong>2 hours before</strong> your appointment with the exact site location and instructions.</p>
           <p>Please keep your phone available. If you have any questions, call us at <strong>${brandContact.phoneFormatted}</strong>.</p>
         </div>`
+    case 'resale_home_showing':
+      return `<div style="background:#fff7ed;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #f97316;">
+          <strong>🏠 Resale Home Showing</strong><br>
+          <p>We will meet you at the property at the scheduled time for a home showing.</p>
+          <p>If you need to reach us, call <strong>${brandContact.phoneFormatted}</strong>.</p>
+        </div>`
     default:
       return `<div style="background:#faf5ff;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #a855f7;">
           <strong>📞 Phone Call</strong><br>
@@ -139,6 +148,8 @@ function getCustomerTypeSms(mt: string, meetLink: string | null, brandContact: {
       return `\n🏢 Please visit our office at:\n${OFFICE_ADDRESS}`
     case 'builder_site_visit':
       return `\n🏗️ Builder site visit — you will be contacted ~2 hours before with the site location and instructions.`
+    case 'resale_home_showing':
+      return `\n🏠 This is a resale home showing. We will meet you at the property at the scheduled time. If you need to reach us: ${brandContact.phoneFormatted}`
     default:
       return `\n📞 We will call you at your phone number at the scheduled time. If you need to reach us: ${brandContact.phoneFormatted}`
   }
@@ -186,9 +197,10 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    const rawMeeting = String(booking.meeting_format || booking.appointment_type || '').trim()
     const meetingFormat = isInterview
       ? 'visit_office'
-      : (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
+      : (parseMeetingType(rawMeeting) || rawMeeting.toLowerCase())
     const displayType = isInterview ? 'In-Person Interview' : typeLabel(meetingFormat)
     const interviewTitle = isInterview ? interviewHeading(booking) : ''
     const interviewRole = isInterview ? interviewRoleLabel(booking) : ''

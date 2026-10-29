@@ -14,6 +14,7 @@ import {
   resolveBookingLastName,
 } from '@/lib/normalizeBookingPayload'
 import { bookedByCalendarPrefix, parseBookedBy } from '@/lib/bookedBy'
+import { parseMeetingType } from '@/lib/meetingTypes'
 
 // Unified Qikfill OAuth credentials for info@qikfill.com Google Workspace
 const QIKFILL_CLIENT_ID = process.env.QIKFILL_GOOGLE_CLIENT_ID!
@@ -144,9 +145,10 @@ export async function POST(request: NextRequest) {
     const adjustedEndMinutes = endMinutes >= 60 ? endMinutes - 60 : endMinutes
     const endDateTimeLocal = `${appointmentDate}T${String(adjustedEndHours).padStart(2, '0')}:${String(adjustedEndMinutes).padStart(2, '0')}:00`
 
+    const rawMeeting = String(booking.meeting_format || booking.appointment_type || '').trim()
     const meetingFormat = isInterview
       ? 'visit_office'
-      : (booking.meeting_format || booking.appointment_type || '').trim().toLowerCase()
+      : (parseMeetingType(rawMeeting) || rawMeeting.toLowerCase())
     const brandPhone = brandName === 'Fahad Javed Real Estate' ? '(289) 536-9724' :
                        brandName === 'Precon Factory' ? '(647) 956-4063' :
                        '(416) 399-4289'
@@ -156,6 +158,7 @@ export async function POST(request: NextRequest) {
         case 'google_meet': return 'Google Meet'
         case 'visit_office': return 'Office Visit'
         case 'builder_site_visit': return 'Builder Site Visit'
+        case 'resale_home_showing': return 'Resale Home Showing'
         default: return 'Phone Call'
       }
     }
@@ -196,6 +199,13 @@ export async function POST(request: NextRequest) {
       case 'builder_site_visit': {
         location = 'Builder Site Visit - Location TBD'
         description = `🏗️ BUILDER SITE VISIT APPOINTMENT\n\nCustomer Details:\n${customerLine}\n📋 Meeting Details:\nThis is a builder site visit. The customer will be contacted approximately 2 hours before the appointment with the exact site location and instructions.\n\n${projectLines}${messageLine}`
+        break
+      }
+      case 'resale_home_showing': {
+        location = booking.project_name?.trim()
+          ? `Resale Home Showing — ${String(booking.project_name).trim()}`
+          : 'Resale Home Showing'
+        description = `🏠 RESALE HOME SHOWING\n\nCustomer Details:\n${customerLine}\n📋 Meeting Details:\nMeet the customer at the property for a resale home showing${booking.project_name ? ` of ${booking.project_name}` : ''}.\n\n${projectLines}${messageLine}`
         break
       }
       default: {

@@ -17,6 +17,7 @@ const MEETING_LABEL: Record<string, string> = {
   google_meet: 'Google Meet',
   visit_office: 'Office Visit',
   builder_site_visit: 'Builder Site Visit',
+  resale_home_showing: 'Resale Home Showing',
 }
 
 export async function POST(request: NextRequest) {
