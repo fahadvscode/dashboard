@@ -471,7 +471,7 @@ export default function FubBookingForm({
       <label style={label}>Booked by (internal)</label>
       <select value={bookedBy} onChange={(e) => setBookedBy(e.target.value)} style={input}>
         <option value="">Select who booked this</option>
-        {BOOKED_BY_OPTIONS.map((name) => (
+        {BOOKED_BY_OPTIONS.filter((name) => name !== 'Nisha' && name !== 'Harjit').map((name) => (
           <option key={name} value={name}>
             {name}
           </option>
