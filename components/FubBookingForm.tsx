@@ -102,6 +102,7 @@ export default function FubBookingForm({
   const [contactEmail, setContactEmail] = useState(email)
   const [contactPhone, setContactPhone] = useState(phone)
   const [saving, setSaving] = useState(false)
+  const [sendingWorksheet, setSendingWorksheet] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [priorCount, setPriorCount] = useState(bookingCount)
@@ -182,6 +183,41 @@ export default function FubBookingForm({
     setSearch('')
     setSuggestions([])
     setChangingProject(false)
+  }
+
+  async function sendWorksheet() {
+    setError('')
+    setNotice('')
+    if (!selected?.id || !selected.project_name) {
+      setError('Choose a project before sending the worksheet.')
+      return
+    }
+    if (!contactEmail.trim()) {
+      setError('This person needs an email address.')
+      return
+    }
+    setSendingWorksheet(true)
+    try {
+      const response = await fetch('/api/fub/worksheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context,
+          signature,
+          brand,
+          projectName: selected.project_name,
+          projectId: selected.id,
+          email: contactEmail.trim(),
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Could not send the worksheet.')
+      setNotice(payload.message || 'Worksheet sent.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send the worksheet.')
+    } finally {
+      setSendingWorksheet(false)
+    }
   }
 
   async function book() {
@@ -497,6 +533,7 @@ export default function FubBookingForm({
           <div style={{ fontSize: 11, color: '#667085', marginTop: 2 }}>
             {selected.id}
             {selected.city ? ` · ${selected.city}` : ''}
+            {selected.builder ? ` · ${selected.builder}` : ''}
           </div>
           <button type="button" onClick={() => setChangingProject(true)} style={linkButton}>
             Change project
@@ -519,7 +556,7 @@ export default function FubBookingForm({
               setSearch(e.target.value)
               if (e.target.value.trim()) setSelected(null)
             }}
-            placeholder="Search by project name or ID"
+            placeholder="Search by project name, ID, or builder"
             style={input}
           />
           {suggestions.length > 0 ? (
@@ -530,6 +567,7 @@ export default function FubBookingForm({
                   <div style={{ fontSize: 11, color: '#667085' }}>
                     {project.id}
                     {project.city ? ` · ${project.city}` : ''}
+                    {project.builder ? ` · ${project.builder}` : ''}
                   </div>
                 </button>
               ))}
@@ -554,8 +592,17 @@ export default function FubBookingForm({
 
       <button
         type="button"
+        onClick={() => void sendWorksheet()}
+        disabled={saving || sendingWorksheet || !selected}
+        style={worksheetButton}
+      >
+        {sendingWorksheet ? 'Sending worksheet…' : 'Send worksheet'}
+      </button>
+
+      <button
+        type="button"
         onClick={() => void book()}
-        disabled={saving}
+        disabled={saving || sendingWorksheet}
         style={button}
       >
         {saving ? 'Booking…' : 'Book meeting'}
@@ -641,7 +688,7 @@ const input: CSSProperties = {
 
 const button: CSSProperties = {
   width: '100%',
-  marginTop: 14,
+  marginTop: 8,
   border: 'none',
   borderRadius: 8,
   padding: '10px 12px',
@@ -650,6 +697,12 @@ const button: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
   cursor: 'pointer',
+}
+
+const worksheetButton: CSSProperties = {
+  ...button,
+  marginTop: 14,
+  background: '#0f766e',
 }
 
 const apptCard: CSSProperties = {
