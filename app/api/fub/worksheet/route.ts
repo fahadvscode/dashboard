@@ -14,7 +14,8 @@ export const maxDuration = 30
 
 const SENDER_NAME = 'Fahad Javed Real Estate'
 const FJ_LOGO_URL = 'https://cfzuypbljirmibmxpabi.supabase.co/storage/v1/object/public/email-images/fj%20logo.png'
-const FJ_BRAND_NAME = 'FJ'
+const FJ_GREEN = '#024225'
+const FJ_GOLD = '#d4a868'
 
 function escapeHtml(value: string) {
   return value
@@ -35,16 +36,19 @@ function worksheetEmailHtml(input: {
   const project = escapeHtml(input.projectName)
   const link = escapeHtml(input.link)
   const fj = input.brandId === 'fj'
-  const brandName = fj ? FJ_BRAND_NAME : escapeHtml(input.brandLabel)
+  const brandName = fj ? SENDER_NAME : escapeHtml(input.brandLabel)
   const button = fj
-    ? 'display:inline-block;background-color:#059669;background-image:linear-gradient(135deg,#10b981 0%,#059669 100%);color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 18px;border-radius:8px;'
+    ? `display:inline-block;background-color:${FJ_GREEN};color:${FJ_GOLD};text-decoration:none;font-weight:700;font-size:15px;padding:12px 18px;border-radius:8px;`
     : 'display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 18px;border-radius:8px;'
-  const accent = fj ? '#059669' : '#1d4ed8'
+  const accent = fj ? FJ_GREEN : '#1d4ed8'
   const header = fj
-    ? `<tr><td style="background-color:#059669;background-image:linear-gradient(135deg,#10b981 0%,#059669 100%);padding:28px 24px;text-align:center;">
-        <img src="${FJ_LOGO_URL}" alt="${FJ_BRAND_NAME}" width="150" style="display:block;margin:0 auto 10px;width:150px;max-width:70%;height:auto;border:0;" />
-        <div style="font-size:22px;font-weight:800;letter-spacing:0.6px;color:#ffffff;">${FJ_BRAND_NAME}</div>
-      </td></tr>`
+    ? `<tr><td style="padding:0;line-height:0;font-size:0;background-color:${FJ_GREEN};">
+        <img src="${FJ_LOGO_URL}" alt="${SENDER_NAME}" width="560" style="display:block;width:100%;max-width:560px;height:auto;border:0;" />
+      </td></tr>
+      <tr><td style="height:4px;background-color:${FJ_GOLD};font-size:0;line-height:0;">&nbsp;</td></tr>`
+    : ''
+  const headline = fj
+    ? `<p style="margin:0 0 16px;font-size:20px;line-height:1.3;font-weight:700;color:${FJ_GREEN};">${SENDER_NAME}</p>`
     : ''
   return `<!DOCTYPE html>
 <html>
@@ -54,7 +58,8 @@ function worksheetEmailHtml(input: {
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
         ${header}
         <tr><td style="padding:28px 24px;">
-          <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">${greeting}</p>
+          ${headline}
+          <p style="margin:0 0 16px;font-size:16px;line-height:1.5;color:${fj ? FJ_GREEN : '#1f2933'};">${greeting}</p>
           <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">Please complete this worksheet so we can secure your unit at <strong>${project}</strong>.</p>
           <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">It only takes a few minutes. Use the button below, fill in the purchaser details, and send it back to us.</p>
           <p style="margin:0 0 22px;">
@@ -62,7 +67,7 @@ function worksheetEmailHtml(input: {
           </p>
           <p style="margin:0 0 8px;font-size:13px;color:#667085;">Or copy this link into your browser:</p>
           <p style="margin:0 0 22px;font-size:13px;line-height:1.5;word-break:break-all;"><a href="${link}" style="color:${accent};">${link}</a></p>
-          <p style="margin:0;font-size:15px;line-height:1.5;color:${fj ? '#047857' : '#1f2933'};">Thank you,<br><strong>${brandName}</strong></p>
+          <p style="margin:0;font-size:15px;line-height:1.5;color:${fj ? FJ_GREEN : '#1f2933'};">Thank you,<br><strong>${brandName}</strong></p>
         </td></tr>
       </table>
     </td></tr>
@@ -165,7 +170,7 @@ export async function POST(request: NextRequest) {
       link,
       '',
       'Thank you,',
-      brand.id === 'fj' ? FJ_BRAND_NAME : brand.label,
+      brand.id === 'fj' ? SENDER_NAME : brand.label,
     ].join('\n')
     const html = worksheetEmailHtml({
       firstName,
