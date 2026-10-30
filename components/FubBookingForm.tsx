@@ -17,6 +17,9 @@ import {
 } from '@/lib/fubProjects'
 import FubEscalationPanel from '@/components/FubEscalationPanel'
 import FubLeadFlags from '@/components/FubLeadFlags'
+import FubWorksheetPanel from '@/components/FubWorksheetPanel'
+
+const HISTORY_PREVIEW = 3
 
 type Props = {
   context: string
@@ -102,7 +105,6 @@ export default function FubBookingForm({
   const [contactEmail, setContactEmail] = useState(email)
   const [contactPhone, setContactPhone] = useState(phone)
   const [saving, setSaving] = useState(false)
-  const [sendingWorksheet, setSendingWorksheet] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [priorCount, setPriorCount] = useState(bookingCount)
@@ -115,6 +117,7 @@ export default function FubBookingForm({
   const [busyId, setBusyId] = useState<string | null>(null)
   const [leadFirst, setLeadFirst] = useState(firstName)
   const [leadLast, setLeadLast] = useState(lastName)
+  const [showAllHistory, setShowAllHistory] = useState(false)
 
   const name = `${leadFirst} ${leadLast}`.trim() || 'this lead'
   const history = appointments.map((item) => ({
@@ -122,6 +125,8 @@ export default function FubBookingForm({
     kind: item.kind || fubBookingKind(item.status, item.appointment_date, minDate),
   }))
   const historySummary = fubBookingHistorySummary(history)
+  const hiddenHistoryOpen = history.slice(HISTORY_PREVIEW).some((item) => item.id === editingId || item.id === confirmingId)
+  const visibleHistory = showAllHistory || hiddenHistoryOpen ? history : history.slice(0, HISTORY_PREVIEW)
 
   async function reloadAppointments() {
     const response = await fetch('/api/fub/appointments', {
@@ -183,41 +188,6 @@ export default function FubBookingForm({
     setSearch('')
     setSuggestions([])
     setChangingProject(false)
-  }
-
-  async function sendWorksheet() {
-    setError('')
-    setNotice('')
-    if (!selected?.id || !selected.project_name) {
-      setError('Choose a project before sending the worksheet.')
-      return
-    }
-    if (!contactEmail.trim()) {
-      setError('This person needs an email address.')
-      return
-    }
-    setSendingWorksheet(true)
-    try {
-      const response = await fetch('/api/fub/worksheet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          context,
-          signature,
-          brand,
-          projectName: selected.project_name,
-          projectId: selected.id,
-          email: contactEmail.trim(),
-        }),
-      })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Could not send the worksheet.')
-      setNotice(payload.message || 'Worksheet sent.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not send the worksheet.')
-    } finally {
-      setSendingWorksheet(false)
-    }
   }
 
   async function book() {
@@ -325,7 +295,7 @@ export default function FubBookingForm({
     <div style={wrap}>
       <div style={{ fontSize: 15, fontWeight: 700, color: '#1f2933', marginBottom: 2 }}>{name}</div>
       <div style={{ fontSize: 12, color: '#667085', marginBottom: 12 }}>
-        Booking, then Escalation
+        Booking, worksheet, or escalation
       </div>
 
       <FubLeadFlags
@@ -356,7 +326,7 @@ export default function FubBookingForm({
       {history.length > 0 ? (
         <>
           <div style={label}>Booking history</div>
-          {history.map((item) => {
+          {visibleHistory.map((item) => {
             const kind = item.kind || 'past'
             const bookedOn = formatBookedOn(item.created_at || '')
             const cancelled = kind === 'cancelled'
@@ -481,6 +451,15 @@ export default function FubBookingForm({
             </div>
             )
           })}
+          {history.length > HISTORY_PREVIEW ? (
+            <button
+              type="button"
+              onClick={() => setShowAllHistory(visibleHistory.length < history.length)}
+              style={historyToggle}
+            >
+              {visibleHistory.length < history.length ? `See all ${history.length} meetings` : 'Show latest 3'}
+            </button>
+          ) : null}
         </>
       ) : null}
 
@@ -592,23 +571,21 @@ export default function FubBookingForm({
 
       <button
         type="button"
-        onClick={() => void sendWorksheet()}
-        disabled={saving || sendingWorksheet || !selected}
-        style={worksheetButton}
-      >
-        {sendingWorksheet ? 'Sending worksheet…' : 'Send worksheet'}
-      </button>
-
-      <button
-        type="button"
         onClick={() => void book()}
-        disabled={saving || sendingWorksheet}
+        disabled={saving}
         style={button}
       >
         {saving ? 'Booking…' : 'Book meeting'}
       </button>
       </div>
       </div>
+
+      <FubWorksheetPanel
+        context={context}
+        signature={signature}
+        email={contactEmail}
+        taggedProjects={taggedProjects}
+      />
 
       <FubEscalationPanel context={context} signature={signature} leadName={name} />
     </div>
@@ -688,7 +665,7 @@ const input: CSSProperties = {
 
 const button: CSSProperties = {
   width: '100%',
-  marginTop: 8,
+  marginTop: 14,
   border: 'none',
   borderRadius: 8,
   padding: '10px 12px',
@@ -697,12 +674,6 @@ const button: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
   cursor: 'pointer',
-}
-
-const worksheetButton: CSSProperties = {
-  ...button,
-  marginTop: 14,
-  background: '#0f766e',
 }
 
 const apptCard: CSSProperties = {
@@ -763,6 +734,17 @@ const smallGhost: CSSProperties = {
   ...smallPrimary,
   background: '#f2f4f7',
   color: '#344054',
+}
+
+const historyToggle: CSSProperties = {
+  marginTop: 2,
+  border: 'none',
+  background: 'none',
+  color: '#2563eb',
+  fontSize: 13,
+  fontWeight: 700,
+  padding: 0,
+  cursor: 'pointer',
 }
 
 const linkButton: CSSProperties = {

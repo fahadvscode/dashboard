@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Home, Calendar, Mail, Building2, Mailbox, LogOut, FileText, MessageSquare, Link2, Copy, Check, Edit, ChevronDown, ChevronUp, Brain, Upload, CheckSquare, FolderOpen, MapPinned, Map, MapPin, PlusCircle, TrendingUp, ClipboardList, BarChart3, ThumbsDown } from 'lucide-react'
 import { useState } from 'react'
 import { logout } from '@/lib/auth'
+import { COPY_PAGE_LINKS, copyText } from '@/lib/shareLinks'
 
 const TASK_MANAGER_URL = 'https://task-management-app-flame-seven.vercel.app/'
 
@@ -74,16 +75,10 @@ const navigationSections: { heading: string; items: NavItem[] }[] = [
   },
 ]
 
-const BOOKING_PAGES = {
-  fj: 'https://www.qikfill.com/fj-booking',
-  precon: 'https://www.qikfill.com/preconfactory-booking'
-}
-
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
-  const [showBookingPages, setShowBookingPages] = useState(false)
   const [copiedLink, setCopiedLink] = useState<string | null>(null)
   const [showTools, setShowTools] = useState(false) // Collapsible tools on mobile
 
@@ -93,14 +88,11 @@ export default function Sidebar() {
     window.location.reload()
   }
 
-  const handleCopyLink = async (link: string, type: 'fj' | 'precon') => {
-    try {
-      await navigator.clipboard.writeText(link)
-      setCopiedLink(type)
-      setTimeout(() => setCopiedLink(null), 2000)
-    } catch (err) {
-      console.error('Failed to copy link:', err)
-    }
+  const handleCopyLink = async (id: string, link: string) => {
+    const copied = await copyText(link)
+    if (!copied) return
+    setCopiedLink(id)
+    setTimeout(() => setCopiedLink(null), 2000)
   }
 
   return (
@@ -223,94 +215,28 @@ export default function Sidebar() {
               Rental Screening Form
             </a>
 
-            {/* Booking Pages Button */}
-            <div className="relative mb-2 md:mb-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowBookingPages(!showBookingPages)
-                  setIsOpen(false)
-                }}
-                className="w-full flex items-center px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-[15px] font-medium rounded-lg transition-colors touch-manipulation bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 active:from-blue-700 active:to-indigo-800 shadow-md hover:shadow-lg"
-              >
-                <Link2 className="h-5 w-5 md:h-5 md:w-5 mr-2 md:mr-3 shrink-0" />
-                Booking Pages
-              </button>
-
-              {/* Dropdown */}
-              {showBookingPages && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-10" 
-                    onClick={() => setShowBookingPages(false)}
-                  />
-                  <div className="absolute bottom-full left-0 mb-2 w-full bg-white rounded-lg shadow-xl border border-gray-200 z-20 overflow-hidden">
-                    {/* FJ Booking Page */}
-                    <div className="border-b border-gray-200">
-                      <div className="px-3 py-2 lg:px-4 lg:py-3 bg-gray-50">
-                        <p className="text-xs font-semibold text-gray-600 uppercase">FJ Booking</p>
-                      </div>
-                      <div className="px-3 py-2 lg:px-4 lg:py-3 flex items-center justify-between">
-                        <a
-                          href={BOOKING_PAGES.fj}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 text-xs lg:text-sm text-blue-600 hover:text-blue-800 truncate mr-2"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {BOOKING_PAGES.fj}
-                        </a>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleCopyLink(BOOKING_PAGES.fj, 'fj')
-                          }}
-                          className="p-1.5 lg:p-2 text-gray-600 hover:text-blue-600 hover:bg-gray-100 rounded transition-colors"
-                          title="Copy link"
-                        >
-                          {copiedLink === 'fj' ? (
-                            <Check className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-green-600" />
-                          ) : (
-                            <Copy className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Precon Factory Booking Page */}
-                    <div>
-                      <div className="px-3 py-2 lg:px-4 lg:py-3 bg-gray-50">
-                        <p className="text-xs font-semibold text-gray-600 uppercase">Precon Factory Booking</p>
-                      </div>
-                      <div className="px-3 py-2 lg:px-4 lg:py-3 flex items-center justify-between">
-                        <a
-                          href={BOOKING_PAGES.precon}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 text-xs lg:text-sm text-purple-600 hover:text-purple-800 truncate mr-2"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {BOOKING_PAGES.precon}
-                        </a>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleCopyLink(BOOKING_PAGES.precon, 'precon')
-                          }}
-                          className="p-1.5 lg:p-2 text-gray-600 hover:text-purple-600 hover:bg-gray-100 rounded transition-colors"
-                          title="Copy link"
-                        >
-                          {copiedLink === 'precon' ? (
-                            <Check className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-green-600" />
-                          ) : (
-                            <Copy className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
+            <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              Click to copy
+            </p>
+            <div className="space-y-1 mb-2 md:mb-3">
+              {COPY_PAGE_LINKS.map((item) => {
+                const copied = copiedLink === item.id
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => void handleCopyLink(item.id, item.href)}
+                    className="w-full flex items-center px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-[15px] font-medium rounded-lg transition-colors touch-manipulation text-gray-700 hover:bg-gray-100 active:bg-gray-200"
+                  >
+                    {copied ? (
+                      <Check className="h-5 w-5 mr-2 md:mr-3 shrink-0 text-green-600" />
+                    ) : (
+                      <Copy className="h-5 w-5 mr-2 md:mr-3 shrink-0 text-gray-400" />
+                    )}
+                    <span className="truncate">{copied ? 'Copied' : item.name}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
           

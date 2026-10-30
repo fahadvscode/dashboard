@@ -11,6 +11,7 @@ import {
   FileText, Edit, Mailbox,
 } from 'lucide-react'
 import { logout } from '@/lib/auth'
+import { COPY_PAGE_LINKS, copyText } from '@/lib/shareLinks'
 import { supabase } from '@/lib/supabase'
 import ProjectDetailsModal from '@/components/ProjectDetailsModal'
 import { getFirstPropertyImage } from '@/lib/propertyImages'
@@ -146,8 +147,13 @@ const MORE_SECTIONS = [
     heading: 'Tools',
     items: [
       { label: 'Rental Screening Form', icon: Home, tint: '#30B0C7', href: 'https://www.qikfill.com/rental-signup.html', external: true },
-      { label: 'FJ Booking Page', icon: Link2, tint: '#007AFF', href: 'https://www.qikfill.com/fj-booking', external: true },
-      { label: 'Precon Booking Page', icon: Link2, tint: GOLD, href: 'https://www.qikfill.com/preconfactory-booking', external: true },
+      ...COPY_PAGE_LINKS.map((item) => ({
+        label: item.name,
+        icon: Link2,
+        tint: item.id.includes('worksheet') ? '#059669' : '#007AFF',
+        href: item.href,
+        copy: true as const,
+      })),
       { label: 'Logout', icon: LogOut, tint: DESTRUCTIVE, href: '#logout' },
     ],
   },
@@ -1106,8 +1112,18 @@ function LeadsTab() {
 // ---------- More Tab ----------
 function MoreTab() {
   const router = useRouter()
+  const [copied, setCopied] = useState<string | null>(null)
 
-  const handleItemClick = (item: { label: string; href: string; external?: boolean }) => {
+  const handleItemClick = (item: { label: string; href: string; external?: boolean; copy?: boolean }) => {
+    if (item.copy) {
+      void (async () => {
+        const ok = await copyText(item.href)
+        if (!ok) return
+        setCopied(item.label)
+        window.setTimeout(() => setCopied((current) => (current === item.label ? null : current)), 2000)
+      })()
+      return
+    }
     if (item.href === '#logout') {
       logout()
       window.location.reload()
@@ -1135,8 +1151,9 @@ function MoreTab() {
                   key={item.label}
                   last={idx === section.items.length - 1}
                   leading={<IconChip Icon={item.icon} tint={item.tint} />}
-                  title={<span style={{ color: item.label === 'Logout' ? DESTRUCTIVE : LABEL }}>{item.label}</span>}
-                  trailing={<ChevronRight size={17} color="#c7c7cc" />}
+                  title={<span style={{ color: item.label === 'Logout' ? DESTRUCTIVE : LABEL }}>{copied === item.label ? 'Copied' : item.label}</span>}
+                  subtitle={item.copy && copied !== item.label ? 'Tap to copy the link' : undefined}
+                  trailing={copied === item.label ? <Check size={17} color="#059669" /> : <ChevronRight size={17} color="#c7c7cc" />}
                   onClick={() => handleItemClick(item)}
                 />
               ))}

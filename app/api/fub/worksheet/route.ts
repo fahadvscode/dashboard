@@ -13,6 +13,8 @@ export const runtime = 'nodejs'
 export const maxDuration = 30
 
 const SENDER_NAME = 'Fahad Javed Real Estate'
+const FJ_LOGO_URL = 'https://cfzuypbljirmibmxpabi.supabase.co/storage/v1/object/public/email-images/fj%20logo.png'
+const FJ_BRAND_NAME = 'FJ'
 
 function escapeHtml(value: string) {
   return value
@@ -26,28 +28,41 @@ function worksheetEmailHtml(input: {
   firstName: string
   projectName: string
   link: string
-  senderName: string
+  brandId: string
   brandLabel: string
 }) {
   const greeting = input.firstName ? `Hi ${escapeHtml(input.firstName)},` : 'Hello,'
   const project = escapeHtml(input.projectName)
-  const sender = escapeHtml(input.senderName)
-  const brand = escapeHtml(input.brandLabel)
   const link = escapeHtml(input.link)
+  const fj = input.brandId === 'fj'
+  const brandName = fj ? FJ_BRAND_NAME : escapeHtml(input.brandLabel)
+  const button = fj
+    ? 'display:inline-block;background-color:#059669;background-image:linear-gradient(135deg,#10b981 0%,#059669 100%);color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 18px;border-radius:8px;'
+    : 'display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 18px;border-radius:8px;'
+  const accent = fj ? '#059669' : '#1d4ed8'
+  const logo = fj
+    ? `<div style="text-align:center;margin:0 0 18px;"><img src="${FJ_LOGO_URL}" alt="${FJ_BRAND_NAME}" width="168" style="display:inline-block;width:168px;max-width:70%;height:auto;border:0;" /><div style="margin-top:8px;font-size:18px;font-weight:800;letter-spacing:0.4px;color:#047857;">${FJ_BRAND_NAME}</div></div>`
+    : ''
   return `<!DOCTYPE html>
 <html>
+<head>
+  <style>
+    .worksheet-btn:hover { background-color: #047857 !important; background-image: linear-gradient(135deg, #059669 0%, #047857 100%) !important; }
+  </style>
+</head>
 <body style="margin:0;padding:0;background:#f4f6f8;font-family:Inter,Arial,sans-serif;color:#1f2933;">
   <div style="max-width:560px;margin:0 auto;padding:28px 16px;">
     <div style="background:#ffffff;border-radius:12px;padding:28px 24px;border:1px solid #e5e7eb;">
+      ${logo}
       <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">${greeting}</p>
       <p style="margin:0 0 16px;font-size:16px;line-height:1.5;">Please complete this worksheet so we can secure your unit at <strong>${project}</strong>.</p>
       <p style="margin:0 0 20px;font-size:16px;line-height:1.5;">It only takes a few minutes. Use the button below, fill in the purchaser details, and send it back to us.</p>
       <p style="margin:0 0 22px;">
-        <a href="${link}" style="display:inline-block;background:#1d4ed8;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 18px;border-radius:8px;">Complete your worksheet</a>
+        <a href="${link}" class="${fj ? 'worksheet-btn' : ''}" style="${button}">Complete your worksheet</a>
       </p>
       <p style="margin:0 0 8px;font-size:13px;color:#667085;">Or copy this link into your browser:</p>
-      <p style="margin:0 0 22px;font-size:13px;line-height:1.5;word-break:break-all;"><a href="${link}" style="color:#1d4ed8;">${link}</a></p>
-      <p style="margin:0;font-size:15px;line-height:1.5;">Thank you,<br>${sender}<br>${brand}</p>
+      <p style="margin:0 0 22px;font-size:13px;line-height:1.5;word-break:break-all;"><a href="${link}" style="color:${accent};">${link}</a></p>
+      <p style="margin:0;font-size:15px;line-height:1.5;color:#047857;">Thank you,<br><strong>${brandName}</strong></p>
     </div>
   </div>
 </body>
@@ -148,14 +163,13 @@ export async function POST(request: NextRequest) {
       link,
       '',
       'Thank you,',
-      SENDER_NAME,
-      brand.label,
+      brand.id === 'fj' ? FJ_BRAND_NAME : brand.label,
     ].join('\n')
     const html = worksheetEmailHtml({
       firstName,
       projectName,
       link,
-      senderName: SENDER_NAME,
+      brandId: brand.id,
       brandLabel: brand.label,
     })
     const replyTo = sender.email ? `"${SENDER_NAME}" <${sender.email}>` : undefined
