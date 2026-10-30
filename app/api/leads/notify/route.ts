@@ -78,6 +78,82 @@ function isEmailLeadTable(tableName: unknown): boolean {
   )
 }
 
+function worksheetPeople(lead: Record<string, unknown>): Record<string, unknown>[] {
+  if (!Array.isArray(lead.purchasers)) return []
+  return lead.purchasers.filter(
+    (item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item)
+  )
+}
+
+function personText(person: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = person[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return ''
+}
+
+function personLabel(person: Record<string, unknown>) {
+  return [
+    personText(person, ['first_name', 'firstname', 'firstName']),
+    personText(person, ['last_name', 'lastname', 'lastName']),
+  ].filter(Boolean).join(' ')
+}
+
+function hydrateWorksheetLead(lead: Record<string, unknown>) {
+  const first = worksheetPeople(lead)[0]
+  if (!first) return
+  if (!lead.firstname) lead.firstname = personText(first, ['first_name', 'firstname', 'firstName'])
+  if (!lead.lastname) lead.lastname = personText(first, ['last_name', 'lastname', 'lastName'])
+  if (!lead.email) lead.email = personText(first, ['email'])
+  if (!lead.phone) lead.phone = personText(first, ['phone'])
+}
+
+function worksheetDetailLines(lead: Record<string, unknown>) {
+  const lines: string[] = []
+  if (lead.brand) lines.push(`🏷️ Brand: ${lead.brand}`)
+  if (lead.parking) lines.push(`🅿️ Parking: ${lead.parking}`)
+  if (lead.locker) lines.push(`🔒 Locker: ${lead.locker}`)
+  const people = worksheetPeople(lead)
+  const occupation = people[0] ? personText(people[0], ['occupation']) : ''
+  if (occupation) lines.push(`💼 Occupation: ${occupation}`)
+  people.slice(1).forEach((person, index) => {
+    const name = personLabel(person) || `Purchaser ${index + 2}`
+    const contact = [personText(person, ['email']), personText(person, ['phone'])].filter(Boolean).join(' · ')
+    lines.push(`👤 Purchaser ${index + 2}: ${name}${contact ? ` (${contact})` : ''}`)
+  })
+  if (typeof lead.notes === 'string' && lead.notes.trim()) lines.push(`📝 Notes: ${lead.notes.trim()}`)
+  return lines
+}
+
+function worksheetEmailRows(lead: Record<string, unknown>) {
+  const people = worksheetPeople(lead)
+  const occupation = people[0] ? personText(people[0], ['occupation']) : ''
+  const rows: string[] = []
+  const add = (label: string, value: string) => {
+    if (!value) return
+    rows.push(`<div class="data-row"><div class="data-label">${label}</div><div class="data-value">${value}</div></div>`)
+  }
+  add('Brand', String(lead.brand || ''))
+  add('Parking', String(lead.parking || ''))
+  add('Locker', String(lead.locker || ''))
+  add('Occupation', occupation)
+  people.slice(1).forEach((person, index) => {
+    const name = personLabel(person) || `Purchaser ${index + 2}`
+    const contact = [personText(person, ['email']), personText(person, ['phone'])].filter(Boolean).join(' · ')
+    add(`Purchaser ${index + 2}`, contact ? `${name} (${contact})` : name)
+  })
+  add('Notes', typeof lead.notes === 'string' ? lead.notes.trim() : '')
+  return rows.join('')
+}
+
+function worksheetSheetMessage(lead: Record<string, unknown>) {
+  return [
+    typeof lead.notes === 'string' ? lead.notes.trim() : '',
+    ...worksheetDetailLines(lead).map((line) => line.replace(/^[^\s]+\s/, '')),
+  ].filter(Boolean).join('\n')
+}
+
 function formatIsAgentBrokerSheetValue(lead: Record<string, unknown>): 'Yes' | 'No' {
   return lead.isagent ? 'Yes' : 'No'
 }
@@ -114,6 +190,8 @@ function resolveLeadSourceName(
       return 'Precon Factory Website'
     case 'gta_lowrise_leads':
       return 'GTA Lowrise'
+    case 'worksheets':
+      return 'Worksheet'
     case 'rental_leads':
       return 'Rental'
     default:
@@ -157,6 +235,7 @@ async function appendLeadToGoogleSheet(
       lead.table_name === 'precon_factory_leads' ? 'Precon Factory Dashboard' :
       lead.table_name === 'precon_factory_website_leads' ? 'Precon Factory Website' :
       lead.table_name === 'gta_lowrise_leads' ? 'GTA Lowrise' :
+      lead.table_name === 'worksheets' ? `Worksheet${lead.brand ? ` - ${lead.brand}` : ''}` :
       lead.table_name === 'rental_leads' ? 'Rental' :
       'Unknown'
     let tag = ''
@@ -171,6 +250,9 @@ async function appendLeadToGoogleSheet(
       projectName = resolveLandingProjectName(lead, landingMeta)
       landingPage = resolveLandingPageLink(lead, landingMeta)
       company = `Landing Page - ${landingMeta.pageName}`
+    } else if (lead.table_name === 'worksheets') {
+      tag = 'Worksheet'
+      broker = 'N/A'
     } else if (isEmailLeadTable(lead.table_name)) {
       broker = formatIsAgentBrokerSheetValue(lead)
       if (lead.table_name === 'precon_factory_website_leads') {
@@ -182,8 +264,9 @@ async function appendLeadToGoogleSheet(
       }
     }
 
-    const sheetMessage =
-      isEmailLeadTable(lead.table_name) || landingMeta
+    const sheetMessage = lead.table_name === 'worksheets'
+      ? worksheetSheetMessage(lead)
+      : isEmailLeadTable(lead.table_name) || landingMeta
         ? resolveCustomerNotes(lead)
         : ''
 
@@ -226,7 +309,7 @@ async function appendLeadToGoogleSheet(
     }
 
     try {
-      const assignToOffice = Boolean(landingMeta) || isEmailLeadTable(lead.table_name)
+      const assignToOffice = Boolean(landingMeta) || isEmailLeadTable(lead.table_name) || lead.table_name === 'worksheets'
       const fub = await sendSheetRowToFollowUpBoss(row, { assignToOffice })
       console.log('Follow Up Boss inquiry:', {
         firstName,
@@ -250,6 +333,7 @@ async function appendLeadToGoogleSheet(
 export async function POST(request: NextRequest) {
   try {
     const lead = await request.json()
+    if (lead.table_name === 'worksheets') hydrateWorksheetLead(lead)
     const sourceMap = await getLandingPageSourceMap({ enabledOnly: true })
 
     const resolvedTableName = resolveLeadTableName(lead, sourceMap)
@@ -268,7 +352,12 @@ export async function POST(request: NextRequest) {
     console.log('===========================================')
 
     // Validate required fields (handle firstname, first_name, and full_name)
-    if ((!lead.firstname && !lead.first_name && !lead.full_name) || !lead.email) {
+    const isWorksheetLead = lead.table_name === 'worksheets'
+    if (
+      isWorksheetLead
+        ? !lead.firstname && !lead.email && !lead.phone && !lead.project_name
+        : (!lead.firstname && !lead.first_name && !lead.full_name) || !lead.email
+    ) {
       return NextResponse.json(
         { error: 'Missing required lead data' },
         { status: 400 }
@@ -283,6 +372,7 @@ export async function POST(request: NextRequest) {
     const source = resolveLeadSourceName(lead.table_name, sourceMap)
     
     const isRentalLead = lead.table_name === 'rental_leads'
+    const isWorksheet = lead.table_name === 'worksheets'
     const isPreconFactoryWebsiteLead = lead.table_name === 'precon_factory_website_leads'
     const isLandingPageLead = Boolean(landingMeta)
     const landingPageName = landingMeta?.websiteName || ''
@@ -294,6 +384,7 @@ export async function POST(request: NextRequest) {
       lead.table_name === 'precon_factory_leads' ? 'precon-leads' :
       lead.table_name === 'precon_factory_website_leads' ? 'precon-factory-website-leads' :
       lead.table_name === 'gta_lowrise_leads' ? 'gta-lowrise-leads' :
+      lead.table_name === 'worksheets' ? 'worksheet-leads' :
       lead.table_name === 'rental_leads' ? 'rental-leads' :
       isLandingPageLead ? 'landing-pages-leads' :
       'rental-leads'
@@ -345,6 +436,16 @@ export async function POST(request: NextRequest) {
       if (lead.notes) {
         message += `\n📝 Notes: ${lead.notes}`
       }
+    } else if (isWorksheet) {
+      const detailLines = worksheetDetailLines(lead)
+      message = `📋 New Worksheet Lead!
+
+👤 ${displayName}
+📧 ${lead.email || 'No email'}
+📱 ${lead.phone || 'No phone'}
+🏢 Project: ${lead.project_name || 'Not specified'}`
+      if (lead.project_id) message += `\n🆔 Project ID: ${lead.project_id}`
+      if (detailLines.length) message += '\n' + detailLines.join('\n')
     } else if (isLandingPageLead) {
       const detailLines: string[] = []
       appendLandingLeadDetailLines(lead, detailLines)
@@ -491,6 +592,7 @@ export async function POST(request: NextRequest) {
             <div class="data-label">Project</div>
             <div class="data-value">${lead.project_name || lead.source || 'Not specified'}</div>
           </div>
+          ${isWorksheet ? worksheetEmailRows(lead) : ''}
           ${lead.project_id ? `
           <div class="data-row">
             <div class="data-label">Project ID</div>
@@ -609,7 +711,7 @@ export async function POST(request: NextRequest) {
                 <div class="title-block">
                   <span class="badge">New Lead Notification</span>
                   <h1 class="title">${source} Lead Received</h1>
-                  <p class="subtitle">${isRentalLead ? 'A new rental inquiry has been submitted.' : 'A new potential client has submitted their details.'}</p>
+                  <p class="subtitle">${isRentalLead ? 'A new rental inquiry has been submitted.' : isWorksheet ? 'A new purchaser worksheet has been submitted.' : 'A new potential client has submitted their details.'}</p>
                 </div>
                 
                 <div class="data-grid">

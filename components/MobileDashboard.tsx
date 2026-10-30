@@ -134,6 +134,7 @@ const MORE_SECTIONS = [
     heading: 'Leads',
     items: [
       { label: 'FJ Leads', icon: Mail, tint: TINT, href: '/fj-leads' },
+      { label: 'Worksheet Leads', icon: ClipboardList, tint: TINT, href: '/worksheet-leads' },
       { label: 'Precon Factory Leads', icon: Mail, tint: GOLD, href: '/precon-leads' },
       { label: 'Precon Factory Website Leads', icon: Mail, tint: GOLD, href: '/precon-factory-website-leads' },
       { label: 'GTA Lowrise Leads', icon: Mail, tint: '#FF9500', href: '/gta-lowrise-leads' },
