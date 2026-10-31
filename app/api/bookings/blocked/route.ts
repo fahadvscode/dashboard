@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
       .order('start_minutes', { ascending: true })
     if (error) {
       if (missingTable(error)) {
-        return NextResponse.json({ ready: false, blocks: [], closed: [] }, { headers })
+        return NextResponse.json({ ready: false, blocks: [], closed: [] }, { headers: { ...headers, 'Cache-Control': 'no-store' } })
       }
       throw error
     }
@@ -94,10 +94,10 @@ export async function GET(request: NextRequest) {
         label: blockRangeLabel(block),
       })),
       closed,
-    }, { headers })
+    }, { headers: { ...headers, 'Cache-Control': 'no-store' } })
   } catch (error) {
     console.error('Closed times lookup failed:', error)
-    return NextResponse.json({ ready: false, blocks: [], closed: [] }, { headers })
+    return NextResponse.json({ ready: false, blocks: [], closed: [] }, { headers: { ...headers, 'Cache-Control': 'no-store' } })
   }
 }
 

@@ -22,7 +22,8 @@ import {
   unpinHomeScreenProject,
   type HomeScreenProject,
 } from '@/lib/homeScreenProjects'
-import { formatAppointmentTimeDisplay, isBookingStatusCanceled, parseAppointmentTime } from '@/lib/bookingTimes'
+import { APPOINTMENT_TIME_SLOTS, formatAppointmentTimeDisplay, isBookingStatusCanceled, parseAppointmentTime } from '@/lib/bookingTimes'
+import { fetchClosedSlots } from '@/lib/bookingBlocks'
 import { BOOKED_BY_OPTIONS, parseBookedBy } from '@/lib/bookedBy'
 import { normalizeBookingPayload, resolveBookingFirstName, resolveBookingLastName } from '@/lib/normalizeBookingPayload'
 import { isFahadSellsInterviewBooking } from '@/lib/interviewBookingConstants'
@@ -1494,9 +1495,28 @@ function AddBookingSheet({ close }: { close: () => void }) {
   const [step, setStep] = useState(1)
   const [confirmed, setConfirmed] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [closedSlots, setClosedSlots] = useState<string[]>([])
   const [data, setData] = useState({ brand: '', type: '', bookedBy: '', firstname: '', lastname: '', email: '', phone: '', project: '', date: '', time: '' })
   const totalSteps = 5
   const update = (k: string, v: string) => setData((d) => ({ ...d, [k]: v }))
+
+  useEffect(() => {
+    const brand = data.brand === 'FJ' ? 'fj' : data.brand === 'Precon Factory' ? 'precon' : ''
+    if (!data.date || !brand) {
+      setClosedSlots([])
+      return
+    }
+    let cancelled = false
+    void fetchClosedSlots(data.date, brand).then((closed) => {
+      if (cancelled) return
+      setClosedSlots(closed)
+      setData((current) => (closed.includes(current.time) ? { ...current, time: '' } : current))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [data.date, data.brand])
 
   const stepTitles = ['Brand', 'Appointment', 'Contact', 'Project & Time', 'Review']
 
@@ -1511,9 +1531,16 @@ function AddBookingSheet({ close }: { close: () => void }) {
   const handleRight = async () => {
     if (step === totalSteps) {
       setSaving(true)
+      setSaveError('')
       try {
+        const brand = data.brand === 'FJ' ? 'fj' : 'precon'
+        const closed = await fetchClosedSlots(data.date, brand)
+        if (closed.includes(data.time) || closed.includes(formatAppointmentTimeDisplay(data.time))) {
+          setSaveError('This time is closed. Choose another time.')
+          return
+        }
         const table = data.brand === 'FJ' ? 'fj_bookings' : 'precon_factory_bookings'
-        await supabase.from(table).insert({
+        const { error } = await supabase.from(table).insert({
           firstname: data.firstname,
           lastname: data.lastname,
           email: data.email,
@@ -1525,9 +1552,11 @@ function AddBookingSheet({ close }: { close: () => void }) {
           project_name: data.project,
           status: 'confirmed',
         })
+        if (error) throw error
         setConfirmed(true)
       } catch (e) {
         console.error('Error saving booking:', e)
+        setSaveError('Could not save this booking.')
       } finally {
         setSaving(false)
       }
@@ -1608,7 +1637,24 @@ function AddBookingSheet({ close }: { close: () => void }) {
                   <GroupedList>
                     <FormRow label="Project name" value={data.project} onChange={(v) => update('project', v)} />
                     <FormRow label="Date" value={data.date} onChange={(v) => update('date', v)} type="date" />
-                    <FormRow label="Time" value={data.time} onChange={(v) => update('time', v)} type="time" last />
+                    <div style={{ padding: '9px 14px' }}>
+                      <div style={{ ...font, fontSize: 11.5, color: SECONDARY, fontWeight: 500, marginBottom: 2 }}>Time</div>
+                      <select
+                        value={data.time}
+                        onChange={(e) => update('time', e.target.value)}
+                        style={{ width: '100%', border: 'none', outline: 'none', ...font, fontSize: 16, fontWeight: 400, color: LABEL, background: 'transparent', padding: '2px 0' }}
+                      >
+                        <option value="">Select a time</option>
+                        {APPOINTMENT_TIME_SLOTS.map((slot) => {
+                          const closed = closedSlots.includes(slot)
+                          return (
+                            <option key={slot} value={slot} disabled={closed}>
+                              {closed ? `${slot} (closed)` : slot}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    </div>
                   </GroupedList>
                 </>
               )}
@@ -1616,6 +1662,9 @@ function AddBookingSheet({ close }: { close: () => void }) {
               {step === 5 && (
                 <>
                   <SectionHeader>Review</SectionHeader>
+                  {saveError ? (
+                    <div style={{ ...font, fontSize: 13, color: '#b45309', marginBottom: 10 }}>{saveError}</div>
+                  ) : null}
                   <GroupedList>
                     <Row leading={<IconChip Icon={User} tint={TINT} />} title={`${data.firstname} ${data.lastname}`} subtitle={data.phone} />
                     <Row leading={<IconChip Icon={Building2} tint={GOLD} />} title={data.project} subtitle={`${data.date || '—'} at ${formatAppointmentTimeDisplay(data.time) || '—'}`} />

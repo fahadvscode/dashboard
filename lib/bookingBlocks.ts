@@ -82,3 +82,15 @@ export function closedSlotLabels(
 export function blockRangeLabel(block: Pick<BookingBlock, 'start_minutes' | 'end_minutes'>) {
   return `${timeFromMinutes(block.start_minutes)}–${timeFromMinutes(block.end_minutes)}`
 }
+
+export async function fetchClosedSlots(date: string, brand: string) {
+  if (!date || !brand) return []
+  try {
+    const response = await fetch(`/api/bookings/blocked?date=${encodeURIComponent(date)}&brand=${encodeURIComponent(brand)}`)
+    const payload = await response.json().catch(() => ({}))
+    const closed = Array.isArray(payload.closed) ? payload.closed : []
+    return closed.filter((slot: unknown): slot is string => typeof slot === 'string')
+  } catch {
+    return []
+  }
+}

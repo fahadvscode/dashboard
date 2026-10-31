@@ -21,6 +21,7 @@ import { normalizeBookingPayload } from '@/lib/normalizeBookingPayload'
 import { meetingCalendarLocation, meetingTypeLabel, parseMeetingType } from '@/lib/meetingTypes'
 import { bookedByCalendarPrefix, parseBookedBy } from '@/lib/bookedBy'
 import { appendBookingRescheduleLog } from '@/lib/fubProjects'
+import { brandIdForBookingTable, closedTimesFor } from '@/lib/closedTimes'
 
 function toE164NorthAmerica(phone: string): string {
   const digits = phone.replace(/\D/g, '')
@@ -164,6 +165,16 @@ export async function POST(request: NextRequest) {
     const timeChanged =
       booking.appointment_date !== appointment_date ||
       normalizeAppointmentTime(booking.appointment_time) !== normalizedTime
+
+    if (timeChanged) {
+      const blockBrand = brandIdForBookingTable(table)
+      if (blockBrand) {
+        const closed = await closedTimesFor(blockBrand, appointment_date)
+        if (closed.includes(normalizedTime)) {
+          return NextResponse.json({ error: 'This time is closed. Choose another time.' }, { status: 400 })
+        }
+      }
+    }
     const typeChanged = Boolean(nextType && nextType !== currentType)
 
     if (!timeChanged && !typeChanged) {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { CalendarClock, Ban } from 'lucide-react'
 import { APPOINTMENT_TIME_SLOTS, normalizeAppointmentTime, isBookingStatusCanceled, formatAppointmentTimeDisplay } from '@/lib/bookingTimes'
+import { fetchClosedSlots } from '@/lib/bookingBlocks'
 import { MEETING_TYPES, parseMeetingType, type MeetingTypeId } from '@/lib/meetingTypes'
 import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
 
@@ -59,6 +60,7 @@ export default function BookingReschedulePanel({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [warning, setWarning] = useState('')
+  const [closedSlots, setClosedSlots] = useState<string[]>([])
 
   const isCancelled = isBookingStatusCanceled(booking.status)
 
@@ -71,6 +73,28 @@ export default function BookingReschedulePanel({
     setWarning('')
     setSendSms(true)
   }, [booking.id, booking.appointment_date, booking.appointment_time, booking.appointment_type, booking.meeting_format, booking.status])
+
+  useEffect(() => {
+    const brand = table === 'fj_bookings' ? 'fj' : table === 'precon_factory_bookings' ? 'precon' : table === 'gta_lowrise_bookings' ? 'gta' : ''
+    if (!brand || !appointmentDate || cancelOnly) {
+      setClosedSlots([])
+      return
+    }
+    let cancelled = false
+    void fetchClosedSlots(appointmentDate, brand).then((closed) => {
+      if (cancelled) return
+      setClosedSlots(closed)
+      setAppointmentTime((current) => {
+        const currentSlot = normalizeAppointmentTime(booking.appointment_time)
+        const keepingCurrent = appointmentDate === booking.appointment_date && current === currentSlot
+        if (!closed.includes(current) || keepingCurrent) return current
+        return APPOINTMENT_TIME_SLOTS.find((slot) => !closed.includes(slot)) || current
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [appointmentDate, table, cancelOnly, booking.appointment_date, booking.appointment_time])
 
   const handleReschedule = async () => {
     if (!appointmentDate || !appointmentTime) {
@@ -254,11 +278,16 @@ export default function BookingReschedulePanel({
                 onChange={(event) => setAppointmentTime(event.target.value)}
                 className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-100"
               >
-                {APPOINTMENT_TIME_SLOTS.map((slot) => (
-                  <option key={slot} value={slot}>
-                    {slot}
-                  </option>
-                ))}
+                {APPOINTMENT_TIME_SLOTS.map((slot) => {
+                  const currentSlot = normalizeAppointmentTime(booking.appointment_time)
+                  const keepingCurrent = appointmentDate === booking.appointment_date && slot === currentSlot
+                  const closed = closedSlots.includes(slot) && !keepingCurrent
+                  return (
+                    <option key={slot} value={slot} disabled={closed}>
+                      {closed ? `${slot} (closed)` : slot}
+                    </option>
+                  )
+                })}
               </select>
             </div>
             <div className="sm:col-span-2">

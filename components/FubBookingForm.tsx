@@ -521,11 +521,14 @@ export default function FubBookingForm({
 
       <label style={label}>Time</label>
       <select value={time} onChange={(e) => setTime(e.target.value)} style={input}>
-        {APPOINTMENT_TIME_SLOTS.filter((slot) => !closedSlots.includes(slot)).map((slot) => (
-          <option key={slot} value={slot}>
-            {slot}
-          </option>
-        ))}
+        {APPOINTMENT_TIME_SLOTS.map((slot) => {
+          const closed = closedSlots.includes(slot)
+          return (
+            <option key={slot} value={slot} disabled={closed}>
+              {closed ? `${slot} (closed)` : slot}
+            </option>
+          )
+        })}
       </select>
       {closedSlots.length > 0 ? (
         <div style={{ fontSize: 12, color: '#92400e', marginTop: 4 }}>Some times are closed on this date.</div>
