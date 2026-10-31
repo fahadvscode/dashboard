@@ -47,13 +47,17 @@ $$;
 CREATE OR REPLACE FUNCTION public.enforce_booking_closed_time()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   mins integer;
   brand_id text;
   closed boolean;
 BEGIN
-  IF NEW.booked_by IS NOT NULL AND btrim(NEW.booked_by) <> '' THEN
+  IF TG_OP = 'UPDATE'
+     AND NEW.appointment_date IS NOT DISTINCT FROM OLD.appointment_date
+     AND NEW.appointment_time IS NOT DISTINCT FROM OLD.appointment_time THEN
     RETURN NEW;
   END IF;
 
@@ -95,6 +99,9 @@ EXCEPTION
 END;
 $$;
 
+GRANT EXECUTE ON FUNCTION public.booking_time_minutes(text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.enforce_booking_closed_time() TO anon, authenticated, service_role;
+
 DROP TRIGGER IF EXISTS reject_closed_fj_booking_time ON public.fj_bookings;
 CREATE TRIGGER reject_closed_fj_booking_time
   BEFORE INSERT ON public.fj_bookings
@@ -110,5 +117,23 @@ CREATE TRIGGER reject_closed_precon_booking_time
 DROP TRIGGER IF EXISTS reject_closed_gta_booking_time ON public.gta_lowrise_bookings;
 CREATE TRIGGER reject_closed_gta_booking_time
   BEFORE INSERT ON public.gta_lowrise_bookings
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_booking_closed_time();
+
+DROP TRIGGER IF EXISTS reject_closed_fj_booking_time_update ON public.fj_bookings;
+CREATE TRIGGER reject_closed_fj_booking_time_update
+  BEFORE UPDATE ON public.fj_bookings
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_booking_closed_time();
+
+DROP TRIGGER IF EXISTS reject_closed_precon_booking_time_update ON public.precon_factory_bookings;
+CREATE TRIGGER reject_closed_precon_booking_time_update
+  BEFORE UPDATE ON public.precon_factory_bookings
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_booking_closed_time();
+
+DROP TRIGGER IF EXISTS reject_closed_gta_booking_time_update ON public.gta_lowrise_bookings;
+CREATE TRIGGER reject_closed_gta_booking_time_update
+  BEFORE UPDATE ON public.gta_lowrise_bookings
   FOR EACH ROW
   EXECUTE FUNCTION public.enforce_booking_closed_time();
