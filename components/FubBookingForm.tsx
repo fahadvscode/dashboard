@@ -98,6 +98,7 @@ export default function FubBookingForm({
   const [bookedBy, setBookedBy] = useState('')
   const [date, setDate] = useState(minDate)
   const [time, setTime] = useState('10:00 AM')
+  const [closedSlots, setClosedSlots] = useState<string[]>([])
   const [selected, setSelected] = useState<FubProjectOption | null>(taggedProjects[0] ?? null)
   const [changingProject, setChangingProject] = useState(taggedProjects.length === 0)
   const [search, setSearch] = useState('')
@@ -157,6 +158,28 @@ export default function FubBookingForm({
     }, 250)
     return () => window.clearTimeout(timer)
   }, [search, context, signature])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const response = await fetch(`/api/bookings/blocked?date=${encodeURIComponent(date)}&brand=${encodeURIComponent(brand)}`)
+        const payload = await response.json().catch(() => ({}))
+        if (cancelled) return
+        const closed = Array.isArray(payload.closed) ? payload.closed.filter((slot: unknown) => typeof slot === 'string') : []
+        setClosedSlots(closed)
+        setTime((current) => {
+          if (!closed.includes(current)) return current
+          return APPOINTMENT_TIME_SLOTS.find((slot) => !closed.includes(slot)) || current
+        })
+      } catch {
+        if (!cancelled) setClosedSlots([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [date, brand])
 
   useEffect(() => {
     const emailValue = contactEmail.trim()
@@ -498,12 +521,15 @@ export default function FubBookingForm({
 
       <label style={label}>Time</label>
       <select value={time} onChange={(e) => setTime(e.target.value)} style={input}>
-        {APPOINTMENT_TIME_SLOTS.map((slot) => (
+        {APPOINTMENT_TIME_SLOTS.filter((slot) => !closedSlots.includes(slot)).map((slot) => (
           <option key={slot} value={slot}>
             {slot}
           </option>
         ))}
       </select>
+      {closedSlots.length > 0 ? (
+        <div style={{ fontSize: 12, color: '#92400e', marginTop: 4 }}>Some times are closed on this date.</div>
+      ) : null}
 
       <label style={label}>Project</label>
       {selected && !changingProject ? (
