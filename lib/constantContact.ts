@@ -1,6 +1,9 @@
 import { getSupabaseAdmin } from '@/lib/supabase'
 
 export const CONSTANT_CONTACT_TOKEN_TYPE = 'constant_contact'
+export const CONSTANT_CONTACT_SECOND_TOKEN_TYPE = 'constant_contact_2'
+
+export type ConstantContactAccount = 'primary' | 'second'
 export const CONSTANT_CONTACT_REDIRECT_URI =
   'https://property-dashboard-three.vercel.app/api/constant-contact/oauth-callback'
 
@@ -26,11 +29,29 @@ type TokenResponse = {
   error_description?: string
 }
 
-export function getConstantContactCredentials() {
-  const clientId = String(process.env.CONSTANT_CONTACT_API_KEY || '').trim()
-  const clientSecret = String(process.env.CONSTANT_CONTACT_CLIENT_SECRET || '').trim()
+export function constantContactAccountFromState(state: string | null): ConstantContactAccount | null {
+  if (state === CONSTANT_CONTACT_TOKEN_TYPE) return 'primary'
+  if (state === CONSTANT_CONTACT_SECOND_TOKEN_TYPE) return 'second'
+  return null
+}
+
+export function constantContactTokenType(account: ConstantContactAccount = 'primary') {
+  return account === 'second' ? CONSTANT_CONTACT_SECOND_TOKEN_TYPE : CONSTANT_CONTACT_TOKEN_TYPE
+}
+
+export function getConstantContactCredentials(account: ConstantContactAccount = 'primary') {
+  const clientId = String(
+    (account === 'second' ? process.env.CONSTANT_CONTACT_2_API_KEY : process.env.CONSTANT_CONTACT_API_KEY) || ''
+  ).trim()
+  const clientSecret = String(
+    (account === 'second' ? process.env.CONSTANT_CONTACT_2_CLIENT_SECRET : process.env.CONSTANT_CONTACT_CLIENT_SECRET) || ''
+  ).trim()
   if (!clientId || !clientSecret) {
-    throw new Error('CONSTANT_CONTACT_API_KEY and CONSTANT_CONTACT_CLIENT_SECRET are not set.')
+    throw new Error(
+      account === 'second'
+        ? 'CONSTANT_CONTACT_2_API_KEY and CONSTANT_CONTACT_2_CLIENT_SECRET are not set.'
+        : 'CONSTANT_CONTACT_API_KEY and CONSTANT_CONTACT_CLIENT_SECRET are not set.'
+    )
   }
   return { clientId, clientSecret }
 }
@@ -39,19 +60,20 @@ export function getConstantContactRedirectUri() {
   return String(process.env.CONSTANT_CONTACT_REDIRECT_URI || CONSTANT_CONTACT_REDIRECT_URI).trim()
 }
 
-export function buildConstantContactAuthUrl() {
-  const { clientId } = getConstantContactCredentials()
+export function buildConstantContactAuthUrl(account: ConstantContactAccount = 'primary') {
+  const { clientId } = getConstantContactCredentials(account)
   const url = new URL(AUTH_URL)
   url.searchParams.set('client_id', clientId)
   url.searchParams.set('redirect_uri', getConstantContactRedirectUri())
   url.searchParams.set('response_type', 'code')
   url.searchParams.set('scope', CONSTANT_CONTACT_SCOPES.join(' '))
-  url.searchParams.set('state', CONSTANT_CONTACT_TOKEN_TYPE)
+  url.searchParams.set('state', constantContactTokenType(account))
+  url.searchParams.set('prompt', 'login')
   return url.toString()
 }
 
-async function requestToken(body: Record<string, string>) {
-  const { clientId, clientSecret } = getConstantContactCredentials()
+async function requestToken(body: Record<string, string>, account: ConstantContactAccount = 'primary') {
+  const { clientId, clientSecret } = getConstantContactCredentials(account)
   const response = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: {
@@ -68,22 +90,26 @@ async function requestToken(body: Record<string, string>) {
   return json
 }
 
-export function exchangeConstantContactCode(code: string) {
+export function exchangeConstantContactCode(code: string, account: ConstantContactAccount = 'primary') {
   return requestToken({
     grant_type: 'authorization_code',
     code,
     redirect_uri: getConstantContactRedirectUri(),
-  })
+  }, account)
 }
 
-export function refreshConstantContactToken(refreshToken: string) {
+export function refreshConstantContactToken(refreshToken: string, account: ConstantContactAccount = 'primary') {
   return requestToken({
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
-  })
+  }, account)
 }
 
-export async function saveConstantContactToken(token: TokenResponse, fallbackRefresh?: string | null) {
+export async function saveConstantContactToken(
+  token: TokenResponse,
+  fallbackRefresh?: string | null,
+  account: ConstantContactAccount = 'primary'
+) {
   const refreshToken = token.refresh_token || fallbackRefresh
   if (!token.access_token || !refreshToken) {
     throw new Error('Constant Contact did not return a refresh token. Approve access again.')
@@ -93,7 +119,7 @@ export async function saveConstantContactToken(token: TokenResponse, fallbackRef
   const supabase = getSupabaseAdmin()
   const { error } = await supabase.from('calendar_tokens').upsert(
     {
-      calendar_type: CONSTANT_CONTACT_TOKEN_TYPE,
+      calendar_type: constantContactTokenType(account),
       access_token: token.access_token,
       refresh_token: refreshToken,
       expiry_date: expiryDate,
@@ -106,12 +132,12 @@ export async function saveConstantContactToken(token: TokenResponse, fallbackRef
   if (error) throw new Error(error.message)
 }
 
-export async function constantContactFetch(path: string) {
+export async function constantContactFetch(path: string, account: ConstantContactAccount = 'primary') {
   const supabase = getSupabaseAdmin()
   const { data, error } = await supabase
     .from('calendar_tokens')
     .select('access_token, refresh_token, expiry_date')
-    .eq('calendar_type', CONSTANT_CONTACT_TOKEN_TYPE)
+    .eq('calendar_type', constantContactTokenType(account))
     .maybeSingle()
   if (error) throw new Error(error.message)
   if (!data?.access_token || !data.refresh_token) {
@@ -121,8 +147,8 @@ export async function constantContactFetch(path: string) {
   let accessToken = String(data.access_token)
   const expiry = Number(data.expiry_date || 0)
   if (expiry && expiry < Date.now() + 60_000) {
-    const refreshed = await refreshConstantContactToken(String(data.refresh_token))
-    await saveConstantContactToken(refreshed, String(data.refresh_token))
+    const refreshed = await refreshConstantContactToken(String(data.refresh_token), account)
+    await saveConstantContactToken(refreshed, String(data.refresh_token), account)
     accessToken = String(refreshed.access_token)
   }
 

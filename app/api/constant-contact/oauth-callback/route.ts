@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  CONSTANT_CONTACT_TOKEN_TYPE,
+  constantContactAccountFromState,
   constantContactFetch,
   exchangeConstantContactCode,
   saveConstantContactToken,
@@ -41,17 +41,18 @@ export async function GET(request: NextRequest) {
   if (error) {
     return page('Connection was not approved', `<p>${esc(error)}</p>`, false)
   }
-  if (!code || state !== CONSTANT_CONTACT_TOKEN_TYPE) {
+  const account = constantContactAccountFromState(state)
+  if (!code || !account) {
     return page('Connection did not finish', '<p>Constant Contact did not return a login code.</p>', false)
   }
 
   try {
-    const token = await exchangeConstantContactCode(code)
-    await saveConstantContactToken(token)
+    const token = await exchangeConstantContactCode(code, account)
+    await saveConstantContactToken(token, null, account)
 
     const read = async (path: string) => {
       try {
-        return await constantContactFetch(path)
+        return await constantContactFetch(path, account)
       } catch (err) {
         console.error('Constant Contact read failed:', path, err)
         return {}
