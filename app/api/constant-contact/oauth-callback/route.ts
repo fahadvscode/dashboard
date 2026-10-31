@@ -58,17 +58,17 @@ export async function GET(request: NextRequest) {
         return {}
       }
     }
-    const [account, contacts, lists, emails] = await Promise.all([
+    const [summary, contacts, lists, emails] = await Promise.all([
       read('/account/summary'),
       read('/contacts?limit=1'),
       read('/contact_lists?limit=1'),
       read('/emails?limit=1'),
     ])
 
-    const name = [account.first_name, account.last_name].filter(Boolean).join(' ')
+    const name = [summary.first_name, summary.last_name].filter(Boolean).join(' ')
     const rows = [
-      ['Account', account.organization_name || name || 'Connected'],
-      ['Email', account.contact_email || ''],
+      ['Account', summary.organization_name || name || 'Connected'],
+      ['Email', summary.contact_email || ''],
       ['Contacts', contacts.contacts_count ?? ''],
       ['Lists', lists.lists_count ?? ''],
       ['Emails', emails.emails_count ?? ''],
