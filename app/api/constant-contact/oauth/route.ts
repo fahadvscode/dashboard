@@ -4,8 +4,14 @@ import { buildConstantContactAuthUrl, type ConstantContactAccount } from '@/lib/
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+function accountFromQuery(value: string | null): ConstantContactAccount {
+  if (value === '3') return 'third'
+  if (value === '2') return 'second'
+  return 'primary'
+}
+
 export async function GET(request: NextRequest) {
-  const account: ConstantContactAccount = request.nextUrl.searchParams.get('account') === '2' ? 'second' : 'primary'
+  const account = accountFromQuery(request.nextUrl.searchParams.get('account'))
   try {
     return NextResponse.redirect(buildConstantContactAuthUrl(account))
   } catch (error) {

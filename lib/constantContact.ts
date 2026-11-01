@@ -2,8 +2,28 @@ import { getSupabaseAdmin } from '@/lib/supabase'
 
 export const CONSTANT_CONTACT_TOKEN_TYPE = 'constant_contact'
 export const CONSTANT_CONTACT_SECOND_TOKEN_TYPE = 'constant_contact_2'
+export const CONSTANT_CONTACT_THIRD_TOKEN_TYPE = 'constant_contact_3'
 
-export type ConstantContactAccount = 'primary' | 'second'
+export type ConstantContactAccount = 'primary' | 'second' | 'third'
+
+const ACCOUNT_CONFIG = {
+  primary: {
+    tokenType: CONSTANT_CONTACT_TOKEN_TYPE,
+    clientIdKey: 'CONSTANT_CONTACT_API_KEY',
+    clientSecretKey: 'CONSTANT_CONTACT_CLIENT_SECRET',
+  },
+  second: {
+    tokenType: CONSTANT_CONTACT_SECOND_TOKEN_TYPE,
+    clientIdKey: 'CONSTANT_CONTACT_2_API_KEY',
+    clientSecretKey: 'CONSTANT_CONTACT_2_CLIENT_SECRET',
+  },
+  third: {
+    tokenType: CONSTANT_CONTACT_THIRD_TOKEN_TYPE,
+    clientIdKey: 'CONSTANT_CONTACT_3_API_KEY',
+    clientSecretKey: 'CONSTANT_CONTACT_3_CLIENT_SECRET',
+  },
+} as const
+
 export const CONSTANT_CONTACT_REDIRECT_URI =
   'https://property-dashboard-three.vercel.app/api/constant-contact/oauth-callback'
 
@@ -32,26 +52,20 @@ type TokenResponse = {
 export function constantContactAccountFromState(state: string | null): ConstantContactAccount | null {
   if (state === CONSTANT_CONTACT_TOKEN_TYPE) return 'primary'
   if (state === CONSTANT_CONTACT_SECOND_TOKEN_TYPE) return 'second'
+  if (state === CONSTANT_CONTACT_THIRD_TOKEN_TYPE) return 'third'
   return null
 }
 
 export function constantContactTokenType(account: ConstantContactAccount = 'primary') {
-  return account === 'second' ? CONSTANT_CONTACT_SECOND_TOKEN_TYPE : CONSTANT_CONTACT_TOKEN_TYPE
+  return ACCOUNT_CONFIG[account].tokenType
 }
 
 export function getConstantContactCredentials(account: ConstantContactAccount = 'primary') {
-  const clientId = String(
-    (account === 'second' ? process.env.CONSTANT_CONTACT_2_API_KEY : process.env.CONSTANT_CONTACT_API_KEY) || ''
-  ).trim()
-  const clientSecret = String(
-    (account === 'second' ? process.env.CONSTANT_CONTACT_2_CLIENT_SECRET : process.env.CONSTANT_CONTACT_CLIENT_SECRET) || ''
-  ).trim()
+  const config = ACCOUNT_CONFIG[account]
+  const clientId = String(process.env[config.clientIdKey] || '').trim()
+  const clientSecret = String(process.env[config.clientSecretKey] || '').trim()
   if (!clientId || !clientSecret) {
-    throw new Error(
-      account === 'second'
-        ? 'CONSTANT_CONTACT_2_API_KEY and CONSTANT_CONTACT_2_CLIENT_SECRET are not set.'
-        : 'CONSTANT_CONTACT_API_KEY and CONSTANT_CONTACT_CLIENT_SECRET are not set.'
-    )
+    throw new Error(`${config.clientIdKey} and ${config.clientSecretKey} are not set.`)
   }
   return { clientId, clientSecret }
 }
