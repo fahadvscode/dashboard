@@ -24,20 +24,24 @@ DECLARE
   request_id BIGINT;
   dashboard_url TEXT := 'https://property-dashboard-three.vercel.app';
 BEGIN
-  payload := jsonb_build_object(
-    'table_name', 'fahad_sells_interview_bookings',
-    'old_record', to_jsonb(OLD),
-    'new_record', to_jsonb(NEW)
-  );
+  BEGIN
+    payload := jsonb_build_object(
+      'table_name', 'fahad_sells_interview_bookings',
+      'old_record', to_jsonb(OLD),
+      'new_record', to_jsonb(NEW)
+    );
 
-  SELECT net.http_post(
-    url := dashboard_url || '/api/bookings/interview-updated',
-    headers := '{"Content-Type": "application/json"}'::jsonb,
-    body := payload,
-    timeout_milliseconds := 60000
-  ) INTO request_id;
+    SELECT net.http_post(
+      url := dashboard_url || '/api/bookings/interview-updated',
+      headers := '{"Content-Type": "application/json"}'::jsonb,
+      body := payload,
+      timeout_milliseconds := 60000
+    ) INTO request_id;
 
-  RAISE NOTICE 'Fahad Sells interview booking update sync sent (request_id: %)', request_id;
+    RAISE NOTICE 'Fahad Sells interview booking update sync sent (request_id: %)', request_id;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Fahad Sells interview update notify skipped: %', SQLERRM;
+  END;
   RETURN NEW;
 END;
 $$;

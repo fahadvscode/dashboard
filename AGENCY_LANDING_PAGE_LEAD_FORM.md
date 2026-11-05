@@ -13,12 +13,12 @@ After a successful submit, we save the lead, email the team, and add a row to ou
 | Item | Value |
 |------|--------|
 | Webhook URL | `https://property-dashboard-three.vercel.app/api/leads/ingest` |
-| Secret | `PASTE_SECRET_HERE` |
+| Secret | `lp_live_733d45debeef9fe33ab95c8b5c01241e6e185903b636adf9` |
 
 Send the secret in this header on every request:
 
 ```
-X-Lead-Webhook-Secret: PASTE_SECRET_HERE
+X-Lead-Webhook-Secret: lp_live_733d45debeef9fe33ab95c8b5c01241e6e185903b636adf9
 ```
 
 Do not put the secret in the page URL, in GitHub, or in a public README.
@@ -59,7 +59,7 @@ Include a hidden field named `fax` and leave it empty. Do not show it. We use it
 ```http
 POST /api/leads/ingest
 Content-Type: application/json
-X-Lead-Webhook-Secret: PASTE_SECRET_HERE
+X-Lead-Webhook-Secret: lp_live_733d45debeef9fe33ab95c8b5c01241e6e185903b636adf9
 ```
 
 ```json
@@ -132,7 +132,7 @@ Change only the two constants at the top for each page: `PROJECT_NAME` and `SOUR
 
 <script>
   const WEBHOOK_URL = 'https://property-dashboard-three.vercel.app/api/leads/ingest'
-  const WEBHOOK_SECRET = 'PASTE_SECRET_HERE'
+  const WEBHOOK_SECRET = 'lp_live_733d45debeef9fe33ab95c8b5c01241e6e185903b636adf9'
 
   // Hardcode these per page — do not let the visitor edit them
   const PROJECT_NAME = 'Caledon Station'
@@ -207,7 +207,7 @@ Send one test lead with a real name + email we can see:
 ```bash
 curl -X POST https://property-dashboard-three.vercel.app/api/leads/ingest \
   -H "Content-Type: application/json" \
-  -H "X-Lead-Webhook-Secret: PASTE_SECRET_HERE" \
+  -H "X-Lead-Webhook-Secret: lp_live_733d45debeef9fe33ab95c8b5c01241e6e185903b636adf9" \
   -d '{
     "first_name": "Test",
     "last_name": "Agency",

@@ -1,4 +1,5 @@
 import { resolveCustomerNotes } from '@/lib/customerNotes'
+import { sendSheetRowToFollowUpBoss } from '@/lib/fubLeadInquiry'
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID
 
@@ -18,14 +19,54 @@ function resolveBookingCompany(tableName: unknown): string {
 }
 
 export async function appendBookingToGoogleSheet(booking: Record<string, unknown>) {
+  if (!isBookingTable(booking.table_name)) return
+
+  const firstName =
+    (booking.firstname as string) ||
+    (booking.first_name as string) ||
+    ((booking.full_name as string) || '').split(' ')[0] ||
+    'N/A'
+  const lastName =
+    (booking.lastname as string) ||
+    (booking.last_name as string) ||
+    ((booking.full_name as string) || '').split(' ').slice(1).join(' ') ||
+    'N/A'
+
+  const timestamp = new Date().toLocaleString('en-US', {
+    timeZone: 'America/Toronto',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+
+  const projectName = (booking.project_name as string) || 'N/A'
+  const projectId = (booking.project_id as string) || 'N/A'
+  const landingPage =
+    (booking.project_url as string) ||
+    (booking.redirect_link as string) ||
+    'N/A'
+  const company = resolveBookingCompany(booking.table_name)
+  const sheetMessage = resolveCustomerNotes(booking)
+
+  const row = [
+    firstName,
+    lastName,
+    (booking.email as string) || 'N/A',
+    (booking.phone as string) || 'N/A',
+    projectName,
+    projectId,
+    landingPage,
+    company,
+    timestamp,
+    'Booking',
+    '',
+    '',
+    sheetMessage,
+  ]
+
   try {
     if (!SPREADSHEET_ID) {
       console.warn('GOOGLE_SHEETS_SPREADSHEET_ID not set, skipping booking sheet append')
-      return
-    }
-
-    if (!isBookingTable(booking.table_name)) return
-
+    } else {
     const { google } = await import('googleapis')
 
     let privateKey = (process.env.GOOGLE_SHEETS_PRIVATE_KEY || '').replace(/\\n/g, '\n')
@@ -43,49 +84,6 @@ export async function appendBookingToGoogleSheet(booking: Record<string, unknown
 
     const sheets = google.sheets({ version: 'v4', auth })
 
-    const firstName =
-      (booking.firstname as string) ||
-      (booking.first_name as string) ||
-      ((booking.full_name as string) || '').split(' ')[0] ||
-      'N/A'
-    const lastName =
-      (booking.lastname as string) ||
-      (booking.last_name as string) ||
-      ((booking.full_name as string) || '').split(' ').slice(1).join(' ') ||
-      'N/A'
-
-    const timestamp = new Date().toLocaleString('en-US', {
-      timeZone: 'America/Toronto',
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    })
-
-    const projectName = (booking.project_name as string) || 'N/A'
-    const projectId = (booking.project_id as string) || 'N/A'
-    const landingPage =
-      (booking.project_url as string) ||
-      (booking.redirect_link as string) ||
-      'N/A'
-    const company = resolveBookingCompany(booking.table_name)
-
-    const sheetMessage = resolveCustomerNotes(booking)
-
-    const row = [
-      firstName,
-      lastName,
-      (booking.email as string) || 'N/A',
-      (booking.phone as string) || 'N/A',
-      projectName,
-      projectId,
-      landingPage,
-      company,
-      timestamp,
-      'Booking',
-      '',
-      '',
-      sheetMessage,
-    ]
-
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: 'Sheet1!A:M',
@@ -102,7 +100,24 @@ export async function appendBookingToGoogleSheet(booking: Record<string, unknown
       company,
       tag: 'Booking',
     })
+    }
   } catch (error) {
     console.error('Error appending booking to Google Sheet:', error)
+  }
+
+  try {
+    const fub = await sendSheetRowToFollowUpBoss(row)
+    console.log('Follow Up Boss booking inquiry:', {
+      firstName,
+      lastName,
+      projectName,
+      ok: fub.ok,
+      status: fub.status,
+      personId: fub.personId,
+      skipped: fub.skipped,
+      error: fub.error,
+    })
+  } catch (error) {
+    console.error('Follow Up Boss booking inquiry error:', error)
   }
 }

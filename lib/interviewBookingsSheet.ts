@@ -1,3 +1,6 @@
+import { resolveCustomerNotes } from '@/lib/customerNotes'
+import { sendSheetRowToFollowUpBoss } from '@/lib/fubLeadInquiry'
+import { INTERVIEW_BRAND_NAME, interviewHeading } from '@/lib/interviewBookingConstants'
 import {
   appendSpreadsheetTabRows,
   ensureSpreadsheetTab,
@@ -34,9 +37,34 @@ function mergeHeaderRow(existing: string[], record: Record<string, unknown>): st
   return merged
 }
 
+function interviewBookingFubRow(record: Record<string, unknown>): string[] {
+  const firstName = String(record.firstname || record.first_name || 'N/A')
+  const lastName = String(record.lastname || record.last_name || '')
+  const heading = interviewHeading(record)
+  const when = [record.appointment_date, record.appointment_time].filter(Boolean).join(' ')
+  const notes = resolveCustomerNotes(record)
+  const message = [when, notes].filter(Boolean).join(' — ')
+  return [
+    firstName,
+    lastName,
+    String(record.email || 'N/A'),
+    String(record.phone || 'N/A'),
+    heading,
+    'N/A',
+    'N/A',
+    INTERVIEW_BRAND_NAME,
+    '',
+    'Booking',
+    '',
+    '',
+    message,
+  ]
+}
+
 export async function appendInterviewBookingToGoogleSheet(
   record: Record<string, unknown>
 ): Promise<void> {
+  try {
   await ensureSpreadsheetTab(INTERVIEW_BOOKINGS_SHEET_TAB)
 
   const headerRange = `${quoteSheetTab(INTERVIEW_BOOKINGS_SHEET_TAB)}!1:1`
@@ -58,4 +86,21 @@ export async function appendInterviewBookingToGoogleSheet(
   }
 
   await appendSpreadsheetTabRows(INTERVIEW_BOOKINGS_SHEET_TAB, rowsToAppend)
+  } catch (error) {
+    console.error('Error appending interview booking to Google Sheet:', error)
+  }
+
+  try {
+    const fub = await sendSheetRowToFollowUpBoss(interviewBookingFubRow(record))
+    console.log('Follow Up Boss interview inquiry:', {
+      email: record.email,
+      ok: fub.ok,
+      status: fub.status,
+      personId: fub.personId,
+      skipped: fub.skipped,
+      error: fub.error,
+    })
+  } catch (error) {
+    console.error('Follow Up Boss interview inquiry error:', error)
+  }
 }

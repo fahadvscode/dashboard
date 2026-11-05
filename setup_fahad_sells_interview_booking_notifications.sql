@@ -21,17 +21,22 @@ DECLARE
   request_id BIGINT;
   dashboard_url TEXT := 'https://property-dashboard-three.vercel.app';
 BEGIN
-  payload := to_jsonb(NEW) || jsonb_build_object('table_name', 'fahad_sells_interview_bookings');
+  BEGIN
+    payload := to_jsonb(NEW) || jsonb_build_object('table_name', 'fahad_sells_interview_bookings');
 
-  -- Default pg_net timeout is 5s; notify sends SMS + Gmail and needs longer.
-  SELECT net.http_post(
-    url := dashboard_url || '/api/bookings/notify',
-    headers := '{"Content-Type": "application/json"}'::jsonb,
-    body := payload,
-    timeout_milliseconds := 60000
-  ) INTO request_id;
+    -- Default pg_net timeout is 5s; notify sends SMS + Gmail and needs longer.
+    SELECT net.http_post(
+      url := dashboard_url || '/api/bookings/notify',
+      headers := '{"Content-Type": "application/json"}'::jsonb,
+      body := payload,
+      timeout_milliseconds := 60000
+    ) INTO request_id;
 
-  RAISE NOTICE 'Fahad Sells interview booking notification sent (request_id: %)', request_id;
+    RAISE NOTICE 'Fahad Sells interview booking notification sent (request_id: %)', request_id;
+  EXCEPTION WHEN OTHERS THEN
+    -- Never roll back the candidate booking if SMS/email/calendar notify fails.
+    RAISE NOTICE 'Fahad Sells interview notify skipped: %', SQLERRM;
+  END;
   RETURN NEW;
 END;
 $$;

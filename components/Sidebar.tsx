@@ -54,6 +54,7 @@ const navigationSections: { heading: string; items: NavItem[] }[] = [
     heading: 'Leads',
     items: [
       { name: 'FJ Leads', href: '/fj-leads', icon: Mail },
+      { name: 'Worksheet', href: '/worksheets', icon: ClipboardList },
       { name: 'Worksheet Leads', href: '/worksheet-leads', icon: ClipboardList },
       { name: 'Precon Factory Leads', href: '/precon-leads', icon: Mail },
       { name: 'Precon Factory Website Leads', href: '/precon-factory-website-leads', icon: Mail },

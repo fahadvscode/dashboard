@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Calendar, Download, Mail, Phone, User, Trash2, X, Clock, Tag, MessageSquare, FileText } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import { format, formatDistanceToNow } from 'date-fns'
 import BookingReschedulePanel from '@/components/BookingReschedulePanel'
 import BookingDateFilterBar from '@/components/BookingDateFilterBar'
@@ -29,6 +30,13 @@ import { listInterviewApplicationFields, interviewApplicationExportFieldDefs, ge
 import { formatInterviewCandidateId } from '@/lib/interviewCandidateNumber'
 
 const BOOKING_TABLE = FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE
+
+interface SmsHistoryItem {
+  id: string
+  message_body: string
+  direction: string
+  created_at: string
+}
 
 interface Booking {
   id: string
@@ -111,6 +119,7 @@ export default function InterviewBookings() {
   const [sendingSms, setSendingSms] = useState(false)
   const [smsError, setSmsError] = useState('')
   const [smsSuccess, setSmsSuccess] = useState('')
+  const [smsHistory, setSmsHistory] = useState<SmsHistoryItem[]>([])
   const [dateFilter, setDateFilter] = useState<BookingDateFilter>('all')
   const [customFrom, setCustomFrom] = useState(() => torontoYmd())
   const [customTo, setCustomTo] = useState(() => torontoYmd())
@@ -268,10 +277,28 @@ export default function InterviewBookings() {
   }
 
   useEffect(() => {
-    if (selectedBooking) {
-      setSmsMessage('')
-      setSmsError('')
-      setSmsSuccess('')
+    if (!selectedBooking) {
+      setSmsHistory([])
+      return
+    }
+    setSmsMessage('')
+    setSmsError('')
+    setSmsSuccess('')
+    const bookingId = selectedBooking.id
+    const digits = String(selectedBooking.phone || '').replace(/\D/g, '').slice(-10)
+    let cancelled = false
+    void (async () => {
+      const phoneFilter = digits ? `,to_phone.ilike.%${digits}` : ''
+      const { data } = await supabase
+        .from('sms_conversations')
+        .select('id, message_body, direction, created_at')
+        .or(`lead_id.eq.${bookingId}${phoneFilter}`)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (!cancelled) setSmsHistory((data || []) as SmsHistoryItem[])
+    })()
+    return () => {
+      cancelled = true
     }
   }, [selectedBooking])
 
@@ -304,6 +331,15 @@ export default function InterviewBookings() {
 
       setSmsSuccess('SMS sent successfully!')
       setSmsMessage('')
+      const digits = String(selectedBooking.phone || '').replace(/\D/g, '').slice(-10)
+      const phoneFilter = digits ? `,to_phone.ilike.%${digits}` : ''
+      const { data } = await supabase
+        .from('sms_conversations')
+        .select('id, message_body, direction, created_at')
+        .or(`lead_id.eq.${selectedBooking.id}${phoneFilter}`)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      setSmsHistory((data || []) as SmsHistoryItem[])
       
       // Clear success message after 3 seconds
       setTimeout(() => {
@@ -675,6 +711,19 @@ export default function InterviewBookings() {
                   <MessageSquare className="h-4 w-4 text-gray-400" />
                 </div>
                 <div className="mt-3 space-y-3">
+                  {smsHistory.length > 0 && (
+                    <div className="max-h-48 space-y-2 overflow-y-auto">
+                      {smsHistory.map((item) => (
+                        <div key={item.id} className="rounded-lg bg-gray-50 px-3 py-2">
+                          <p className="text-xs text-gray-500">
+                            {item.direction === 'inbound' ? 'They replied' : 'Sent'}
+                            {item.created_at ? ` · ${formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}` : ''}
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-gray-800">{item.message_body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <textarea
                     value={smsMessage}
                     onChange={(event) => setSmsMessage(event.target.value)}

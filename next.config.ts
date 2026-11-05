@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // googleapis pulls many optional sub-APIs; bundling with Turbopack fails on missing stubs.
-  serverExternalPackages: ["googleapis"],
+  serverExternalPackages: ["googleapis", "tesseract.js", "unpdf", "@napi-rs/canvas"],
   typescript: {
     ignoreBuildErrors: true,
   },

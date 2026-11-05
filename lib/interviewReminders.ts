@@ -61,7 +61,9 @@ function reminderBody(booking: InterviewRow, when: '24h' | '2h', day: string, ti
   return `Hi ${name}! Reminder — your ${phrase} ${whenLine} on ${day}.
 
 Please arrive at:
-${INTERVIEW_OFFICE_ADDRESS}${getInterviewManageLinkSms(manageUrl)}
+${INTERVIEW_OFFICE_ADDRESS}
+
+When you arrive, call (289) 536-9724.${getInterviewManageLinkSms(manageUrl)}
 
 - ${INTERVIEW_BRAND_NAME}`
 }
