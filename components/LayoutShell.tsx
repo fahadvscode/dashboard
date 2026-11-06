@@ -10,8 +10,11 @@ const MobileDashboard = dynamic(() => import('@/components/MobileDashboard'), { 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isPublicRoute =
-    pathname.startsWith('/present') || pathname.startsWith('/fub') || pathname.startsWith('/broker')
-  const isHome = pathname === '/'
+    pathname === '/' ||
+    pathname.startsWith('/present') ||
+    pathname.startsWith('/fub') ||
+    pathname.startsWith('/broker')
+  const isHome = pathname === '/home'
 
   if (isPublicRoute) {
     return <>{children}</>
