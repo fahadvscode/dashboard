@@ -20,7 +20,7 @@ const navigationSections: { heading: string; items: NavItem[] }[] = [
   {
     heading: 'Properties',
     items: [
-      { name: 'Canada Properties', href: '/home', icon: Building2 },
+      { name: 'Canada Properties', href: '/', icon: Building2 },
       { name: 'Project Presentation', href: '/project-presentation', icon: MapPinned },
       { name: 'City Project Map', href: '/city-projects', icon: Map },
       { name: 'Project Collections', href: '/collections', icon: FolderOpen },

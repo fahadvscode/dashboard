@@ -27,8 +27,8 @@ export default function MobileBottomNav() {
 
   const items = [
     { label: 'Back', icon: ArrowLeft, onClick: () => router.back() },
-    { label: 'Home', icon: Home, onClick: () => router.push('/home') },
-    { label: 'More', icon: MoreHorizontal, onClick: () => router.push('/home?tab=more') },
+    { label: 'Home', icon: Home, onClick: () => router.push('/') },
+    { label: 'More', icon: MoreHorizontal, onClick: () => router.push('/?tab=more') },
   ]
 
   return (
@@ -102,7 +102,7 @@ export function InnerTopBar() {
       </button>
       <button
         type="button"
-        onClick={() => router.push('/home?tab=more')}
+        onClick={() => router.push('/?tab=more')}
         style={btnStyle}
         aria-label="More"
       >
