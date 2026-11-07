@@ -32,7 +32,7 @@ type PropertyHit = {
   builder: string
 }
 
-type Screen = 'locked' | 'list' | 'form'
+type Screen = 'locked' | 'home' | 'list' | 'form'
 
 const inputClass =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20'
@@ -150,7 +150,7 @@ export default function BrokerGuide() {
     const saved = readBrokerSession()
     if (saved) {
       setAccessCode(saved)
-      setScreen('list')
+      setScreen('home')
     }
     setReady(true)
   }, [])
@@ -224,7 +224,7 @@ export default function BrokerGuide() {
       saveBrokerSession(accepted)
       setAccessCode(accepted)
       setCode('')
-      setScreen('list')
+      setScreen('home')
     } catch {
       setUnlockError('Could not check the access code. Try again.')
     } finally {
@@ -436,6 +436,37 @@ export default function BrokerGuide() {
             {unlocking ? 'Checking...' : 'Open guide'}
           </button>
         </form>
+      </div>
+    )
+  }
+
+  if (screen === 'home') {
+    return (
+      <div className="min-h-screen bg-slate-100">
+        <header className="border-b border-slate-200 bg-white">
+          <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
+            <h1 className="min-w-0 flex-1 text-xl font-bold text-slate-900">Broker Guide</h1>
+            <button type="button" onClick={lock} className="rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+              Lock
+            </button>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-3xl px-4 py-8">
+          <button
+            type="button"
+            onClick={() => setScreen('list')}
+            className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 text-left shadow-sm hover:border-emerald-700"
+          >
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-700 text-white">
+              <MapPin className="h-6 w-6" />
+            </span>
+            <span>
+              <span className="block text-lg font-bold text-slate-900">Sites and sales offices</span>
+              <span className="mt-1 block text-sm text-slate-500">Maps, addresses, hours, and links</span>
+            </span>
+          </button>
+        </main>
       </div>
     )
   }
@@ -736,6 +767,9 @@ export default function BrokerGuide() {
     <div className="min-h-screen bg-slate-100">
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
+          <button type="button" onClick={() => setScreen('home')} className="rounded-lg px-2 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+            Back
+          </button>
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-bold text-slate-900">Broker Guide</h1>
             <p className="text-sm text-slate-500">Sites, sales offices, and hours</p>
