@@ -146,7 +146,13 @@ export async function saveConstantContactToken(
   if (error) throw new Error(error.message)
 }
 
-export async function constantContactFetch(path: string, account: ConstantContactAccount = 'primary') {
+function resolveConstantContactUrl(path: string) {
+  if (path.startsWith('http')) return path
+  const withoutVersion = path.startsWith('/v3/') ? path.slice(3) : path
+  return `${API_URL}${withoutVersion.startsWith('/') ? withoutVersion : `/${withoutVersion}`}`
+}
+
+async function loadConstantContactAccessToken(account: ConstantContactAccount, forceRefresh = false) {
   const supabase = getSupabaseAdmin()
   const { data, error } = await supabase
     .from('calendar_tokens')
@@ -158,22 +164,46 @@ export async function constantContactFetch(path: string, account: ConstantContac
     throw new Error('Constant Contact is not connected.')
   }
 
-  let accessToken = String(data.access_token)
   const expiry = Number(data.expiry_date || 0)
-  if (expiry && expiry < Date.now() + 60_000) {
-    const refreshed = await refreshConstantContactToken(String(data.refresh_token), account)
-    await saveConstantContactToken(refreshed, String(data.refresh_token), account)
-    accessToken = String(refreshed.access_token)
+  if (!forceRefresh && (!expiry || expiry >= Date.now() + 60_000)) {
+    return String(data.access_token)
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-  })
-  const json = await response.json().catch(() => ({}))
+  const refreshed = await refreshConstantContactToken(String(data.refresh_token), account)
+  await saveConstantContactToken(refreshed, String(data.refresh_token), account)
+  return String(refreshed.access_token)
+}
+
+export async function constantContactFetch(path: string, account: ConstantContactAccount = 'primary') {
+  const request = async (forceRefresh: boolean) => {
+    const accessToken = await loadConstantContactAccessToken(account, forceRefresh)
+    const response = await fetch(resolveConstantContactUrl(path), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+        'User-Agent': 'property-dashboard',
+      },
+      cache: 'no-store',
+    })
+    const json = await response.json().catch(() => ({}))
+    return { response, json }
+  }
+
+  let { response, json } = await request(false)
+  if (response.status === 401) {
+    try {
+      const retried = await request(true)
+      response = retried.response
+      json = retried.json
+    } catch {
+      throw new Error('This Constant Contact account needs to be connected again.')
+    }
+  }
   if (!response.ok) {
-    const message = (json as { error_message?: string; error?: string }).error_message
+    const message = (json as { error_message?: string; error_key?: string; error?: string }).error_message
       || (json as { error?: string }).error
       || 'Constant Contact request failed.'
+    if (response.status === 429) throw new Error('Constant Contact is busy. Press Refresh in a minute.')
     throw new Error(message)
   }
   return json as Record<string, unknown>
