@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getBookingSupabase } from '@/lib/bookingCalendar'
+import { FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE } from '@/lib/interviewBookingConstants'
 import {
   prepareInterviewBooking,
   interviewSlotOrTimeChanged,
@@ -39,6 +41,20 @@ export async function POST(request: NextRequest) {
       !isCancelled && interviewSlotOrTimeChanged(oldBooking, newBooking) && !becameCancelled && !becameScheduled
 
     if (becameScheduled) {
+      const reactivated = { ...newRecord }
+      delete reactivated.calendar_event_id
+      delete reactivated.meet_link
+      try {
+        const supabase = await getBookingSupabase()
+        const { error } = await supabase
+          .from(FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE)
+          .update({ calendar_event_id: null })
+          .eq('id', String(newRecord.id))
+        if (error) console.error('Could not clear reused interview calendar event id:', error.message)
+      } catch (error) {
+        console.error('Could not clear reused interview calendar event id:', error)
+      }
+
       const baseUrl = process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
         : process.env.NEXT_PUBLIC_BASE_URL || 'https://property-dashboard-three.vercel.app'
@@ -46,8 +62,8 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...newRecord,
-          table_name: 'fahad_sells_interview_bookings',
+          ...reactivated,
+          table_name: FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE,
           force_notify: true,
         }),
       })

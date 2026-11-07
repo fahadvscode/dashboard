@@ -5,6 +5,7 @@ import type { calendar_v3 } from 'googleapis'
 import {
   cancelCalendarEvent,
   findCalendarEventId,
+  getBookingSupabase,
   getCalendarClient,
   getCalendarIdForTable,
   updateCalendarEventTime,
@@ -174,12 +175,15 @@ async function persistCalendarEventId(
   bookingId: string,
   eventId: string | null
 ) {
-  if (!supabase || !eventId) return
+  if (!bookingId.trim()) return
+  const client = supabase || (await getBookingSupabase().catch(() => null))
+  if (!client) return
   try {
-    await supabase
+    const { error } = await client
       .from(FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE)
       .update({ calendar_event_id: eventId })
       .eq('id', bookingId)
+    if (error) console.warn('Could not persist interview calendar_event_id:', error.message)
   } catch (error) {
     console.warn('Could not persist interview calendar_event_id:', error)
   }
@@ -307,6 +311,7 @@ export async function syncInterviewCancellation(
     } else {
       calendarWarning =
         'Interview cancelled in database, but no matching Google Calendar event was found.'
+      await persistCalendarEventId(supabase, String(newBooking.id || ''), null)
     }
   } catch (error) {
     console.error('Interview cancel calendar error:', error)

@@ -408,19 +408,26 @@ ${isInterview ? getInterviewAdminInstruction() : getAdminTypeInstruction(meeting
     const existingCalendarEventId =
       typeof booking.calendar_event_id === 'string' ? booking.calendar_event_id.trim() : ''
     try {
-      if (existingCalendarEventId) {
+      // A reused cancelled seat still carries the previous candidate's event id.
+      // force_notify means that seat was just booked again, so create a new event.
+      if (existingCalendarEventId && !forceNotify) {
         calendarEvent = { eventId: existingCalendarEventId }
         console.log('Skipping calendar create; event already exists:', existingCalendarEventId)
       } else {
         const baseUrl = process.env.VERCEL_URL
           ? `https://${process.env.VERCEL_URL}`
           : process.env.NEXT_PUBLIC_BASE_URL || 'https://property-dashboard-three.vercel.app'
+        const calendarBooking = { ...booking }
+        if (forceNotify) {
+          delete calendarBooking.calendar_event_id
+          delete calendarBooking.meet_link
+        }
 
         const calendarResponse = await fetch(`${baseUrl}/api/bookings/create-calendar-event`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            ...booking,
+            ...calendarBooking,
             table_name: booking.table_name || (
               isInterview ? 'fahad_sells_interview_bookings' :
               source === 'Fahad Javed Real Estate' ? 'fj_bookings' :
