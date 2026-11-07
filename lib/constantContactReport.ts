@@ -22,18 +22,6 @@ const ACCOUNTS: Record<ReportAccountId, { name: string; email: string; tables: s
   },
 }
 
-const IGNORED_HOSTS = [
-  'constantcontact.com',
-  'cc.email',
-  'facebook.com',
-  'instagram.com',
-  'twitter.com',
-  'x.com',
-  'linkedin.com',
-  'youtube.com',
-  'tiktok.com',
-]
-
 type EmailCampaign = {
   campaign_id?: string
   name?: string
@@ -150,20 +138,6 @@ function rate(part: number, whole: number) {
   return Math.round((part / whole) * 1000) / 10
 }
 
-function linkKey(raw: string | null | undefined) {
-  const value = String(raw || '').trim()
-  if (!value || value.startsWith('mailto:') || value.startsWith('tel:')) return ''
-  try {
-    const url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`)
-    const host = url.hostname.replace(/^www\./i, '').toLowerCase()
-    if (IGNORED_HOSTS.some((ignored) => host === ignored || host.endsWith(`.${ignored}`))) return ''
-    if (/unsubscribe|opt-out|optout/i.test(url.pathname)) return ''
-    return `${host}${url.pathname.replace(/\/+$/, '').toLowerCase()}`
-  } catch {
-    return ''
-  }
-}
-
 function pageName(lead: LeadRow, key: string) {
   const name = String(lead.project_name || lead.source || '').trim()
   return name || key
@@ -187,10 +161,10 @@ async function leadsForDay(tables: string[], day: string) {
       )
     let rows: LeadRow[]
     try {
-      rows = await load('id, project_name, source, redirect_link, created_at')
+      rows = await load('id, project_name, source, redirect_link, project_id, created_at')
     } catch (error) {
       const message = errorMessage(error)
-      if (!/redirect_link/i.test(message)) throw error
+      if (!/redirect_link|project_id/i.test(message)) throw error
       rows = await load('id, project_name, source, project_id, created_at')
       for (const row of rows) {
         const projectId = String(row.project_id || '').trim()
@@ -204,12 +178,35 @@ async function leadsForDay(tables: string[], day: string) {
   return leads
 }
 
-function isSignupForm(key: string) {
-  return /\/(?:register|fj-booking|booking)(?:\.html)?$/.test(key)
+function registrationProjects(links: string[]) {
+  const projects = new Map<string, string>()
+  for (const raw of links) {
+    const value = String(raw || '').trim()
+    if (!value) continue
+    try {
+      const url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`)
+      const id = (url.searchParams.get('project_id') || url.searchParams.get('projectId') || '').trim()
+      if (!id) continue
+      const name = (url.searchParams.get('project') || '').replace(/\+/g, ' ').trim()
+      if (!projects.has(id)) projects.set(id, name)
+    } catch {
+      continue
+    }
+  }
+  return projects
 }
 
-function hostOf(key: string) {
-  return key.split('/')[0] || ''
+function leadProjectId(lead: LeadRow) {
+  const direct = String(lead.project_id || '').trim()
+  if (direct) return direct
+  const value = String(lead.redirect_link || '').trim()
+  if (!value) return ''
+  try {
+    const url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`)
+    return (url.searchParams.get('project_id') || url.searchParams.get('projectId') || '').trim()
+  } catch {
+    return ''
+  }
 }
 
 function signupResult(pages: Map<string, number>) {
@@ -222,50 +219,22 @@ function signupResult(pages: Map<string, number>) {
   }
 }
 
-function assignSignups(drafts: { id: string; whenIso: string; links: string[] }[], leads: LeadRow[], day: string) {
-  const dayEnd = dayStart(day).getTime() + 24 * 60 * 60 * 1000
-  const sorted = [...drafts].sort((a, b) => a.whenIso.localeCompare(b.whenIso))
-  const usedById = new Map(sorted.map((draft) => [draft.id, new Set<string>()]))
-  const pagesById = new Map(sorted.map((draft) => [draft.id, new Map<string, number>()]))
+function assignSignups(drafts: { id: string; links: string[] }[], leads: LeadRow[]) {
+  const pagesById = new Map(drafts.map((draft) => [draft.id, new Map<string, number>()]))
 
-  const add = (id: string, lead: LeadRow, key: string) => {
-    const leadId = String(lead.id || '')
-    const used = usedById.get(id)
-    if (!used) return
-    if (leadId && used.has(leadId)) return
-    if (leadId) used.add(leadId)
-    const pages = pagesById.get(id)
-    if (!pages) return
-    const name = pageName(lead, key)
-    pages.set(name, (pages.get(name) || 0) + 1)
-  }
-
-  for (const draft of sorted) {
-    const exact = new Set(draft.links.map((link) => linkKey(link)).filter((key) => key && !isSignupForm(key)))
+  for (const draft of drafts) {
+    const projects = registrationProjects(draft.links)
+    const used = new Set<string>()
+    const pages = pagesById.get(draft.id)
+    if (!pages || projects.size === 0) continue
     for (const lead of leads) {
-      const key = linkKey(lead.redirect_link)
-      if (key && exact.has(key)) add(draft.id, lead, key)
-    }
-  }
-
-  for (let index = 0; index < sorted.length; index += 1) {
-    const draft = sorted[index]
-    const hosts = new Set(draft.links.map((link) => linkKey(link)).filter(isSignupForm).map(hostOf).filter(Boolean))
-    if (!hosts.size) continue
-    const start = new Date(draft.whenIso).getTime()
-    let stop = dayEnd
-    for (const later of sorted.slice(index + 1)) {
-      const laterHosts = new Set(later.links.map((link) => linkKey(link)).filter(isSignupForm).map(hostOf))
-      if ([...hosts].some((host) => laterHosts.has(host))) {
-        stop = new Date(later.whenIso).getTime()
-        break
-      }
-    }
-    for (const lead of leads) {
-      const key = linkKey(lead.redirect_link)
-      const at = new Date(String(lead.created_at || '')).getTime()
-      if (!key || !hosts.has(hostOf(key)) || Number.isNaN(at) || at < start || at >= stop) continue
-      add(draft.id, lead, key)
+      const projectId = leadProjectId(lead)
+      if (!projectId || !projects.has(projectId)) continue
+      const leadId = String(lead.id || '')
+      if (leadId && used.has(leadId)) continue
+      if (leadId) used.add(leadId)
+      const name = projects.get(projectId) || pageName(lead, projectId)
+      pages.set(name, (pages.get(name) || 0) + 1)
     }
   }
 
@@ -326,7 +295,7 @@ async function campaignActivities(account: ReportAccountId, campaignId: string) 
   return activities.filter((activity) => activity.role === 'primary_email' || activity.role === 'resend')
 }
 
-async function clickedLinks(account: ReportAccountId, campaignId: string) {
+async function campaignLinks(account: ReportAccountId, campaignId: string) {
   const activities = await campaignActivities(account, campaignId)
   const links: string[] = []
   for (const activity of activities) {
@@ -335,9 +304,9 @@ async function clickedLinks(account: ReportAccountId, campaignId: string) {
       `/reports/email_reports/${activity.campaign_activity_id}/links`,
       account
     )
-    const rows = (report.link_click_counts as { link_url?: string; unique_clicks?: number }[] | undefined) || []
+    const rows = (report.link_click_counts as { link_url?: string }[] | undefined) || []
     for (const row of rows) {
-      if (Number(row.unique_clicks) > 0 && row.link_url) links.push(row.link_url)
+      if (row.link_url) links.push(row.link_url)
     }
   }
   return links
@@ -410,6 +379,12 @@ export async function buildAccountReport(
       const sends = count(counts.sends)
       const opens = count(counts.opens)
       const clicks = count(counts.clicks)
+      let links: string[] = []
+      try {
+        links = await campaignLinks(account, id)
+      } catch {
+        links = []
+      }
       sentDrafts.push({
         id,
         name: emails.get(id)?.name || 'Email',
@@ -418,13 +393,13 @@ export async function buildAccountReport(
         clickRate: rate(clicks, sends),
         unsubscribed: count(counts.optouts),
         bounced: count(counts.bounces),
-        links: clicks > 0 ? await clickedLinks(account, id) : [],
+        links,
       })
     }
 
     onProgress?.({ step: 4, message: `Counting signups from ${SIGNUP_LIST[account]}` })
     const leads = sentDrafts.length ? await leadsForDay(config.tables, day) : []
-    const signups = assignSignups(sentDrafts, leads, day)
+    const signups = assignSignups(sentDrafts, leads)
     for (const draft of sentDrafts) {
       campaigns.push({
         id: draft.id,
