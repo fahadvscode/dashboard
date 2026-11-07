@@ -33,7 +33,7 @@ type PropertyHit = {
   builder: string
 }
 
-type Screen = 'locked' | 'home' | 'list' | 'form'
+type Screen = 'locked' | 'home' | 'list' | 'form' | 'portals'
 
 const inputClass =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20'
@@ -146,6 +146,9 @@ export default function BrokerGuide() {
   const [places, setPlaces] = useState<PlaceForm[]>([blankPlace()])
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [portalHtml, setPortalHtml] = useState('')
+  const [portalError, setPortalError] = useState('')
+  const [portalLoading, setPortalLoading] = useState(false)
 
   useEffect(() => {
     const saved = readBrokerSession()
@@ -161,6 +164,35 @@ export default function BrokerGuide() {
       loadProjects(accessCode)
     }
   }, [screen, accessCode])
+
+  useEffect(() => {
+    if (screen !== 'portals' || !accessCode || portalHtml) return
+    let cancel = false
+    setPortalLoading(true)
+    setPortalError('')
+    fetch('/api/broker-guide/portals', {
+      cache: 'no-store',
+      headers: { 'x-broker-code': accessCode },
+    })
+      .then(async (response) => {
+        if (response.status === 401) {
+          lock()
+          return
+        }
+        if (!response.ok) throw new Error('Could not open the broker portals.')
+        const html = await response.text()
+        if (!cancel) setPortalHtml(html)
+      })
+      .catch((error: unknown) => {
+        if (!cancel) setPortalError(error instanceof Error ? error.message : 'Could not open the broker portals.')
+      })
+      .finally(() => {
+        if (!cancel) setPortalLoading(false)
+      })
+    return () => {
+      cancel = true
+    }
+  }, [screen, accessCode, portalHtml])
 
   useEffect(() => {
     if (screen !== 'form' || nameMode !== 'search' || propertyId) return
@@ -455,20 +487,60 @@ export default function BrokerGuide() {
 
         <main className="mx-auto max-w-6xl space-y-8 px-4 py-6">
           <ConstantContactReport accessCode={accessCode} onUnauthorized={lock} />
-          <button
-            type="button"
-            onClick={() => setScreen('list')}
-            className="flex w-full max-w-xl items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 text-left shadow-sm hover:border-emerald-700"
-          >
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-700 text-white">
-              <MapPin className="h-6 w-6" />
-            </span>
-            <span>
-              <span className="block text-lg font-bold text-slate-900">Sites and sales offices</span>
-              <span className="mt-1 block text-sm text-slate-500">Maps, addresses, hours, and links</span>
-            </span>
-          </button>
+          <div className="flex max-w-xl flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => setScreen('list')}
+              className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 text-left shadow-sm hover:border-emerald-700"
+            >
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-700 text-white">
+                <MapPin className="h-6 w-6" />
+              </span>
+              <span>
+                <span className="block text-lg font-bold text-slate-900">Sites and sales offices</span>
+                <span className="mt-1 block text-sm text-slate-500">Maps, addresses, hours, and links</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setScreen('portals')}
+              className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 text-left shadow-sm hover:border-emerald-700"
+            >
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-700 text-white">
+                <Building2 className="h-6 w-6" />
+              </span>
+              <span>
+                <span className="block text-lg font-bold text-slate-900">Broker portals</span>
+                <span className="mt-1 block text-sm text-slate-500">Dropbox, Drive, client portals, and Century 21</span>
+              </span>
+            </button>
+          </div>
         </main>
+      </div>
+    )
+  }
+
+  if (screen === 'portals') {
+    return (
+      <div className="flex h-[100dvh] flex-col bg-slate-100">
+        <header className="border-b border-slate-200 bg-white">
+          <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
+            <button type="button" onClick={() => setScreen('home')} className="rounded-lg px-2 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+              Back
+            </button>
+            <h1 className="min-w-0 flex-1 text-xl font-bold text-slate-900">Broker portals</h1>
+          </div>
+        </header>
+        {portalLoading && <p className="px-4 py-6 text-sm text-slate-500">Opening the directory…</p>}
+        {portalError && <p className="px-4 py-6 text-sm text-red-700">{portalError}</p>}
+        {portalHtml && (
+          <iframe
+            title="Broker Portal Directory"
+            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+            srcDoc={portalHtml}
+            className="min-h-0 w-full flex-1 border-0 bg-white"
+          />
+        )}
       </div>
     )
   }

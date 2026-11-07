@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  outputFileTracingIncludes: {
+    '/api/broker-guide/portals': ['./content/broker-portal-directory.html'],
+  },
   async rewrites() {
     return [
       { source: "/.well-known/oauth-protected-resource", destination: "/api/mcp/oauth/protected-resource" },
