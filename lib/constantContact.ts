@@ -200,11 +200,70 @@ export async function constantContactFetch(path: string, account: ConstantContac
     }
   }
   if (!response.ok) {
-    const message = (json as { error_message?: string; error_key?: string; error?: string }).error_message
-      || (json as { error?: string }).error
-      || 'Constant Contact request failed.'
     if (response.status === 429) throw new Error('Constant Contact is busy. Press Refresh in a minute.')
-    throw new Error(message)
+    throw new Error(constantContactErrorMessage(json, response.status))
   }
   return json as Record<string, unknown>
+}
+
+function constantContactErrorMessage(json: unknown, status: number) {
+  if (Array.isArray(json)) {
+    const message = json
+      .map((item) => (item && typeof item === 'object' && 'error_message' in item ? String((item as { error_message?: unknown }).error_message || '') : ''))
+      .filter(Boolean)
+      .join(' ')
+    if (message) return message
+  }
+  if (json && typeof json === 'object') {
+    const record = json as { error_message?: unknown; error?: unknown }
+    const message = String(record.error_message || record.error || '')
+    if (message) return message
+  }
+  if (status === 429) return 'Constant Contact is busy. Try again in a minute.'
+  return 'Constant Contact request failed.'
+}
+
+export async function constantContactWrite(
+  path: string,
+  account: ConstantContactAccount,
+  method: 'POST' | 'PUT',
+  body: unknown
+) {
+  const request = async (forceRefresh: boolean) => {
+    const accessToken = await loadConstantContactAccessToken(account, forceRefresh)
+    const response = await fetch(resolveConstantContactUrl(path), {
+      method,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'property-dashboard',
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    })
+    const text = await response.text()
+    let json: unknown = null
+    if (text) {
+      try {
+        json = JSON.parse(text)
+      } catch {
+        json = null
+      }
+    }
+    return { response, json }
+  }
+
+  let { response, json } = await request(false)
+  if (response.status === 401) {
+    try {
+      const retried = await request(true)
+      response = retried.response
+      json = retried.json
+    } catch {
+      throw new Error('This Constant Contact account needs to be connected again.')
+    }
+  }
+  if (!response.ok) throw new Error(constantContactErrorMessage(json, response.status))
+  return json
 }

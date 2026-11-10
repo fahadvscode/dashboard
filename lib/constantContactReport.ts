@@ -67,6 +67,10 @@ export function reportAccount(id: string): ReportAccountId | null {
   return null
 }
 
+export function accountProfile(account: ReportAccountId) {
+  return { name: ACCOUNTS[account].name, email: ACCOUNTS[account].email }
+}
+
 function torontoParts(date: Date) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: TIME_ZONE,

@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Building2, ExternalLink, Lock, MapPin, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Building2, ExternalLink, Lock, MapPin, Pencil, Plus, Search, Send, Trash2, X } from 'lucide-react'
+import BrokerSendEmail from '@/components/BrokerSendEmail'
 import ConstantContactReport from '@/components/ConstantContactReport'
 import {
   GUIDE_CITIES,
@@ -33,7 +34,7 @@ type PropertyHit = {
   builder: string
 }
 
-type Screen = 'locked' | 'home' | 'list' | 'form' | 'portals'
+type Screen = 'locked' | 'home' | 'list' | 'form' | 'portals' | 'send'
 
 const inputClass =
   'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20'
@@ -86,7 +87,7 @@ function PhoneText({ text }: { text: string }) {
         const digits = part.replace(/\D/g, '')
         if (digits.length === 10 || digits.length === 11) {
           return (
-            <a key={index} href={`tel:${digits}`} className="font-semibold text-emerald-800 underline underline-offset-2">
+            <a key={index} href={`tel:${digits}`} className="inline-flex min-h-11 items-center font-semibold text-emerald-800 underline underline-offset-2">
               {part}
             </a>
           )
@@ -476,18 +477,31 @@ export default function BrokerGuide() {
   if (screen === 'home') {
     return (
       <div className="min-h-screen bg-slate-100">
-        <header className="border-b border-slate-200 bg-white">
-          <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
+        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white pt-[env(safe-area-inset-top)]">
+          <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2">
             <h1 className="min-w-0 flex-1 text-xl font-bold text-slate-900">Broker Guide</h1>
-            <button type="button" onClick={lock} className="rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+            <button type="button" onClick={lock} className="min-h-11 rounded-lg px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100">
               Lock
             </button>
           </div>
         </header>
 
-        <main className="mx-auto max-w-6xl space-y-8 px-4 py-6">
+        <main className="mx-auto max-w-6xl space-y-8 px-4 py-5 pb-28 sm:pb-6">
           <ConstantContactReport accessCode={accessCode} onUnauthorized={lock} />
-          <div className="flex max-w-xl flex-col gap-3">
+          <div className="hidden max-w-xl flex-col gap-3 sm:flex">
+            <button
+              type="button"
+              onClick={() => setScreen('send')}
+              className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-5 text-left shadow-sm hover:border-emerald-700"
+            >
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-700 text-white">
+                <Send className="h-6 w-6" />
+              </span>
+              <span>
+                <span className="block text-lg font-bold text-slate-900">Send email</span>
+                <span className="mt-1 block text-sm text-slate-500">Send a saved draft now, or schedule it</span>
+              </span>
+            </button>
             <button
               type="button"
               onClick={() => setScreen('list')}
@@ -516,19 +530,48 @@ export default function BrokerGuide() {
             </button>
           </div>
         </main>
+        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 backdrop-blur sm:hidden" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setScreen('send')}
+              className="min-h-12 rounded-2xl bg-emerald-700 px-2 text-sm font-semibold text-white"
+            >
+              Send
+            </button>
+            <button
+              type="button"
+              onClick={() => setScreen('list')}
+              className="min-h-12 rounded-2xl border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-900"
+            >
+              Sites
+            </button>
+            <button
+              type="button"
+              onClick={() => setScreen('portals')}
+              className="min-h-12 rounded-2xl border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-900"
+            >
+              Portals
+            </button>
+          </div>
+        </nav>
       </div>
     )
   }
 
+  if (screen === 'send') {
+    return <BrokerSendEmail accessCode={accessCode} onBack={() => setScreen('home')} onUnauthorized={lock} />
+  }
+
   if (screen === 'portals') {
     return (
-      <div className="flex h-[100dvh] flex-col bg-slate-100">
-        <header className="border-b border-slate-200 bg-white">
-          <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-            <button type="button" onClick={() => setScreen('home')} className="rounded-lg px-2 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+      <div className="flex h-[100dvh] flex-col bg-white">
+        <header className="border-b border-slate-200 bg-white pt-[env(safe-area-inset-top)]">
+          <div className="mx-auto flex max-w-6xl items-center gap-3 px-3 py-1.5">
+            <button type="button" onClick={() => setScreen('home')} className="min-h-11 rounded-lg px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">
               Back
             </button>
-            <h1 className="min-w-0 flex-1 text-xl font-bold text-slate-900">Broker portals</h1>
+            <h1 className="min-w-0 flex-1 truncate text-base font-bold text-slate-900">Broker portals</h1>
           </div>
         </header>
         {portalLoading && <p className="px-4 py-6 text-sm text-slate-500">Opening the directory…</p>}
@@ -548,9 +591,9 @@ export default function BrokerGuide() {
   if (screen === 'form') {
     return (
       <div className="min-h-screen bg-slate-100">
-        <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
-          <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
-            <button type="button" onClick={() => setScreen('list')} className="rounded-lg px-2 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+        <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+          <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-2">
+            <button type="button" onClick={() => setScreen('list')} className="min-h-11 rounded-lg px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">
               Back
             </button>
             <h1 className="flex-1 text-lg font-bold text-slate-900">{editingId ? 'Edit project' : 'Add a project'}</h1>
@@ -821,7 +864,7 @@ export default function BrokerGuide() {
 
           {formError && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{formError}</p>}
 
-          <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 p-4 backdrop-blur">
+          <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 p-4 backdrop-blur" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
             <div className="mx-auto max-w-2xl">
               <button
                 type="submit"
@@ -839,22 +882,21 @@ export default function BrokerGuide() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-          <button type="button" onClick={() => setScreen('home')} className="rounded-lg px-2 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center gap-2 px-3 py-2">
+          <button type="button" onClick={() => setScreen('home')} className="min-h-11 rounded-lg px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">
             Back
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold text-slate-900">Broker Guide</h1>
-            <p className="text-sm text-slate-500">Sites, sales offices, and hours</p>
+            <h1 className="truncate text-lg font-bold text-slate-900">Sites</h1>
           </div>
-          <button type="button" onClick={lock} className="rounded-lg px-2 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+          <button type="button" onClick={lock} className="min-h-11 rounded-lg px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100">
             Lock
           </button>
           <button
             type="button"
             onClick={openNew}
-            className="inline-flex items-center gap-1 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white"
+            className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white"
           >
             <Plus className="h-4 w-4" />
             Add
@@ -879,7 +921,7 @@ export default function BrokerGuide() {
               key={city}
               type="button"
               onClick={() => setCityFilter(city)}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${cityFilter === city ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 border border-slate-300'}`}
+              className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold ${cityFilter === city ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 border border-slate-300'}`}
             >
               {city}
             </button>
@@ -914,10 +956,10 @@ export default function BrokerGuide() {
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="text-xl font-bold text-slate-900">{project.project_name}</h3>
                   <div className="flex shrink-0 gap-1">
-                    <button type="button" onClick={() => openEdit(project)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100" aria-label={`Edit ${project.project_name}`}>
+                    <button type="button" onClick={() => openEdit(project)} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100" aria-label={`Edit ${project.project_name}`}>
                       <Pencil className="h-4 w-4" />
                     </button>
-                    <button type="button" onClick={() => removeProject(project)} className="rounded-lg p-2 text-red-600 hover:bg-red-50" aria-label={`Remove ${project.project_name}`}>
+                    <button type="button" onClick={() => removeProject(project)} className="flex h-11 w-11 items-center justify-center rounded-lg text-red-600 hover:bg-red-50" aria-label={`Remove ${project.project_name}`}>
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -935,7 +977,7 @@ export default function BrokerGuide() {
                             href={mapHref}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white"
+                            className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-semibold text-white"
                           >
                             <MapPin className="h-4 w-4" />
                             Open map

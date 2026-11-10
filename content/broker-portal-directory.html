@@ -50,8 +50,32 @@ main{padding:4px 12px 100px}
 .lk{padding:9px 10px!important;font-size:13px!important}
 .grid{grid-template-columns:1fr}
 }
+
+button,a,input,select{touch-action:manipulation}
+#q,#sort,#cb{font-size:16px}
+.lk{min-height:44px}
+.pin{width:44px;height:44px;display:flex;align-items:center;justify-content:center;top:4px;right:4px}
+@media(max-width:760px){
+header{position:sticky;top:0;z-index:8;padding-top:max(10px,env(safe-area-inset-top))}
+#q,#sort,#cb{min-height:48px}
+#cb{font-size:16px}
+.chip{min-height:40px}
+.nvx{min-height:44px;display:inline-flex;align-items:center}
+nav button{min-height:48px}
+.card{padding:14px 14px 12px}
+.card h3{font-size:18px}
+.lk{padding:12px 12px!important;font-size:15px!important;margin-top:8px!important}
+.xs{font-size:15px;padding:6px 0}
+.empty{font-size:17px;line-height:1.4;padding:48px 8px}
+h1{display:none}
+header>div:not(.legend){flex-wrap:nowrap;align-items:center}
+#q{flex:1 1 auto}
+#sort{flex:0 0 auto;max-width:46%}
+.legend{flex-wrap:nowrap;overflow-x:auto}
+.chip{flex:none}
+}
 </style></head><body>
-<header><h1>Broker Portal Directory</h1><div class="sub" id="sub"></div><div style="display:flex;gap:8px"><input id="q" type="search" placeholder="Search project, builder or city…" autocomplete="off"><select id="sort" style="padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px"><option value="new">Newest first</option><option value="az">A–Z</option></select></div>
+<header><h1>Broker Portal Directory</h1><div class="sub" id="sub"></div><div style="display:flex;gap:8px"><input id="q" type="search" placeholder="Search" autocomplete="off"><select id="sort" style="padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:14px"><option value="new">Newest first</option><option value="az">A–Z</option></select></div>
 <button id="cb" type="button"></button><div class="legend" id="lg"></div></header>
 <div class="layout"><nav id="nav"></nav><main id="main"></main></div>
 <script>
@@ -78,7 +102,7 @@ let PIN=new Set();try{PIN=new Set(JSON.parse(localStorage.getItem('bpd_pin')||'[
 const pk=p=>p.city+'|'+p.name,isP=p=>PIN.has(pk(p));
 document.addEventListener('click',e=>{if(e.target.closest('#cb'))document.body.classList.add('nv');if(e.target.closest('.nvx'))document.body.classList.remove('nv');const s=e.target.closest('.cstar');if(s){const c=s.dataset.c;CP.has(c)?CP.delete(c):CP.add(c);try{localStorage.setItem('bpd_cpin',JSON.stringify([...CP]))}catch(x){}nav();render();return}const b=e.target.closest('.pin');if(!b)return;const k=b.dataset.k;PIN.has(k)?PIN.delete(k):PIN.add(k);try{localStorage.setItem('bpd_pin',JSON.stringify([...PIN]))}catch(x){}render()});
 const dc={Dropbox:'--db','Google Drive':'--gd','Client portal':'--cp','(C21)':'--c21','Builder site':'--mut'};
-function render(){const t=term.toLowerCase();let out='',tp=0,tl=0;
+function render(){const t=term.toLowerCase();if(window.matchMedia('(max-width:760px)').matches&&city==='All'&&!t){$('#main').innerHTML='<div class="empty">Choose a city, or type a project name.</div>';$('#sub').textContent='';return}let out='',tp=0,tl=0;
  for(const r of regions){let rh='';
   for(const c of citiesOf(r)){if(city!=='All'&&c!==city)continue;
    const ps=DATA.filter(p=>p.city===c&&(!t||(p.name+' '+(p.builder||'')+' '+c).toLowerCase().includes(t)));ps.sort((a,b)=>sort==='az'?a.name.localeCompare(b.name):(D(b).localeCompare(D(a))||a.name.localeCompare(b.name)));ps.sort((a,b)=>b.links.some(vis)-a.links.some(vis));ps.sort((a,b)=>isP(b)-isP(a));if(!ps.length)continue;
@@ -88,6 +112,6 @@ function render(){const t=term.toLowerCase();let out='',tp=0,tl=0;
   if(rh)out+=`<div class="region">${esc(r)}</div>`+rh}
  $('#main').innerHTML=out||'<div class="empty">No matches.</div>';$('#sub').textContent=`${tp} projects · ${tl} links · dates show when each link was last posted in the chats`}
 $('#sort').onchange=e=>{sort=e.target.value;render()};
-$('#q').oninput=e=>{term=e.target.value;if(term)city='All';nav();render()};
-nav();lg();render();
+let qt;$('#q').oninput=e=>{term=e.target.value;clearTimeout(qt);qt=setTimeout(()=>{if(term)city='All';nav();render()},160)};
+if(matchMedia('(max-width:760px)').matches&&localStorage.getItem('bpd_ro')==null)regions.forEach(r=>RO.add(r));nav();lg();render();
 </script></body></html>

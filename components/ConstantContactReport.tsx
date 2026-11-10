@@ -228,7 +228,7 @@ export default function ConstantContactReport({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Constant Contact</h2>
-          <p className="mt-1 text-sm text-slate-500">Sent emails and emails scheduled for the day you pick. Today is the usual view.</p>
+          <p className="mt-1 hidden text-sm text-slate-500 sm:block">Sent emails and emails scheduled for the day you pick. Today is the usual view.</p>
         </div>
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-slate-600" htmlFor="report-day">Day</label>
@@ -237,13 +237,13 @@ export default function ConstantContactReport({
             type="date"
             value={day}
             onChange={(event) => setDay(event.target.value)}
-            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm"
+            className="min-h-11 flex-1 rounded-full border border-slate-200 bg-white px-3 py-2 text-base sm:flex-none sm:text-sm"
           />
           <button
             type="button"
             onClick={() => void load(day)}
             disabled={active != null}
-            className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            className="min-h-11 rounded-full bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >
             Refresh
           </button>
@@ -255,7 +255,7 @@ export default function ConstantContactReport({
           <div className="h-full rounded-full bg-emerald-700 transition-all" style={{ width: `${bar * 100}%` }} />
         </div>
         <p className="mt-2 text-sm font-medium text-slate-800">{progress.step}. {progress.message}</p>
-        <ol className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+        <ol className="mt-2 hidden flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 sm:flex">
           {STEPS.map((label, index) => (
             <li key={label} className={index + 1 === progress.step ? 'font-semibold text-emerald-800' : undefined}>
               {index + 1}. {label}
@@ -278,7 +278,62 @@ export default function ConstantContactReport({
                 <p className="mt-3 text-sm text-slate-500">Nothing sent or scheduled on this day.</p>
               )}
               {report && report.campaigns.length > 0 && (
-                <div className="mt-4 overflow-x-auto">
+                <div className="mt-4 space-y-3 md:hidden">
+                  {report.campaigns.map((campaign) => (
+                    <div key={campaign.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="font-semibold leading-snug">{campaign.name}</div>
+                      <div className="mt-1 text-sm text-slate-500">{statusLabel(campaign)}</div>
+                      <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-xl bg-white px-3 py-2">
+                          <dt className="text-xs text-slate-500">Open rate</dt>
+                          <dd className="font-semibold">{percent(campaign.openRate)}</dd>
+                        </div>
+                        <div className="rounded-xl bg-white px-3 py-2">
+                          <dt className="text-xs text-slate-500">Click rate</dt>
+                          <dd className="font-semibold">{percent(campaign.clickRate)}</dd>
+                        </div>
+                        <div className="rounded-xl bg-white px-3 py-2">
+                          <dt className="text-xs text-slate-500">Unsubscribed</dt>
+                          <dd className="font-semibold">{countLabel(campaign.unsubscribed)}</dd>
+                        </div>
+                        <div className="rounded-xl bg-white px-3 py-2">
+                          <dt className="text-xs text-slate-500">Bounced</dt>
+                          <dd className="font-semibold">{countLabel(campaign.bounced)}</dd>
+                        </div>
+                      </dl>
+                      <div className="mt-2 rounded-xl bg-white px-3 py-2 text-sm">
+                        <div className="text-xs text-slate-500">Signups</div>
+                        {campaign.signups == null ? <div className="font-semibold">—</div> : (
+                          <div>
+                            <div className="text-lg font-semibold">{campaign.signups.total.toLocaleString('en-CA')}</div>
+                            {campaign.signups.pages.map((page) => (
+                              <div key={page.name} className="text-slate-600">{page.name} {page.count}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void viewDesign(account.id, campaign)}
+                          className="min-h-11 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-emerald-800"
+                        >
+                          View design
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void copyLink(account.id, campaign)}
+                          className="min-h-11 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-emerald-800"
+                        >
+                          {copiedId === campaign.id ? 'Copied' : 'Copy link'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {report && report.campaigns.length > 0 && (
+                <div className="mt-4 hidden overflow-x-auto md:block">
                   <table className="w-full min-w-[760px] text-left text-sm">
                     <thead className="text-xs uppercase tracking-wide text-slate-500">
                       <tr>
