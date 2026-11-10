@@ -89,6 +89,7 @@ export default function ConstantContactReport({
   const [designError, setDesignError] = useState('')
   const [designLoading, setDesignLoading] = useState(false)
   const [copiedId, setCopiedId] = useState('')
+  const [openBrand, setOpenBrand] = useState<ReportAccountId | null>(null)
   const requestRef = useRef<AbortController | null>(null)
   const designCache = useRef<Record<string, EmailDesign>>({})
   const unauthorizedRef = useRef(onUnauthorized)
@@ -157,6 +158,7 @@ export default function ConstantContactReport({
     requestRef.current = controller
     const signal = controller.signal
     designCache.current = {}
+    setOpenBrand(null)
     setReports({})
     setDone(false)
     setActive(null)
@@ -264,13 +266,36 @@ export default function ConstantContactReport({
         </ol>
       </div>
 
-      <div className="mt-6 space-y-5">
+      <div className="mt-6 space-y-3 md:space-y-5">
         {ACCOUNTS.map((account) => {
           const report = reports[account.id]
           const reading = active === account.id && !report
+          const open = openBrand === account.id
+          const summary = reading
+            ? 'Working'
+            : !report
+              ? 'Waiting'
+              : report.error
+                ? 'Could not read'
+                : report.campaigns.length === 0
+                  ? 'Nothing today'
+                  : `${report.campaigns.length} email${report.campaigns.length === 1 ? '' : 's'}`
           return (
-            <article key={account.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-              <h3 className="text-lg font-semibold">{account.name}</h3>
+            <article key={account.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => setOpenBrand(open ? null : account.id)}
+                className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left md:hidden"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-base font-semibold">{account.name}</span>
+                  <span className="block text-sm text-slate-500">{summary}</span>
+                </span>
+                <span className="text-slate-400">{open ? '▴' : '▾'}</span>
+              </button>
+              <div className={`${open ? 'block' : 'hidden'} px-4 pb-4 md:block md:p-5`}>
+              <h3 className="hidden text-lg font-semibold md:block">{account.name}</h3>
               {reading && <p className="mt-3 text-sm text-slate-500">Working through this account…</p>}
               {!reading && !report && <p className="mt-3 text-sm text-slate-400">Waiting</p>}
               {report?.error && <p className="mt-3 text-sm text-red-700">{report.error}</p>}
@@ -388,6 +413,7 @@ export default function ConstantContactReport({
                   </table>
                 </div>
               )}
+              </div>
             </article>
           )
         })}

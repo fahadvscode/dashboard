@@ -60,6 +60,9 @@ export default function BrokerSendEmail({
   const [when, setWhen] = useState('')
   const [confirm, setConfirm] = useState<'now' | 'schedule' | null>(null)
   const [sending, setSending] = useState(false)
+  const [design, setDesign] = useState<{ name: string; subject: string; previewHtml: string } | null>(null)
+  const [designLoading, setDesignLoading] = useState(false)
+  const [designError, setDesignError] = useState('')
   const unauthorizedRef = useRef(onUnauthorized)
   unauthorizedRef.current = onUnauthorized
 
@@ -180,6 +183,35 @@ export default function BrokerSendEmail({
     }
   }
 
+  async function viewDesign() {
+    if (!draft) return
+    setDesign({ name: draft.name, subject, previewHtml: '' })
+    setDesignError('')
+    setDesignLoading(true)
+    try {
+      const response = await fetch(`/api/constant-contact/email?account=${account}&campaign=${draft.id}`, {
+        headers: { 'x-broker-code': accessCode },
+        cache: 'no-store',
+      })
+      if (response.status === 401) {
+        unauthorizedRef.current()
+        return
+      }
+      const body = (await response.json().catch(() => ({}))) as { error?: string; name?: string; subject?: string; previewHtml?: string }
+      if (!response.ok) throw new Error(body.error || 'Could not open this design.')
+      setDesign({
+        name: body.name || draft.name,
+        subject: body.subject || subject,
+        previewHtml: body.previewHtml || '',
+      })
+      if (!body.previewHtml) setDesignError('This draft has no design yet.')
+    } catch (viewError) {
+      setDesignError(viewError instanceof Error ? viewError.message : 'Could not open this design.')
+    } finally {
+      setDesignLoading(false)
+    }
+  }
+
   function toggleList(id: string) {
     setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
   }
@@ -257,6 +289,13 @@ export default function BrokerSendEmail({
                 className="min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-base text-slate-900"
               />
             </label>
+            <button
+              type="button"
+              onClick={() => void viewDesign()}
+              className="min-h-12 w-full rounded-xl border border-slate-300 bg-white text-base font-semibold text-slate-900"
+            >
+              View design
+            </button>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-center justify-between gap-3">
@@ -342,6 +381,13 @@ export default function BrokerSendEmail({
             {confirm === 'now' && <p className="mt-3 text-sm text-slate-500">This sends immediately. A time in the schedule box is not used.</p>}
             <button
               type="button"
+              onClick={() => void viewDesign()}
+              className="mt-4 min-h-11 w-full rounded-xl border border-slate-300 text-sm font-semibold text-slate-800"
+            >
+              View design
+            </button>
+            <button
+              type="button"
               disabled={sending}
               onClick={() => void launch(confirm)}
               className="mt-5 min-h-14 w-full rounded-2xl bg-emerald-700 text-base font-semibold text-white disabled:opacity-50"
@@ -351,6 +397,27 @@ export default function BrokerSendEmail({
             <button type="button" disabled={sending} onClick={() => setConfirm(null)} className="mt-2 min-h-11 w-full text-sm font-semibold text-slate-600">
               Go back
             </button>
+          </div>
+        </div>
+      )}
+
+      {design && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/40 p-3 sm:items-center sm:justify-center" onClick={() => setDesign(null)}>
+          <div className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-semibold">{design.name}</h2>
+                {design.subject && <p className="mt-1 text-sm text-slate-500">{design.subject}</p>}
+              </div>
+              <button type="button" onClick={() => setDesign(null)} className="min-h-11 px-2 text-sm font-semibold text-slate-600">Close</button>
+            </div>
+            <div className="overflow-y-auto px-5 py-4">
+              {designLoading && <p className="text-sm text-slate-500">Opening the design…</p>}
+              {designError && <p className="text-sm text-red-700">{designError}</p>}
+              {design.previewHtml && (
+                <iframe title={design.name} sandbox="" srcDoc={design.previewHtml} className="h-[65dvh] w-full rounded-2xl border border-slate-200 bg-white" />
+              )}
+            </div>
           </div>
         </div>
       )}
