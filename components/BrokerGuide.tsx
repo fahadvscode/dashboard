@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Building2, ExternalLink, Lock, MapPin, Pencil, Plus, Search, Send, Trash2, X } from 'lucide-react'
 import BrokerSendEmail from '@/components/BrokerSendEmail'
 import ConstantContactReport from '@/components/ConstantContactReport'
+import FollowUpReport from '@/components/FollowUpReport'
 import {
   GUIDE_CITIES,
   PLACE_TYPES,
@@ -488,6 +489,7 @@ export default function BrokerGuide() {
 
         <main className="mx-auto max-w-6xl space-y-8 px-4 py-5 pb-28 sm:pb-6">
           <ConstantContactReport accessCode={accessCode} onUnauthorized={lock} />
+          <FollowUpReport accessCode={accessCode} onUnauthorized={lock} />
           <div className="hidden max-w-xl flex-col gap-3 sm:flex">
             <button
               type="button"
