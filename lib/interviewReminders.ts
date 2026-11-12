@@ -60,6 +60,8 @@ function reminderBody(booking: InterviewRow, when: '24h' | '2h', day: string, ti
   const manageUrl = resolveInterviewManageUrl(booking as unknown as Record<string, unknown>)
   return `Hi ${name}! Reminder — your ${phrase} ${whenLine} on ${day}.
 
+Please reply YES to confirm your interview. If you do not reply, the interview will be cancelled.
+
 Please arrive at:
 ${INTERVIEW_OFFICE_ADDRESS}
 
