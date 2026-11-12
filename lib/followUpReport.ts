@@ -78,10 +78,14 @@ function fubError(json: unknown) {
 
 async function fubCollection(path: string, keys: string[], start: Date, end: Date) {
   const rows: Record<string, unknown>[] = []
+  let requestPath = ''
   let offset = 0
-  for (let page = 0; page < 30; page += 1) {
-    const joiner = path.includes('?') ? '&' : '?'
-    const result = await fubApiFetch(`${path}${joiner}limit=100&offset=${offset}`)
+  for (let page = 0; page < 20; page += 1) {
+    if (!requestPath) {
+      const joiner = path.includes('?') ? '&' : '?'
+      requestPath = `${path}${joiner}limit=100&offset=${offset}`
+    }
+    const result = await fubApiFetch(requestPath)
     if (!result.ok) throw new Error(fubError(result.json))
     const body = result.json as Record<string, unknown>
     const list = keys.map((key) => body[key]).find(Array.isArray) as Record<string, unknown>[] | undefined
@@ -95,9 +99,117 @@ async function fubCollection(path: string, keys: string[], start: Date, end: Dat
       else if (inDay(created, start, end)) rows.push(row)
     }
     if (batch.length < 100 || older) break
-    offset += 100
+    const meta = body._metadata as { next?: unknown; nextLink?: unknown } | undefined
+    const nextLink = String(meta?.nextLink || '')
+    const next = String(meta?.next || '')
+    if (nextLink.startsWith('http')) {
+      requestPath = nextLink.replace('https://api.followupboss.com/v1', '')
+    } else if (next && next !== 'null') {
+      const joiner = path.includes('?') ? '&' : '?'
+      requestPath = `${path}${joiner}limit=100&next=${encodeURIComponent(next)}`
+    } else {
+      offset += 100
+      requestPath = ''
+    }
   }
   return rows
+}
+
+function phoneDigits(value: string) {
+  const digits = value.replace(/\D/g, '')
+  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1)
+  if (digits.length >= 10 && digits.length <= 15) return digits
+  return ''
+}
+
+function collectPhones(value: unknown, into: Set<string>) {
+  if (typeof value === 'string') {
+    const digits = phoneDigits(value)
+    if (digits) into.add(digits)
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectPhones(item, into)
+    return
+  }
+  if (value && typeof value === 'object') {
+    for (const item of Object.values(value as Record<string, unknown>)) collectPhones(item, into)
+  }
+}
+
+async function pooled<T>(items: T[], limit: number, run: (item: T) => Promise<void>) {
+  let index = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const current = items[index]
+      index += 1
+      await run(current)
+    }
+  })
+  await Promise.all(workers)
+}
+
+function textReceived(row: Record<string, unknown>) {
+  if (row.isIncoming === true) return true
+  return /^received$/i.test(String(row.status || ''))
+}
+
+async function textsReceived(start: Date, end: Date) {
+  const usersResult = await fubApiFetch('/users?limit=100&fields=id,name,phone,calling,status')
+  if (!usersResult.ok) throw new Error(fubError(usersResult.json))
+  const usersBody = usersResult.json as { users?: Array<Record<string, unknown>> }
+  const numbers = new Set<string>()
+  for (const user of usersBody.users || []) {
+    const status = String(user.status || '')
+    if (status && status.toLowerCase() !== 'active') continue
+    collectPhones(user.phone, numbers)
+    collectPhones(user.calling, numbers)
+  }
+
+  const inboxesResult = await fubApiFetch('/teamInboxes?limit=100')
+  const inboxIds: string[] = []
+  if (inboxesResult.ok) {
+    const inboxes = (inboxesResult.json as { teamInboxes?: Array<{ id?: unknown }> }).teamInboxes || []
+    for (const inbox of inboxes) {
+      const id = String(inbox.id || '').trim()
+      if (id) inboxIds.push(id)
+    }
+  }
+
+  const seen = new Set<string>()
+  const rows: Record<string, unknown>[] = []
+  const filters = [
+    ...[...numbers].map((number) => `/textMessages?toNumber=${encodeURIComponent(number)}`),
+    ...inboxIds.map((id) => `/textMessages?sharedInboxId=${encodeURIComponent(id)}`),
+  ]
+  if (filters.length === 0) throw new Error('Follow Up Boss did not return a number to read texts from.')
+
+  let failed = 0
+  await pooled(filters, 4, async (path) => {
+    try {
+      const batch = await fubCollection(path, ['textmessages', 'textMessages'], start, end)
+      for (const row of batch) {
+        if (!textReceived(row)) continue
+        const id = String(row.id || '')
+        if (id && seen.has(id)) continue
+        if (id) seen.add(id)
+        rows.push(row)
+      }
+    } catch {
+      failed += 1
+    }
+  })
+  if (failed === filters.length) throw new Error('Texts could not be read from Follow Up Boss.')
+  return rows
+}
+
+async function readFub(label: string, load: () => Promise<Record<string, unknown>[]>) {
+  try {
+    return { rows: await load(), error: '' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    return { rows: [] as Record<string, unknown>[], error: message || `${label} could not be read.` }
+  }
 }
 
 function personKey(name: string) {
@@ -150,13 +262,26 @@ export async function buildFollowUpReport(day: string): Promise<FollowUpReport> 
   }
 
   const notes: string[] = []
+  const inquiryTypes = encodeURIComponent('Property Inquiry,General Inquiry,Seller Inquiry,Inquiry')
+  const [callResult, textResult, eventResult] = await Promise.all([
+    readFub('Calls', () => fubCollection('/calls', ['calls'], start, end)),
+    readFub('Texts', () => textsReceived(start, end)),
+    readFub('Inquiries', () => fubCollection(`/events?type=${inquiryTypes}`, ['events'], start, end)),
+  ])
+
+  const missingKey = [callResult, textResult, eventResult].every((result) => /api key is not set/i.test(result.error))
+  if (missingKey) {
+    notes.push('Follow Up Boss is not connected, so calls, texts, and inquiries are not in this report.')
+  } else {
+    for (const result of [callResult, textResult, eventResult]) {
+      if (result.error && !/api key is not set/i.test(result.error)) notes.push(result.error)
+    }
+  }
 
   try {
-    const [calls, texts, events] = await Promise.all([
-      fubCollection('/calls', ['calls'], start, end),
-      fubCollection('/textMessages', ['textmessages', 'textMessages'], start, end),
-      fubCollection('/events', ['events'], start, end),
-    ])
+    const calls = callResult.rows
+    const texts = textResult.rows
+    const events = eventResult.rows
 
     for (const call of calls) {
       const incoming = call.isIncoming === true
@@ -188,12 +313,7 @@ export async function buildFollowUpReport(day: string): Promise<FollowUpReport> 
       if (assigned) bucket(assigned).inquiries += 1
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : ''
-    notes.push(
-      /api key is not set/i.test(message)
-        ? 'Follow Up Boss is not connected, so calls, texts, and inquiries are not in this report.'
-        : message || 'Follow Up Boss could not be read.',
-    )
+    notes.push(error instanceof Error ? error.message : 'Follow Up Boss could not be read.')
   }
 
   const supabase = getSupabaseAdmin()
@@ -227,7 +347,7 @@ export async function buildFollowUpReport(day: string): Promise<FollowUpReport> 
       if (!inDay(row.created_at, start, end)) continue
       const project = String(row.project_name || row.appointment_type || 'Appointment').trim()
       const time = formatAppointmentTimeDisplay(row.appointment_time)
-      const person = bucket(String(row.booked_by || 'Not named'))
+      const person = bucket(String(row.booked_by || ''))
       person.appointments.push({ project, time })
       report.appointments += 1
     }
