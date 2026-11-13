@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase'
 import { logOutboundSms } from '@/lib/logSmsConversation'
 import {
   FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE,
+  INTERVIEW_ARRIVAL_PHONE,
   INTERVIEW_BRAND_NAME,
   INTERVIEW_OFFICE_ADDRESS,
   interviewPhrase,
@@ -65,7 +66,7 @@ Please reply YES to confirm your interview. If you do not reply, the interview w
 Please arrive at:
 ${INTERVIEW_OFFICE_ADDRESS}
 
-When you arrive, call (289) 536-9724.${getInterviewManageLinkSms(manageUrl)}
+When you arrive, call ${INTERVIEW_ARRIVAL_PHONE}.${getInterviewManageLinkSms(manageUrl)}
 
 - ${INTERVIEW_BRAND_NAME}`
 }

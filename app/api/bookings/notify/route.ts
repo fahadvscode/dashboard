@@ -9,6 +9,7 @@ import {
   resolveBookingLastName,
 } from '@/lib/normalizeBookingPayload'
 import {
+  INTERVIEW_ARRIVAL_PHONE,
   INTERVIEW_BRAND_NAME,
   INTERVIEW_OFFICE_ADDRESS,
   interviewHeading,
@@ -164,12 +165,13 @@ function getInterviewCandidateLocationHtml(): string {
           <strong>In-person interview</strong><br>
           <p>Please arrive at the scheduled date and time at:</p>
           <p style="font-weight:bold;font-size:15px;">${INTERVIEW_OFFICE_ADDRESS}</p>
+          <p>When you arrive, call <strong>${INTERVIEW_ARRIVAL_PHONE}</strong>.</p>
           <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(INTERVIEW_OFFICE_ADDRESS)}" target="_blank" style="color:#3b82f6;">View on Google Maps</a>
         </div>`
 }
 
 function getInterviewCandidateLocationSms(): string {
-  return `\n🏢 Please arrive for your interview at:\n${INTERVIEW_OFFICE_ADDRESS}`
+  return `\n🏢 Please arrive for your interview at:\n${INTERVIEW_OFFICE_ADDRESS}\n\nWhen you arrive, call ${INTERVIEW_ARRIVAL_PHONE}.`
 }
 
 export async function POST(request: NextRequest) {

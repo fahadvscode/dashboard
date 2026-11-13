@@ -12,6 +12,7 @@ import {
 } from '@/lib/bookingCalendar'
 import {
   FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE,
+  INTERVIEW_ARRIVAL_PHONE,
   INTERVIEW_BRAND_NAME,
   INTERVIEW_OFFICE_ADDRESS,
   interviewHeading,
@@ -74,7 +75,7 @@ function toE164NorthAmerica(phone: string): string {
 }
 
 function getInterviewLocationSms(): string {
-  return `\n🏢 Please arrive for your interview at:\n${INTERVIEW_OFFICE_ADDRESS}`
+  return `\n🏢 Please arrive for your interview at:\n${INTERVIEW_OFFICE_ADDRESS}\n\nWhen you arrive, call ${INTERVIEW_ARRIVAL_PHONE}.`
 }
 
 function buildInterviewRescheduleSms(
@@ -253,6 +254,7 @@ async function dispatchCandidateEmail(
         <p><strong>Time:</strong> ${booking.appointment_time || 'Not specified'}</p>
         ${interviewRoleLabel(booking) ? `<p><strong>Position:</strong> ${interviewRoleLabel(booking)}</p>` : ''}
         <p><strong>Location:</strong> ${INTERVIEW_OFFICE_ADDRESS}</p>
+        <p>When you arrive, call <strong>${INTERVIEW_ARRIVAL_PHONE}</strong>.</p>
       </div>
       ${getInterviewManageLinkHtml(manageUrl)}
       <p><strong>Best regards,</strong><br>${INTERVIEW_BRAND_NAME}</p>

@@ -3,6 +3,9 @@ export const FAHAD_SELLS_INTERVIEW_BOOKINGS_TABLE = 'fahad_sells_interview_booki
 export const INTERVIEW_OFFICE_ADDRESS =
   '600 Matheson Blvd W Unit 5, Mississauga, ON L5R 4B8'
 
+/** Number candidates call when they arrive for an interview. */
+export const INTERVIEW_ARRIVAL_PHONE = '(416) 786-2367'
+
 export const INTERVIEW_BRAND_NAME = 'Fahad Javed Real Estate'
 
 export function isFahadSellsInterviewBooking(tableName: unknown): boolean {
