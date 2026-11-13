@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createEscalationCalendarEvent } from '@/lib/bookingCalendar'
 import {
-  ESCALATION_CALENDAR_ATTENDEE,
+  ESCALATION_CALENDAR_ATTENDEES,
   customEscalationNeedsReminder,
   escalationDueAt,
   escalationDueFromCustom,
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       eventId,
-      message: `${staff} has to call ${leadName} ${whenLabel} (from ${from}). Invited ${ESCALATION_CALENDAR_ATTENDEE} — the lead was not contacted.`,
+      message: `${staff} has to call ${leadName} ${whenLabel} (from ${from}). Added to ${ESCALATION_CALENDAR_ATTENDEES.join(' and ')} — the lead was not contacted.`,
     })
   } catch (error) {
     console.error('FUB escalation error:', error)

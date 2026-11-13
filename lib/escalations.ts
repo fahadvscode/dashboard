@@ -9,8 +9,8 @@ export type EscalationStaff = (typeof ESCALATION_TO_STAFF)[number]
 
 export const ESCALATION_STAFF = ESCALATION_FROM_STAFF
 
-/** Invite this mailbox onto the event. The Qikfill token cannot write to this calendar directly. */
-export const ESCALATION_CALENDAR_ATTENDEE = 'info@fahadsold.com'
+/** These mailboxes get the escalation on their calendars. */
+export const ESCALATION_CALENDAR_ATTENDEES = ['sales@fahadsold.com', 'fahad@fahadsold.com'] as const
 
 export const ESCALATION_WHEN = [
   { id: '5m', label: 'In 5 minutes', minutes: 5, reminderSms: false },
