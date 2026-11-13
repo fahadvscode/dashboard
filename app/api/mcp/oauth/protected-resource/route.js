@@ -6,7 +6,9 @@ const { publicOrigin, protectedResourceMetadata } = mcpAuth
 export const dynamic = "force-dynamic"
 
 export function GET(request) {
-  return NextResponse.json(protectedResourceMetadata(publicOrigin(request)), {
+  const fromQuery = request.nextUrl.searchParams.get("resource_path") || ""
+  const resourcePath = fromQuery ? `/${fromQuery.replace(/^\/+/, "")}` : "/api/mcp/followupboss"
+  return NextResponse.json(protectedResourceMetadata(publicOrigin(request), resourcePath), {
     headers: { "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*" },
   })
 }

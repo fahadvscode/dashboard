@@ -82,10 +82,11 @@ function loginForm(fields, error) {
   } catch {
     host = "Claude"
   }
+  const product = String(fields.resource || "").includes("constant-contact") ? "Constant Contact" : "Follow Up Boss"
   return page({
-    title: "Connect Follow Up Boss",
-    body: `<h1>Connect Follow Up Boss</h1>
-      <p>This links your Follow Up Boss account to Claude on the web, phone, and desktop. You only do this once for your Claude account.</p>
+    title: `Connect ${product}`,
+    body: `<h1>Connect ${product}</h1>
+      <p>This links your ${product} account to Claude on the web, phone, and desktop. You only do this once for your Claude account.</p>
       <p>Claude will return to <span class="host">${escapeHtml(host)}</span>.</p>
       ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
       <form method="post">
