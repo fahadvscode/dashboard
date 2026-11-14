@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { syncLandingLeadToConstantContact } from '@/lib/constantContactLandingLeads'
 import nodemailer from 'nodemailer'
 import { resolveCustomerNotes } from '@/lib/customerNotes'
 import { sendSheetRowToFollowUpBoss } from '@/lib/fubLeadInquiry'
@@ -21,6 +22,8 @@ import {
   type LandingPageSheetMeta,
   type LandingPageSource,
 } from '@/lib/landingPageSources'
+
+export const maxDuration = 60
 
 const notificationEmails = ['fahad@fahadsold.com', 'info@preconfactory.com']
 const rentalOnlyEmails = ['harjit@hminhas.ca']
@@ -760,6 +763,15 @@ export async function POST(request: NextRequest) {
       await appendLeadToGoogleSheet(lead, landingMeta)
     } catch (sheetError) {
       console.error('Google Sheets error (non-critical):', sheetError)
+    }
+
+    if (isLandingPageLead && landingMeta) {
+      try {
+        const constantContact = await syncLandingLeadToConstantContact(lead, landingMeta)
+        console.log('Constant Contact landing lead:', constantContact)
+      } catch (constantContactError) {
+        console.error('Constant Contact landing lead error:', constantContactError)
+      }
     }
 
     console.log('Lead notifications sent:', {

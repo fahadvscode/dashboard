@@ -226,8 +226,8 @@ function constantContactErrorMessage(json: unknown, status: number) {
 export async function constantContactWrite(
   path: string,
   account: ConstantContactAccount,
-  method: 'POST' | 'PUT',
-  body: unknown
+  method: 'POST' | 'PUT' | 'DELETE',
+  body?: unknown
 ) {
   const request = async (forceRefresh: boolean) => {
     const accessToken = await loadConstantContactAccessToken(account, forceRefresh)
@@ -236,10 +236,10 @@ export async function constantContactWrite(
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
-        'Content-Type': 'application/json',
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         'User-Agent': 'property-dashboard',
       },
-      body: JSON.stringify(body),
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       cache: 'no-store',
     })
     const text = await response.text()
