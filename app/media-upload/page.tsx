@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Upload, Copy, Check, Link2, X, Image as ImageIcon, Video, List, ChevronDown, ChevronUp } from 'lucide-react'
+import { Upload, Copy, Check, Link2, X, Image as ImageIcon, Video, FileText, List, ChevronDown, ChevronUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { getRentalDocumentPublicUrl, STORAGE_UPLOAD_CACHE_CONTROL } from '@/lib/propertyImages'
 
@@ -34,9 +34,10 @@ export default function MediaUploadPage() {
         // Validate file type
         const isImage = file.type.startsWith('image/')
         const isVideo = file.type.startsWith('video/')
+        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
         
-        if (!isImage && !isVideo) {
-          throw new Error(`${file.name} is not a valid image or video file`)
+        if (!isImage && !isVideo && !isPdf) {
+          throw new Error(`${file.name} is not a valid image, video, or PDF`)
         }
 
         // Validate file size (max 50MB)
@@ -55,6 +56,7 @@ export default function MediaUploadPage() {
           .from('rental-documents')
           .upload(fileName, file, {
             cacheControl: STORAGE_UPLOAD_CACHE_CONTROL,
+            contentType: isPdf ? 'application/pdf' : file.type || undefined,
             upsert: false
           })
 
@@ -65,7 +67,7 @@ export default function MediaUploadPage() {
         return {
           name: file.name,
           url: getRentalDocumentPublicUrl(fileName),
-          type: file.type,
+          type: isPdf ? 'application/pdf' : file.type,
           size: file.size,
           timestamp: new Date()
         }
@@ -146,7 +148,7 @@ export default function MediaUploadPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">📤 Media Uploader</h1>
-          <p className="text-gray-600">Upload images and videos to get instant shareable links</p>
+          <p className="text-gray-600">Upload images, videos, and PDFs to get instant shareable links</p>
         </div>
 
         {/* Upload Area */}
@@ -165,7 +167,7 @@ export default function MediaUploadPage() {
             type="file"
             id="file-upload"
             multiple
-            accept="image/*,video/*"
+            accept="image/*,video/*,application/pdf,.pdf"
             onChange={(e) => handleFileUpload(e.target.files)}
             className="hidden"
             disabled={uploading}
@@ -178,7 +180,7 @@ export default function MediaUploadPage() {
                 {dragActive ? 'Drop files here' : 'Click to upload or drag and drop'}
               </p>
               <p className="text-sm text-gray-500 mb-4">
-                Images (PNG, JPG, GIF, WEBP) or Videos (MP4, MOV, etc.)
+                Images (PNG, JPG, GIF, WEBP), videos (MP4, MOV), or PDF
               </p>
               <p className="text-xs text-gray-400">Max file size: 50MB per file</p>
               
@@ -304,6 +306,8 @@ export default function MediaUploadPage() {
                     <div className="flex-shrink-0">
                       {file.type.startsWith('image/') ? (
                         <ImageIcon className="h-10 w-10 text-blue-600" />
+                      ) : file.type === 'application/pdf' ? (
+                        <FileText className="h-10 w-10 text-red-600" />
                       ) : (
                         <Video className="h-10 w-10 text-purple-600" />
                       )}
@@ -377,7 +381,7 @@ export default function MediaUploadPage() {
           <h3 className="font-semibold text-blue-900 mb-3">💡 How to Use</h3>
           <ul className="space-y-2 text-sm text-blue-800">
             <li>• Click the upload area or drag & drop files to upload</li>
-            <li>• Supports images (PNG, JPG, GIF, WEBP) and videos (MP4, MOV, etc.)</li>
+            <li>• Supports images (PNG, JPG, GIF, WEBP), videos (MP4, MOV), and PDF</li>
             <li>• Get instant public URLs that you can share anywhere</li>
             <li>• Click "Copy" to copy a single URL, or use "Copy All" after bulk uploads</li>
             <li>• Files are stored permanently in Supabase Storage</li>
