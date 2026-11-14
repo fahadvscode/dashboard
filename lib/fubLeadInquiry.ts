@@ -58,17 +58,19 @@ export function sheetRowToFubEvent(row: string[]) {
   }
 }
 
-async function officeAssignee() {
+async function lookupAssignee(name: string, fallbackId?: number) {
   try {
     const users = await listFubUsers()
-    const byId = users.find((user) => user.id === OFFICE_USER_ID)
-    if (byId) return { name: byId.name, id: byId.id }
-    const matched = matchFubAssignee(users, { name: OFFICE_ASSIGNEE }) || matchFubAssignee(users, { name: FOLLOW_UP_ASSIGNEES[1] })
+    const matched = matchFubAssignee(users, { name })
     if (matched) return { name: matched.name, id: matched.id }
+    if (fallbackId) {
+      const byId = users.find((user) => user.id === fallbackId)
+      if (byId) return { name: byId.name, id: byId.id }
+    }
   } catch (error) {
-    console.error('Could not look up Fahad Javed Office:', error)
+    console.error(`Could not look up ${name}:`, error)
   }
-  return { name: OFFICE_ASSIGNEE, id: OFFICE_USER_ID }
+  return { name, id: fallbackId ?? null }
 }
 
 function personIdFromPayload(json: unknown): string {
@@ -97,7 +99,7 @@ async function findPersonId(email: string, phone: string) {
   return ''
 }
 
-async function assignPersonToOffice(personId: string, assignee: { name: string; id: number | null }) {
+async function assignPerson(personId: string, assignee: { name: string; id: number | null }) {
   const payload: Record<string, unknown> = { assignedTo: assignee.name }
   if (assignee.id) payload.assignedUserId = assignee.id
   let saved = await fubApiFetch(`/people/${encodeURIComponent(personId)}`, {
@@ -113,7 +115,10 @@ async function assignPersonToOffice(personId: string, assignee: { name: string; 
   return saved.ok
 }
 
-export async function sendSheetRowToFollowUpBoss(row: string[], options?: { assignToOffice?: boolean }) {
+export async function sendSheetRowToFollowUpBoss(
+  row: string[],
+  options?: { assignToOffice?: boolean; assignToFahad?: boolean }
+) {
   if (!getFubApiKey()) {
     return { ok: false, skipped: true, status: 0, error: 'FUB_API_KEY is not set.', assigned: false }
   }
@@ -124,7 +129,11 @@ export async function sendSheetRowToFollowUpBoss(row: string[], options?: { assi
   }
 
   const event = sheetRowToFubEvent(row)
-  const assignee = options?.assignToOffice ? await officeAssignee() : null
+  const assignee = options?.assignToFahad
+    ? await lookupAssignee(FOLLOW_UP_ASSIGNEES[0])
+    : options?.assignToOffice
+      ? await lookupAssignee(OFFICE_ASSIGNEE, OFFICE_USER_ID)
+      : null
   if (assignee) {
     event.person.assignedTo = assignee.name
     if (assignee.id) event.person.assignedUserId = assignee.id
@@ -139,9 +148,9 @@ export async function sendSheetRowToFollowUpBoss(row: string[], options?: { assi
   if (result.ok && assignee) {
     try {
       const personId = personIdFromPayload(result.json) || (await findPersonId(email, phone))
-      if (personId) assigned = await assignPersonToOffice(personId, assignee)
+      if (personId) assigned = await assignPerson(personId, assignee)
     } catch (error) {
-      console.error('Could not assign lead to Fahad Javed office:', error)
+      console.error(`Could not assign lead to ${assignee.name}:`, error)
     }
   }
   return {

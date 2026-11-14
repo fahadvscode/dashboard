@@ -91,13 +91,14 @@ export async function appendInterviewBookingToGoogleSheet(
   }
 
   try {
-    const fub = await sendSheetRowToFollowUpBoss(interviewBookingFubRow(record))
+    const fub = await sendSheetRowToFollowUpBoss(interviewBookingFubRow(record), { assignToFahad: true })
     console.log('Follow Up Boss interview inquiry:', {
       email: record.email,
       ok: fub.ok,
       status: fub.status,
       personId: fub.personId,
       skipped: fub.skipped,
+      assigned: fub.assigned,
       error: fub.error,
     })
   } catch (error) {
