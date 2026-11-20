@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { MessageSquare, Phone, User, Clock, Send, RefreshCw, X, Mail, MapPin } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
@@ -44,6 +44,109 @@ interface GroupedConversation {
   unreadCount: number
 }
 
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length === 11 && digits.startsWith('1')) return digits.substring(1)
+  return digits
+}
+
+function formatPhoneDisplay(phone: string): string {
+  const normalized = normalizePhone(phone)
+  if (normalized.length === 10) {
+    return `(${normalized.substring(0, 3)}) ${normalized.substring(3, 6)}-${normalized.substring(6)}`
+  }
+  return phone
+}
+
+function groupConversationsByPhone(convos: Conversation[]): GroupedConversation[] {
+  const grouped = new Map<string, GroupedConversation>()
+
+  for (const convo of convos) {
+    const rawPhone = convo.direction === 'inbound' ? convo.from_phone : convo.to_phone
+    const otherPhone = normalizePhone(rawPhone)
+    const existing = grouped.get(otherPhone)
+
+    if (!existing) {
+      grouped.set(otherPhone, {
+        phone: otherPhone,
+        leadName: convo.lead_name,
+        leadId: convo.lead_id,
+        leadTable: convo.lead_table,
+        leadSource: null,
+        projectName: null,
+        messages: [convo],
+        lastMessage: convo,
+        unreadCount: convo.direction === 'inbound' ? 1 : 0,
+      })
+      continue
+    }
+
+    existing.messages.push(convo)
+    if (convo.lead_name && !existing.leadName) existing.leadName = convo.lead_name
+    if (convo.lead_id && !existing.leadId) existing.leadId = convo.lead_id
+    if (convo.lead_table && !existing.leadTable) existing.leadTable = convo.lead_table
+    if (new Date(convo.created_at) > new Date(existing.lastMessage.created_at)) {
+      existing.lastMessage = convo
+    }
+    if (convo.direction === 'inbound') existing.unreadCount += 1
+  }
+
+  return Array.from(grouped.values()).sort(
+    (a, b) => new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
+  )
+}
+
+function applyKnownLeadDetails(groups: GroupedConversation[], known: GroupedConversation[]) {
+  const byPhone = new Map(known.map((group) => [group.phone, group]))
+  return groups.map((group) => {
+    const previous = byPhone.get(group.phone)
+    if (!previous?.projectName && !previous?.leadSource) return group
+    return {
+      ...group,
+      projectName: previous.projectName,
+      leadSource: previous.leadSource,
+    }
+  })
+}
+
+async function enrichConversationLeads(groups: GroupedConversation[]) {
+  const idsByTable = new Map<string, string[]>()
+  for (const group of groups) {
+    if (!group.leadId || !group.leadTable || !/^[a-z][a-z0-9_]*$/.test(group.leadTable)) continue
+    const ids = idsByTable.get(group.leadTable) || []
+    if (!ids.includes(group.leadId)) ids.push(group.leadId)
+    idsByTable.set(group.leadTable, ids)
+  }
+
+  const details = new Map<string, { projectName: string | null; leadSource: string | null }>()
+  await Promise.all(
+    Array.from(idsByTable.entries()).map(async ([table, ids]) => {
+      for (let index = 0; index < ids.length; index += 80) {
+        const chunk = ids.slice(index, index + 80)
+        const { data, error } = await supabase
+          .from(table)
+          .select('id, project_name, source')
+          .in('id', chunk)
+        if (error || !data) continue
+        for (const row of data as { id?: string; project_name?: string | null; source?: string | null }[]) {
+          if (!row.id) continue
+          details.set(`${table}:${row.id}`, {
+            projectName: row.project_name || row.source || null,
+            leadSource: table === 'fj_leads' ? 'FJ Leads' : 'Precon Factory',
+          })
+        }
+      }
+    })
+  )
+
+  return groups.map((group) => {
+    if (!group.leadId || !group.leadTable) return group
+    const extra = details.get(`${group.leadTable}:${group.leadId}`)
+    if (!extra) return group
+    return { ...group, projectName: extra.projectName, leadSource: extra.leadSource }
+  })
+}
+
 export default function ConversationsPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [groupedConversations, setGroupedConversations] = useState<GroupedConversation[]>([])
@@ -56,6 +159,7 @@ export default function ConversationsPage() {
   const [showLeadModal, setShowLeadModal] = useState(false)
 
   const twilioNumber = '+16475580012'
+  const loadRequest = useRef(0)
 
   useEffect(() => {
     fetchConversations()
@@ -71,7 +175,14 @@ export default function ConversationsPage() {
           table: 'sms_conversations'
         },
         (payload) => {
-          console.log('Real-time update:', payload)
+          const row = payload.new as Conversation | undefined
+          if (payload.eventType === 'INSERT' && row?.id) {
+            setConversations((current) => {
+              if (current.some((message) => message.id === row.id)) return current
+              return [row, ...current]
+            })
+            return
+          }
           fetchConversations()
         }
       )
@@ -83,124 +194,41 @@ export default function ConversationsPage() {
   }, [])
 
   const fetchConversations = async () => {
+    const requestId = ++loadRequest.current
     try {
       const { data, error } = await supabase
         .from('sms_conversations')
-        .select('*')
+        .select('id, message_sid, from_phone, to_phone, message_body, direction, status, lead_name, lead_id, lead_table, created_at')
         .order('created_at', { ascending: false })
+        .limit(1000)
 
       if (error) throw error
-
-      setConversations(data || [])
-      groupConversationsByPhone(data || [])
+      if (requestId !== loadRequest.current) return
+      const rows = (data || []) as Conversation[]
+      setConversations(rows)
+      setGroupedConversations(groupConversationsByPhone(rows))
     } catch (error) {
       console.error('Error fetching conversations:', error)
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      if (requestId === loadRequest.current) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
   }
 
-  const normalizePhone = (phone: string): string => {
-    // Remove all non-digit characters
-    const digits = phone.replace(/\D/g, '')
-    // If it's 11 digits and starts with 1, remove the 1
-    if (digits.length === 11 && digits.startsWith('1')) {
-      return digits.substring(1)
-    }
-    // If it's 10 digits, return as is
-    if (digits.length === 10) {
-      return digits
-    }
-    // Otherwise return the digits
-    return digits
-  }
-
-  const formatPhoneDisplay = (phone: string): string => {
-    const normalized = normalizePhone(phone)
-    // Format as (XXX) XXX-XXXX
-    if (normalized.length === 10) {
-      return `(${normalized.substring(0, 3)}) ${normalized.substring(3, 6)}-${normalized.substring(6)}`
-    }
-    return phone
-  }
-
-  const groupConversationsByPhone = async (convos: Conversation[]) => {
-    const grouped = new Map<string, GroupedConversation>()
-
-    convos.forEach((convo) => {
-      // The "other" phone is either from_phone (if inbound) or to_phone (if outbound)
-      const rawPhone = convo.direction === 'inbound' ? convo.from_phone : convo.to_phone
-      const otherPhone = normalizePhone(rawPhone)
-      
-      if (!grouped.has(otherPhone)) {
-        grouped.set(otherPhone, {
-          phone: otherPhone,
-          leadName: convo.lead_name,
-          leadId: convo.lead_id,
-          leadTable: convo.lead_table,
-          leadSource: null,
-          projectName: null,
-          messages: [],
-          lastMessage: convo,
-          unreadCount: 0
-        })
-      }
-
-      const group = grouped.get(otherPhone)!
-      group.messages.push(convo)
-      
-      // Update lead info if available
-      if (convo.lead_name && !group.leadName) {
-        group.leadName = convo.lead_name
-      }
-      if (convo.lead_id && !group.leadId) {
-        group.leadId = convo.lead_id
-      }
-      if (convo.lead_table && !group.leadTable) {
-        group.leadTable = convo.lead_table
-      }
-      
-      // Update last message if this is more recent
-      if (new Date(convo.created_at) > new Date(group.lastMessage.created_at)) {
-        group.lastMessage = convo
-      }
-
-      // Count unread (inbound messages)
-      if (convo.direction === 'inbound') {
-        group.unreadCount++
-      }
+  useEffect(() => {
+    const groups = groupConversationsByPhone(conversations)
+    setGroupedConversations((current) => applyKnownLeadDetails(groups, current))
+    let cancelled = false
+    enrichConversationLeads(groups).then((enriched) => {
+      if (cancelled) return
+      setGroupedConversations((current) => applyKnownLeadDetails(current, enriched))
     })
-
-    // Fetch additional lead details
-    const groupsArray = Array.from(grouped.values())
-    for (const group of groupsArray) {
-      if (group.leadId && group.leadTable) {
-        try {
-          const { data } = await supabase
-            .from(group.leadTable)
-            .select('project_name, source')
-            .eq('id', group.leadId)
-            .single()
-          
-          if (data) {
-            const leadData = data as { project_name?: string; source?: string }
-            group.projectName = leadData.project_name || leadData.source || null
-            group.leadSource = group.leadTable === 'fj_leads' ? 'FJ Leads' : 'Precon Factory'
-          }
-        } catch (error) {
-          console.error('Error fetching lead details:', error)
-        }
-      }
+    return () => {
+      cancelled = true
     }
-
-    // Sort by most recent message
-    const sorted = groupsArray.sort(
-      (a, b) => new Date(b.lastMessage.created_at).getTime() - new Date(a.lastMessage.created_at).getTime()
-    )
-
-    setGroupedConversations(sorted)
-  }
+  }, [conversations])
 
   const fetchLeadDetails = async (leadId: string, leadTable: string) => {
     try {
@@ -224,9 +252,9 @@ export default function ConversationsPage() {
   }
 
   const selectedConversation = groupedConversations.find(c => c.phone === selectedPhone)
-  const selectedMessages = selectedConversation?.messages.sort(
+  const selectedMessages = [...(selectedConversation?.messages || [])].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  ) || []
+  )
 
   const handleSendReply = async () => {
     if (!selectedPhone || !replyMessage.trim()) return
