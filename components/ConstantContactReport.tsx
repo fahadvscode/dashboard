@@ -49,6 +49,28 @@ function countLabel(value: number | null) {
   return value.toLocaleString('en-CA')
 }
 
+function signupTotal(campaigns: ReportCampaign[]) {
+  let total = 0
+  let counted = false
+  for (const campaign of campaigns) {
+    if (campaign.signups == null) continue
+    counted = true
+    total += campaign.signups.total
+  }
+  return counted ? total : null
+}
+
+function SignupTotal({ campaigns }: { campaigns: ReportCampaign[] }) {
+  const total = signupTotal(campaigns)
+  if (total == null) return null
+  return (
+    <div className="flex items-center justify-between rounded-2xl bg-emerald-50 px-4 py-3 text-sm">
+      <span className="font-semibold text-emerald-950">Total signups</span>
+      <span className="text-lg font-semibold text-emerald-950">{total.toLocaleString('en-CA')}</span>
+    </div>
+  )
+}
+
 function statusLabel(campaign: ReportCampaign) {
   if (campaign.status === 'scheduled') return campaign.when ? `Scheduled ${campaign.when}` : 'Scheduled'
   if (campaign.status === 'sending') return 'Sending now'
@@ -271,6 +293,7 @@ export default function ConstantContactReport({
           const report = reports[account.id]
           const reading = active === account.id && !report
           const open = openBrand === account.id
+          const totalSignups = report ? signupTotal(report.campaigns) : null
           const summary = reading
             ? 'Working'
             : !report
@@ -279,7 +302,9 @@ export default function ConstantContactReport({
                 ? 'Could not read'
                 : report.campaigns.length === 0
                   ? 'Nothing today'
-                  : `${report.campaigns.length} email${report.campaigns.length === 1 ? '' : 's'}`
+                  : `${report.campaigns.length} email${report.campaigns.length === 1 ? '' : 's'}${
+                      totalSignups == null ? '' : ` · ${totalSignups.toLocaleString('en-CA')} signups`
+                    }`
           return (
             <article key={account.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
               <button
@@ -355,6 +380,7 @@ export default function ConstantContactReport({
                       </div>
                     </div>
                   ))}
+                  <SignupTotal campaigns={report.campaigns} />
                 </div>
               )}
               {report && report.campaigns.length > 0 && (
@@ -410,6 +436,12 @@ export default function ConstantContactReport({
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot>
+                      <tr className="border-t border-slate-200">
+                        <td className="pt-3 font-semibold" colSpan={5}>Total signups</td>
+                        <td className="pt-3 text-base font-semibold">{countLabel(signupTotal(report.campaigns))}</td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               )}
