@@ -29,6 +29,7 @@ interface Property {
   created_at: string
   fj_landing_page: string
   precon_factory_landing_page: string
+  gta_lowrise_landing_page?: string
 }
 
 interface Props {
@@ -324,6 +325,22 @@ export default function ProjectDetailsModal({ property, onClose }: Props) {
                     <span>Open FJ Landing Page</span>
                   </div>
                   <ExternalLink className="h-5 w-5 text-blue-600" />
+                </a>
+              )}
+              {property.gta_lowrise_landing_page && (
+                <a
+                  href={property.gta_lowrise_landing_page}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between px-6 py-4 md:py-3 bg-white border-2 border-orange-500 text-orange-700 rounded-xl md:rounded-lg hover:bg-orange-50 active:bg-orange-100 active:scale-[0.98] transition-all shadow-sm hover:shadow-md text-base md:text-sm font-semibold touch-manipulation"
+                >
+                  <div className="flex items-center">
+                    <div className="bg-orange-500 text-white rounded-lg p-2 mr-3">
+                      <span className="text-xs font-bold">GL</span>
+                    </div>
+                    <span>Open GTA Lowrise Page</span>
+                  </div>
+                  <ExternalLink className="h-5 w-5 text-orange-600" />
                 </a>
               )}
               {property.precon_factory_landing_page && (

@@ -42,6 +42,7 @@ interface Property extends PresentationProperty {
   website_url: string
   fj_landing_page: string
   precon_factory_landing_page: string
+  gta_lowrise_landing_page?: string
 }
 
 const BRAND_CONFIG: Record<Company, { label: string; gradient: string; primary: string; secondary: string; logo: string; textOnBg: string }> = {
@@ -713,6 +714,16 @@ export default function ProjectPresentationPage() {
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors"
                       >
                         <ExternalLink className="h-3.5 w-3.5" /> FJ Landing Page
+                      </a>
+                    )}
+                    {selectedProject.gta_lowrise_landing_page && (
+                      <a
+                        href={selectedProject.gta_lowrise_landing_page}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-semibold hover:bg-orange-600 transition-colors"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> GTA Lowrise Page
                       </a>
                     )}
                     {selectedProject.precon_factory_landing_page && (

@@ -24,6 +24,7 @@ interface Property {
   timestamp: string
   fj_landing_page: string
   precon_factory_landing_page: string
+  gta_lowrise_landing_page?: string
 }
 
 interface PropertiesTableProps {

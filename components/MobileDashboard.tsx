@@ -166,7 +166,7 @@ const MORE_SECTIONS = [
       { label: 'Upload Project', icon: UploadCloud, tint: '#5856D6', href: '/project-upload' },
       { label: 'Media Upload', icon: Image, tint: '#30B0C7', href: '/media-upload' },
       { label: 'Landing Page Editor', icon: Edit, tint: '#FF2D55', href: 'https://qikfill-landing-page-editor.vercel.app/', external: true },
-      { label: 'PDF Processor', icon: FileText, tint: '#AF52DE', href: 'https://pdfmanipulator.streamlit.app/', external: true },
+      { label: 'PDF Processor', icon: FileText, tint: '#AF52DE', href: 'https://pdf-processor-app-three.vercel.app/', external: true },
       { label: 'Email Creator', icon: Mailbox, tint: '#FF9500', href: 'https://email-creator-beta.vercel.app', external: true },
       { label: 'Mass SMS', icon: MessageSquare, tint: '#5856D6', href: 'https://sms-campaign-platform.vercel.app/', external: true },
       { label: 'Landing Page Sources', icon: Link2, tint: '#8E8E93', href: '/landing-page-sources' },

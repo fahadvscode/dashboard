@@ -75,6 +75,16 @@ interface LandingPageLead {
   form_location?: string
 }
 
+const GTA_LOWRISE_SOURCE: LandingPageSource = {
+  table_name: 'gta_lowrise_leads',
+  display_name: 'GTA Lowrise',
+  page_name: 'GTA Lowrise',
+  site_url: 'https://qikfill.com',
+  name_style: 'firstname',
+  enabled: true,
+  has_crm: true,
+}
+
 const CALL_OUTCOMES = [
   'Called – Left Voicemail',
   'Called – No Answer',
@@ -257,6 +267,9 @@ export default function LandingPagesLeads() {
       const sourcesRes = await fetch('/api/landing-page-sources?enabled=1')
       const sourcesJson = await sourcesRes.json()
       const enabledSources: LandingPageSource[] = sourcesJson.sources || []
+      if (!enabledSources.some((source) => source.table_name === GTA_LOWRISE_SOURCE.table_name)) {
+        enabledSources.push(GTA_LOWRISE_SOURCE)
+      }
       setSources(enabledSources)
 
       const combined: LandingPageLead[] = []
